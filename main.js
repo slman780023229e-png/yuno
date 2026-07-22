@@ -4,7 +4,7 @@ import makeWASocket, {
     DisconnectReason,
     fetchLatestBaileysVersion
 } from "@whiskeysockets/baileys";
-import { useFirebaseAuthState } from "./firebase-store.js"; // استدعاء ملف فايربيس الذي أنشأناه
+import { useFirebaseAuthState } from "./firebase-store.js";
 
 import pino from "pino";
 import chalk from "chalk";
@@ -50,9 +50,12 @@ async function startBot() {
 
         try {
             console.log(chalk.cyan("⌛ جاري تجهيز الربط..."));
-            await new Promise(resolve => setTimeout(resolve, 5000));
-            const code = await sock.requestPairingCode(phone);
-            console.log(`🔑 𝐂𝐎𝐃𝐄 : ${code}`);
+            await new Promise(resolve => setTimeout(resolve, 6000));
+            
+            if (!sock.authState.creds.registered) {
+                const code = await sock.requestPairingCode(phone);
+                console.log(`🔑 𝐂𝐎𝐃𝐄 : ${code}`);
+            }
         } catch (err) {
             console.log(chalk.red("❌ فشل كود الربط: " + err.message));
         }
