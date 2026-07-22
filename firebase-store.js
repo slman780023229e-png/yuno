@@ -1,7 +1,7 @@
-const { initializeApp } = require("firebase/app");
-const { getFirestore, doc, setDoc, getDoc } = require("firebase/firestore");
+import { initializeApp } from "firebase/app";
+import { getFirestore, doc, setDoc, getDoc } from "firebase/firestore";
 
-// بيانات مشروعك التي ظهرت في إعدادات فايربيس
+// بيانات مشروعك من فايربيس
 const firebaseConfig = {
   apiKey: "AIzaSyBssf8rHH4822YH1K_K_zCSHm...", // ضع مفتاحك الصحيح هنا
   authDomain: "yuon-accef.firebaseapp.com",
@@ -14,7 +14,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-const useFirebaseAuthState = async (sessionId = "bot_session") => {
+export const useFirebaseAuthState = async (sessionId = "bot_session") => {
   const docRef = doc(db, "whatsapp_sessions", sessionId);
 
   const readData = async () => {
@@ -77,5 +77,3 @@ const useFirebaseAuthState = async (sessionId = "bot_session") => {
     }
   };
 };
-
-module.exports = { useFirebaseAuthState };
