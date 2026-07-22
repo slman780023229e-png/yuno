@@ -8,7 +8,6 @@ import makeWASocket, {
 
 import pino from "pino";
 import chalk from "chalk";
-import readline from "readline";
 import fs from "fs-extra";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -49,35 +48,12 @@ process.on("uncaughtException", (err) => {
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-
-
-const ask = (text) => new Promise(resolve => {
-
-    const rl = readline.createInterface({
-        input: process.stdin,
-        output: process.stdout
-    });
-
-    rl.question(text, answer => {
-        rl.close();
-        resolve(answer);
-    });
-
-});
-
-
-
 const sleep = ms =>
 new Promise(resolve => setTimeout(resolve, ms));
 
-
-
-
 async function startBot() {
 
-
     console.clear();
-
 
     console.log(chalk.magenta(`
 ╭━━━━━━━━━━━━━━━━━━━━━━╮
@@ -86,30 +62,18 @@ async function startBot() {
 ╰━━━━━━━━━━━━━━━━━━━━━━╯
 `));
 
-
-
     const sessionDir = path.join(
         __dirname,
         "ملف_الاتصال"
     );
 
-
     await fs.ensureDir(sessionDir);
-
-
-
 
     const { state, saveCreds } =
     await useMultiFileAuthState(sessionDir);
 
-
-
-
     const { version } =
     await fetchLatestBaileysVersion();
-
-
-
 
     const sock = makeWASocket({
 
@@ -117,11 +81,9 @@ async function startBot() {
 
         auth: state,
 
-
         logger:pino({
             level:"silent"
         }),
-
 
         browser:[
             "MacOs",
@@ -129,68 +91,46 @@ async function startBot() {
             "1.0.0"
         ],
 
-
         markOnlineOnConnect:true,
-
 
         generateHighQualityLinkPreview:true,
 
-
         syncFullHistory:false
 
-
     });
-
-
-
-
 
     sock.ev.on(
         "creds.update",
         saveCreds
     );
 
-
-
-
-
     if(!state.creds.registered){
 
-
-console.log(
+        console.log(
 `
 ${chalk.hex("#00ffff")("╔══════════════════════════════════╗")}
 ${chalk.hex("#ff00ff")("║        𓆩 ❄ 𝐘𝐔𝐍𝐎 𝐒𝐘𝐒𝐓𝐄𝐌 ❄ 𓆪       ║")}
 ${chalk.hex("#ffff00")("╠══════════════════════════════════╣")}
 ${chalk.hex("#00ff88")("║        📱 𝐖𝐇𝐀𝐓𝐒𝐀𝐏𝐏 𝐋𝐈𝐍𝐊        ║")}
 ${chalk.hex("#00ffff")("╠══════════════════════════════════╣")}
-${chalk.hex("#ffffff")("║  ⚡ أدخل رقم واتسابك              ║")}
-${chalk.hex("#ffffff")("║  🌍 مع مفتاح الدولة               ║")}
-${chalk.hex("#ffffff")("║  🔐 لإنشاء رمز الاقتران           ║")}
+${chalk.hex("#ffffff")("║  ⚡ سحب الرقم من متغير البيئة     ║")}
+${chalk.hex("#ffffff")("║  🌍 لإنشاء رمز الاقتران تلقائياً  ║")}
 ${chalk.hex("#ff8800")("╚══════════════════════════════════╝")}
 
 ${chalk.hex("#00ff88")("        👑 𝐘𝐔𝐍𝐎 𝐁𝐎𝐓 👑")}
 `
 );
 
+        let phone = process.env.PHONE_NUMBER;
 
+        if (!phone) {
+            console.log(chalk.red("❌ خطأ: لم يتم العثور على رقم الهاتف في متغيرات البيئة (Environment Variables) في لوحة تحكم Render. يرجى إضافته باسم PHONE_NUMBER."));
+            return;
+        }
 
-
-        let phone =
-        await ask("> ");
-
-
-
-        phone =
-        phone.replace(
-            /[^0-9]/g,
-            ""
-        );
-
-
+        phone = phone.replace(/[^0-9]/g, "");
 
         try{
-
 
             console.log(
                 chalk.cyan(
@@ -198,16 +138,9 @@ ${chalk.hex("#00ff88")("        👑 𝐘𝐔𝐍𝐎 𝐁𝐎𝐓 👑")}
                 )
             );
 
-
-
             await sleep(5000);
 
-
-const code =
-            await sock.requestPairingCode(
-                phone
-            );
-
+            const code = await sock.requestPairingCode(phone);
 
             console.log(`
 ${chalk.cyan("╔════════════════════════════════════╗")}
@@ -229,8 +162,6 @@ ${chalk.yellow("║ اختر ربط جهاز وأدخل الكود          ║"
 ${chalk.cyan("╚════════════════════════════════════╝")}
 `);
 
-
-
             console.log(
                 chalk.green(
 `
@@ -242,10 +173,7 @@ ${chalk.cyan("╚═════════════════════
                 )
             );
 
-
-
         }catch(err){
-
 
             console.log(
                 chalk.red(
@@ -254,30 +182,20 @@ ${chalk.cyan("╚═════════════════════
                 )
             );
 
-
         }
 
-
     }
-
-
-
-
 
     sock.ev.on(
         "connection.update",
         async(update)=>{
-
 
         const {
             connection,
             lastDisconnect
         } = update;
 
-
-
         if(connection==="connecting"){
-
 
             console.log(
                 chalk.yellow(
@@ -285,12 +203,7 @@ ${chalk.cyan("╚═════════════════════
                 )
             );
 
-
         }
-
-
-
-
 
       if(connection === "open"){
 
@@ -306,7 +219,6 @@ const restartFile = path.join(
     "restart.json"
 );
 
-
 if(fs.existsSync(restartFile)){
 
     try{
@@ -317,7 +229,6 @@ if(fs.existsSync(restartFile)){
                 "utf8"
             )
         );
-
 
         if(Date.now() - info.time < 60000){
 
@@ -336,9 +247,7 @@ if(fs.existsSync(restartFile)){
 
         }
 
-
         fs.unlinkSync(restartFile);
-
 
     }catch(err){
 
@@ -373,18 +282,13 @@ if(fs.existsSync(restartFile)){
 
 }
 
-
-
 if(connection==="close"){
-
 
             const reason =
             lastDisconnect
             ?.error
             ?.output
             ?.statusCode;
-
-
 
             console.log(
                 chalk.red(
@@ -393,12 +297,9 @@ if(connection==="close"){
                 )
             );
 
-
-
             if(
             reason !== DisconnectReason.loggedOut
             ){
-
 
                 console.log(
                     chalk.yellow(
@@ -406,15 +307,12 @@ if(connection==="close"){
                     )
                 );
 
-
                 setTimeout(
                     startBot,
                     3000
                 );
 
-
             }else{
-
 
                 console.log(
                     chalk.red(
@@ -422,17 +320,11 @@ if(connection==="close"){
                     )
                 );
 
-
             }
-
 
         }
 
-
-
     });
-
-
 
     // ===============================
     // MESSAGE HANDLER
@@ -463,10 +355,6 @@ if(connection==="close"){
         }
     );
 
-
 }
-
-
-
 
 startBot();
