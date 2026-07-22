@@ -1,4 +1,4 @@
-Import { handleMessages } from "./utils/handler.js";
+import { handleMessages } from "./utils/handler.js";
 import { loadPlugins } from "./utils/loader.js";
 import makeWASocket, {
     useMultiFileAuthState,
@@ -66,10 +66,10 @@ async function startBot() {
     console.clear();
 
     console.log(chalk.magenta(`
-╭━━━━━━━━━━━━━━━━━━━━━━╮
-┃      𝐘𝐔𝐍𝐎 BOT
-┃      Starting...
-╰━━━━━━━━━━━━━━━━━━━━━━╯
+╔════════════════════════════════════╗
+║             𝐘𝐔𝐍𝐎 BOT             ║
+║           Starting...              ║
+╚════════════════════════════════════╝
 `));
 
     const sessionDir = path.join(
@@ -96,9 +96,9 @@ async function startBot() {
         }),
 
         browser:[
-            "MacOs",
+            "Ubuntu",
             "Chrome",
-            "1.0.0"
+            "20.04.0"
         ],
 
         markOnlineOnConnect:true,
@@ -118,16 +118,16 @@ async function startBot() {
 
         console.log(
 `
-${chalk.hex("#00ffff")("╔══════════════════════════════════╗")}
-${chalk.hex("#ff00ff")("║        𓆩 ❄ 𝐘𝐔𝐍𝐎 𝐒𝐘𝐒𝐓𝐄𝐌 ❄ 𓆪       ║")}
-${chalk.hex("#ffff00")("╠══════════════════════════════════╣")}
-${chalk.hex("#00ff88")("║        📱 𝐖𝐇𝐀𝐓𝐒𝐀𝐏𝐏 𝐋𝐈𝐍𝐊        ║")}
-${chalk.hex("#00ffff")("╠══════════════════════════════════╣")}
-${chalk.hex("#ffffff")("║  ⚡ استخدام الرقم المدمج          ║")}
-${chalk.hex("#ffffff")("║  🌍 لإنشاء رمز الاقتران تلقائياً  ║")}
-${chalk.hex("#ff8800")("╚══════════════════════════════════╝")}
+${chalk.hex("#00ffff")("╔════════════════════════════════════╗")}
+${chalk.hex("#ff00ff")("║        𓆩 ❄ 𝐘𝐔𝐍𝐎 𝐒𝐘𝐒𝐓𝐄𝐌 ❄ 𓆪        ║")}
+${chalk.hex("#ffff00")("╠════════════════════════════════════╣")}
+${chalk.hex("#00ff88")("║        📱 𝐖𝐇𝐀𝐓𝐒𝐀𝐏𝐏 𝐋𝐈𝐍𝐊         ║")}
+${chalk.hex("#00ffff")("╠════════════════════════════════════╣")}
+${chalk.hex("#ffffff")("║  ⚡ استخدام الرقم المدمج           ║")}
+${chalk.hex("#ffffff")("║  🌍 لإنشاء رمز الاقتران تلقائياً   ║")}
+${chalk.hex("#ff8800")("╚════════════════════════════════════╝")}
 
-${chalk.hex("#00ff88")("        👑 𝐘𝐔𝐍𝐎 𝐁𝐎𝐓 👑")}
+${chalk.hex("#00ff88")("         👑 𝐘𝐔𝐍𝐎 𝐁𝐎𝐓 👑")}
 `
 );
 
@@ -150,7 +150,7 @@ ${chalk.hex("#00ff88")("        👑 𝐘𝐔𝐍𝐎 𝐁𝐎𝐓 👑")}
             console.log(`
 ${chalk.cyan("╔════════════════════════════════════╗")}
 ${chalk.blue("║                                    ║")}
-${chalk.green("║        🔗 𝐘𝐔𝐍𝐎 𝐏𝐀𝐈𝐑𝐈𝐍𝐆 🔗       ║")}
+${chalk.green("║        🔗 𝐘𝐔𝐍𝐎 𝐏𝐀𝐈𝐑𝐈𝐍𝐆 🔗        ║")}
 ${chalk.blue("║                                    ║")}
 ${chalk.cyan("╠════════════════════════════════════╣")}
 ${chalk.white("║                                    ║")}
@@ -158,22 +158,22 @@ ${chalk.yellow("║ 📱 𝐍𝐔𝐌𝐁𝐄𝐑 : ")}${chalk.bold.white(phone)
 ${chalk.white("║                                    ║")}
 ${chalk.green("║ 🔑 𝐂𝐎𝐃𝐄   : ")}${chalk.bold.green(code)}
 ${chalk.white("║                                    ║")}
-${chalk.magenta("║ ⚡ 𝐒𝐓𝐀𝐓𝐔𝐒 : WAITING             ║")}
-${chalk.red("║ 🛡️ 𝐒𝐄𝐂𝐔𝐑𝐈𝐓𝐘 : PROTECTED        ║")}
+${chalk.magenta("║ ⚡ 𝐒𝐓𝐀𝐓𝐔𝐒 : WAITING              ║")}
+${chalk.red("║ 🛡️ 𝐒𝐄𝐂𝐔𝐑𝐈𝐓𝐘 : PROTECTED         ║")}
 ${chalk.white("║                                    ║")}
 ${chalk.cyan("╠════════════════════════════════════╣")}
-${chalk.yellow("║ WhatsApp > الأجهزة المرتبطة        ║")}
-${chalk.yellow("║ اختر ربط جهاز وأدخل الكود          ║")}
+${chalk.yellow("║ WhatsApp > الأجهزة المرتبطة         ║")}
+${chalk.yellow("║ اختر ربط جهاز وأدخل الكود           ║")}
 ${chalk.cyan("╚════════════════════════════════════╝")}
 `);
 
             console.log(
                 chalk.green(
 `
-╭━━━━━━━━━━━━━━━━━━━━━━━━━━╮
-┃ ✅ 𝐘𝐔𝐍𝐎 𝐂𝐎𝐑𝐄 𝐑𝐄𝐀𝐃𝐘
-┃ 🔗 بانتظار تأكيد الربط
-╰━━━━━━━━━━━━━━━━━━━━━━━━━━╯
+╔════════════════════════════════════╗
+║ ✅ 𝐘𝐔𝐍𝐎 𝐂𝐎𝐑𝐄 𝐑𝐄𝐀𝐃𝐘               ║
+║ 🔗 بانتظار تأكيد الربط             ║
+╚════════════════════════════════════╝
 `
                 )
             );
@@ -213,10 +213,10 @@ ${chalk.cyan("╚═════════════════════
       if(connection === "open"){
 
     console.log(chalk.green(`
-╭━━━━━━━━━━━━━━━━━━━━━━╮
-┃   𝐘𝐔𝐍𝐎 ONLINE ✅
-┃   Connected
-╰━━━━━━━━━━━━━━━━━━━━━━╯
+╔════════════════════════════════════╗
+║   𝐘𝐔𝐍𝐎 ONLINE ✅                   ║
+║   Connected                        ║
+╚════════════════════════════════════╝
 `));
 const restartFile = path.join(
     process.cwd(),
@@ -241,12 +241,12 @@ if(fs.existsSync(restartFile)){
                 info.jid,
                 {
                     text:
-`╭━━━━━━━━━━━━━━╮
-┃ ✅ تم التشغيل
-┣━━━━━━━━━━━━━━┫
-┃ 👑 𝐘𝐔𝐍𝐎 ONLINE
-┃ 🚀 تمت إعادة تشغيل البوت بنجاح
-╰━━━━━━━━━━━━━━╯`
+`╔══════════════╗
+║ ✅ تم التشغيل
+╠══════════════╣
+║ 👑 𝐘𝐔𝐍𝐎 ONLINE
+║ 🚀 تمت إعادة تشغيل البوت بنجاح
+╚══════════════╝`
                 }
             );
 
@@ -363,4 +363,3 @@ if(connection==="close"){
 }
 
 startBot();
- 
