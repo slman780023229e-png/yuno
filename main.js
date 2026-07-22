@@ -4,8 +4,7 @@ import makeWASocket, {
     DisconnectReason,
     fetchLatestBaileysVersion
 } from "@whiskeysockets/baileys";
-import { MongoClient } from "mongodb";
-import { useMongoDBAuthState } from "baileys-mongodb"; // أو حفظ الجلسة السحابي
+import { useFirebaseAuthState } from "./firebase-store.js"; // استدعاء ملف فايربيس الذي أنشأناه
 
 import pino from "pino";
 import chalk from "chalk";
@@ -19,24 +18,17 @@ const PORT = process.env.PORT || 3000;
 app.get("/", (req, res) => res.send("YUNO BOT IS ONLINE!"));
 app.listen(PORT, () => console.log(`🌐 Server listening on port ${PORT}`));
 
-// ضع رابط مونغودي الخاص بك هنا (أو عبر Environment Variables في Render)
-const MONGO_URI = process.env.MONGO_URI || "رابط_مونغودي_هنا";
-const COLLECTION_NAME = "yuno_session";
-
 async function startBot() {
     console.clear();
     console.log(chalk.magenta(`
 ╔════════════════════════════════════╗
 ║             𝐘𝐔𝐍𝐎 BOT             ║
-║     Connecting via MongoDB...      ║
+║     Connecting via Firebase...     ║
 ╚════════════════════════════════════╝
 `));
 
-    // الاتصال بقاعدة بيانات مونغودي لحفظ الجلسة سحابياً
-    const mongoClient = new MongoClient(MONGO_URI);
-    await mongoClient.connect();
-    const db = mongoClient.db("YunoBotDB");
-    const { state, saveCreds } = await useMongoDBAuthState(db.collection(COLLECTION_NAME));
+    // ربط الجلسة بقاعدة بيانات فايربيس سحابياً
+    const { state, saveCreds } = await useFirebaseAuthState("yuno_session");
 
     const { version } = await fetchLatestBaileysVersion();
 
@@ -70,7 +62,7 @@ async function startBot() {
         const { connection, lastDisconnect } = update;
 
         if (connection === "open") {
-            console.log(chalk.green("✅ 𝐘𝐔𝐍𝐎 ONLINE & Connected to MongoDB!"));
+            console.log(chalk.green("✅ 𝐘𝐔𝐍𝐎 ONLINE & Connected to Firebase!"));
             try {
                 await loadPlugins(sock);
             } catch (err) {
@@ -86,7 +78,7 @@ async function startBot() {
                 console.log(chalk.yellow("🔄 إعادة الاتصال..."));
                 setTimeout(startBot, 3000);
             } else {
-                console.log(chalk.red("تم تسجيل الخروج من الحساب، يلزم مسح قاعدة البيانات للربط من جديد."));
+                console.log(chalk.red("تم تسجيل الخروج من الحساب، يلزم مسح بيانات فايربيس للربط من جديد."));
             }
         }
     });
