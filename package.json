@@ -4,7 +4,7 @@
   "type": "module",
   "main": "start.js",
   "scripts": {
-    "start": "node start.js"
+    "start": "node --max-old-space-size=512 start.js"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
