@@ -11,6 +11,16 @@ import chalk from "chalk";
 import fs from "fs-extra";
 import path from "path";
 import { fileURLToPath } from "url";
+import express from "express";
+
+// ================================
+// 🌐 RENDER KEEP-ALIVE SERVER
+// ================================
+const app = express();
+const PORT = process.env.PORT || 3000;
+app.get("/", (req, res) => res.send("YUNO BOT IS ONLINE!"));
+app.listen(PORT, () => console.log(`🌐 Server listening on port ${PORT}`));
+
 // ================================
 // 🕒 YUNO LIVE CLOCK
 // ================================
@@ -121,7 +131,6 @@ ${chalk.hex("#00ff88")("        👑 𝐘𝐔𝐍𝐎 𝐁𝐎𝐓 👑")}
 `
 );
 
-        // الرقم مدمج هنا مباشرة بدون تعقيد
         let phone = "967715795639";
 
         phone = phone.replace(/[^0-9]/g, "");
