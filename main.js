@@ -96,9 +96,9 @@ async function startBot() {
         }),
 
         browser:[
-            "MacOs",
+            "Ubuntu",
             "Chrome",
-            "1.0.0"
+            "20.04.0"
         ],
 
         markOnlineOnConnect:true,
