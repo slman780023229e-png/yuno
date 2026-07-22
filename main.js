@@ -1,4 +1,4 @@
-import { handleMessages } from "./utils/handler.js";
+Import { handleMessages } from "./utils/handler.js";
 import { loadPlugins } from "./utils/loader.js";
 import makeWASocket, {
     useMultiFileAuthState,
@@ -96,9 +96,9 @@ async function startBot() {
         }),
 
         browser:[
-            "Ubuntu",
+            "MacOs",
             "Chrome",
-            "20.04.0"
+            "1.0.0"
         ],
 
         markOnlineOnConnect:true,
@@ -363,3 +363,4 @@ if(connection==="close"){
 }
 
 startBot();
+ 
