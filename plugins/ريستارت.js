@@ -1,7 +1,5 @@
 import fs from "fs";
 import path from "path";
-import { exec } from "child_process";
-
 
 export default {
 
@@ -9,10 +7,10 @@ export default {
 
     category: "النظام",
 
-    description: "إعادة تشغيل البوت",
+    description: "إعادة تشغيل البوت على منصة Render",
 
 
-    execute: async(sock,msg,data)=>{
+    execute: async(sock, msg, data)=>{
 
 
         // ==========================
@@ -148,8 +146,8 @@ export default {
         fs.writeFileSync(
             restartFile,
             JSON.stringify({
-                jid:data.jid,
-                time:Date.now()
+                jid: data.jid,
+                time: Date.now()
             })
         );
 
@@ -169,13 +167,16 @@ export default {
 
 
 
+        // ==========================
+        // إعادة التشغيل على Render
+        // ==========================
+
         setTimeout(()=>{
 
-            exec(
-                "pm2 restart yuno"
-            );
+            // إيقاف العملية بإجبار Render على إعادة تشغيل الخدمة تلقائياً
+            process.exit(0);
 
-        },2000);
+        }, 2000);
 
 
 
