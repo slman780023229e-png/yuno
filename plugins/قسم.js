@@ -76,6 +76,23 @@ export default {
 
         const mention = sender.split("@")[0];
 
+        // إعدادات القناة (Newsletter / Channel Forwarding)
+        const newsletterConfig = {
+            forwardingScore: 999,
+            isForwarded: true,
+            forwardedNewsletterMessageInfo: {
+                newsletterJid: '120363410672713016@newsletter',
+                newsletterName: 'ARTHUR BOT',
+                serverMessageId: -1
+            }
+        };
+
+        // دمج إعدادات القناة مع المنشن
+        const context = {
+            ...newsletterConfig,
+            mentionedJid: [sender]
+        };
+
         const react = async (emoji) => {
             try {
                 await sock.sendMessage(
@@ -104,7 +121,7 @@ export default {
             return null;
         };
 
-        // رموز الأقسام الذكية
+        // رموز الأقسام الذكية (مع إضافة الأقسام الجديدة مثل الدين، الأغاني، الخطبة والزواج، إلخ)
         const getIcon = (name) => {
 
             const n = name
@@ -115,6 +132,7 @@ export default {
 
             const icons = {
                 "ادار": "⚙️",
+                "المطور": "👑",
                 "مطور": "👑",
                 "dev": "👑",
                 "ادوات": "🛠️",
@@ -140,7 +158,18 @@ export default {
                 "بنك": "🏦",
                 "bank": "🏦",
                 "rpg": "⚔️",
-                "قتال": "⚔️"
+                "قتال": "⚔️",
+                "الدين": "🕌",
+                "دين": "🕌",
+                "اسلامي": "🕌",
+                "الاغاني": "🎵",
+                "اغاني": "🎵",
+                "صوتيات": "🎵",
+                "زواج": "💍",
+                "غزل": "💍",
+                "خطبه": "💍",
+                "الفديوهات": "🎬",
+                "فيديو": "🎬"
             };
 
             for (const key in icons) {
@@ -161,13 +190,13 @@ export default {
             await react("👑");
 
             let menu =
-`━╼╃⌬〔 👑𝐘𝐔𝐍𝐎 𝐁𝐎𝐓 〕⌬╄╾━
+`━╼╃⌬〔 👑𝐀𝐑𝐓𝐇𝐔𝐑 𝐁𝐎𝐓 〕⌬╄╾━
 *┤━━━━━━━━━━━━━━···*
 *┤✧ مرحباً بك @${mention} 👋✧*
-*┤✧ نظام YUNO جاهز للعمل*
+*┤✧ نظام ARTHUR جاهز للعمل*
 *┤━━━━━━━━━━━━━━···*
-*┤ 🤖┊الإسم : 𝐘𝐔𝐍𝐎 ❄*
-*┤ 👑┊المالك : YUNO*
+*┤ 🤖┊الإسم : 𝐀𝐑𝐓𝐇𝐔𝐑 ❄*
+*┤ 👑┊المالك : ARTHUR*
 *┤ ⚡┊الحالة : ONLINE*
 *┤ ⏱┊العمل : ${uptimeFormatted}*
 *┤ 📦┊الإصدار : 1.0.0*
@@ -190,7 +219,7 @@ export default {
 `
 *┤━━━━━━━━━━━━━━···*
 *⋅ ───━ • ﹝❄ 𖤍 ❄﹞ • ━─── ⋅*
-*┇ 𓆩 ⚜ 𝐘𝐔𝐍𝐎 𝐒𝐘𝐒𝐓𝐄𝐌 ⚜ 𓆪 👑*`;
+*┇ 𓆩 ⚜ 𝐀𝐑𝐓𝐇𝐔𝐑 𝐒𝐘𝐒𝐓𝐄𝐌 ⚜ 𓆪 👑*`;
 
             const imagePath = getRandomImage();
 
@@ -200,16 +229,18 @@ export default {
                     {
                         image: { url: imagePath },
                         caption: menu,
-                        mentions: [sender]
-                    }
+                        contextInfo: context
+                    },
+                    { quoted: msg }
                 );
             } else {
                 return sock.sendMessage(
                     data.jid,
                     {
                         text: menu,
-                        mentions: [sender]
-                    }
+                        contextInfo: context
+                    },
+                    { quoted: msg }
                 );
             }
 
@@ -234,8 +265,10 @@ export default {
 `*╭━━〔 ❌ خطأ 〕━━╮*
 *┤ القسم غير موجود*
 *┤ استخدم .ق*
-*╰━━━━━━━━━━━━╯*`
-                }
+*╰━━━━━━━━━━━━╯*`,
+                    contextInfo: context
+                },
+                { quoted: msg }
             );
 
         }
@@ -245,7 +278,7 @@ export default {
         await react(getIcon(category));
 
         let text =
-`━━━╼╃⌬〔  👑𝐘𝐔𝐍𝐎 👑 〕⌬╄╾━━━
+`━━━╼╃⌬〔  👑𝐀𝐑𝐓𝐇𝐔𝐑 👑 〕⌬╄━━━
 *✧━━━〔 ${getIcon(category)} قسم ${category} 〕━━━✧*
 
 `;
@@ -262,7 +295,7 @@ export default {
 `
 *┤━━━━━━━━━━━━━━···*
 *⋅ ───━ • ﹝❄ 𖤍 ❄﹞ • ━─── ⋅*
-*┇ 𓆩 ⚜ 𝐘𝐔𝐍𝐎 𝐁𝐎𝐓 ⚜ 𓆪 👑*`;
+*┇ 𓆩 ⚜ 𝐀𝐑𝐓𝐇𝐔𝐑 𝐁𝐎𝐓 ⚜ 𓆪 👑*`;
 
         const imagePath = getRandomImage();
 
@@ -272,16 +305,18 @@ export default {
                 {
                     image: { url: imagePath },
                     caption: text,
-                    mentions: [sender]
-                }
+                    contextInfo: context
+                },
+                { quoted: msg }
             );
         } else {
             return sock.sendMessage(
                 data.jid,
                 {
                     text,
-                    mentions: [sender]
-                }
+                    contextInfo: context
+                },
+                { quoted: msg }
             );
         }
 
