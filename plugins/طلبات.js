@@ -1,258 +1,151 @@
 import fs from "fs-extra";
 import path from "path";
 
-const requestsFile = path.join(
-    process.cwd(),
-    "data/الطلبات.json"
-);
-
 const eliteFile = path.join(
     process.cwd(),
     "data/النخبة.json"
 );
 
-function getRequests(){
-    if(!fs.existsSync(requestsFile)){
-        fs.writeFileSync(
-            requestsFile,
-            JSON.stringify([], null, 2)
-        );
-    }
-    return JSON.parse(
-        fs.readFileSync(
-            requestsFile,
-            "utf-8"
-        )
-    );
-}
-
-function saveRequests(data){
-    fs.writeFileSync(
-        requestsFile,
-        JSON.stringify(
-            data,
-            null,
-            2
-        )
-    );
-}
-
 function getElite(){
     if(!fs.existsSync(eliteFile)){
+        fs.ensureDirSync(path.dirname(eliteFile));
         fs.writeFileSync(
             eliteFile,
             JSON.stringify([], null, 2)
         );
+        return [];
     }
-    return JSON.parse(
-        fs.readFileSync(
-            eliteFile,
-            "utf-8"
-        )
-    );
+    try {
+        const rawData = fs.readFileSync(eliteFile, "utf-8").trim();
+        if (!rawData) return [];
+        const parsed = JSON.parse(rawData);
+        return Array.isArray(parsed) ? parsed : [];
+    } catch (e) {
+        return [];
+    }
 }
 
 export default {
 
     command: "طلبات",
 
-    category: "النخبه",
+    category: "المجموعات",
 
-    description: "إدارة طلبات الانضمام أو اللقب لأعضاء النخبة 📋",
+    description: "قبول طلبات الانضمام المعلقة للمجموعة تلقائياً 📋",
 
     execute: async(sock, msg, data)=>{
 
         const jid = data.jid;
 
         const head =
-`*╭━━━〔 📋 إِدَارَةُ اَلطَّلَبَات 〕━━━╮*
-*┃ 📋 نظام الطلبات والقبول*
-*╰━━━━━━━━━━━━━━━━━━━━━━╯*`;
+`*╭━━━━━━━━━━━━━━╮*
+*┃ 👑 𝐀𝐑𝐓𝐇𝐔R LEYWIN*
+*┣━━━━━━━━━━━━━━┫*
+*┃ 📋 قَبُولُ اَلطَّلَبَات*
+*╰━━━━━━━━━━━━━━╯*`;
 
-        // التحقق من صلاحية أعضاء النخبة
+        if (!jid.endsWith("@g.us")) {
+            return sock.sendMessage(
+                jid,
+                {
+                    text:
+`${head}
+*┃ ❌ خطأ*
+*┣━━━━━━━━━━━━━━┫*
+*┃ ❌ الأمر للمجموعات فقط*
+*╰━━━━━━━━━━━━━━╯*`
+                },
+                { quoted: msg }
+            );
+        }
+
+        // التحقق من صلاحية أعضاء النخبة أو المشرفين
         const eliteUsers = getElite();
-        const senderNumber = data.sender.split("@")[0];
+        const sender = (data.sender || msg.key.participant || msg.key.remoteJid).split("@")[0].replace(/\D/g, "");
 
-        if(!eliteUsers.includes(senderNumber)){
+        const metadata = await sock.groupMetadata(jid);
+        const participants = metadata.participants;
+        const senderParticipant = participants.find(p => p.id.replace(/\D/g, "") === sender);
+        const isSenderAdmin = senderParticipant?.admin === "admin" || senderParticipant?.admin === "superadmin";
+        const isElite = eliteUsers.includes(sender);
+
+        if(!isElite && !isSenderAdmin){
             return sock.sendMessage(
                 jid,
                 {
                     text:
 `${head}
-
+*┃ ❌ تنبيه الصلاحية*
+*┣━━━━━━━━━━━━━━┫*
 *┃ ❌ ليس لديك صلاحية*
-*┃ 👑 الأمر خاص بأعضاء النخبه فقط*
-*╰━━━━━━━━━━━━━━━━━━━━━━╯*`
-                }
+*┃ 👑 الأمر خاص بأعضاء النخبة والمشرفين فقط*
+*╰━━━━━━━━━━━━━━╯*`
+                },
+                { quoted: msg }
             );
         }
 
-        const args =
-        data.text.trim().split(/\s+/);
+        try {
+            await sock.sendMessage(jid, { react: { text: "⏳", key: msg.key } });
 
-        const action = args[1]; // عرض، قبول، رفض
-        const subAction = args[2]; // الرقم أو "الكل"
+            // جلب طلبات الانضمام المعلقة للمجموعة مباشرة من واتساب
+            const pendingRequests = await sock.groupRequestParticipantsList(jid);
 
-        // عرض الطلبات
-        if(action === "عرض"){
-
-            const requests = getRequests();
-
-            if(requests.length === 0){
+            if (!pendingRequests || pendingRequests.length === 0) {
                 return sock.sendMessage(
                     jid,
                     {
                         text:
 `${head}
-
-*┃ 📭 لا توجد طلبات معلقة*
+*┃ 📭 قائمة الطلبات*
+*┣━━━━━━━━━━━━━━┫*
+*┃ 📭 لا توجد طلبات انضمام معلقة*
 *┃ 👥 العدد : 0*
-*╰━━━━━━━━━━━━━━━━━━━━━━╯*`
-                    }
+*╰━━━━━━━━━━━━━━╯*`
+                    },
+                    { quoted: msg }
                 );
             }
 
-            let list =
-            requests.map(
-                (req, i)=>
-`*┃ ${i+1} 👤 @${req.number}*
-*┃ 📌 الطلب : ${req.content || "بدون تفاصيل"}*
-*┣━━━━━━━━━━━━━━━━━━━━━━┫*`
-            ).join("\n");
+            // استخراج معرفات الأعضاء الذين طلبوا الانضمام
+            const userJids = pendingRequests.map(req => req.jid || req.id);
 
+            // قبول جميع الطلبات المعلقة دفعة واحدة
+            await sock.groupRequestParticipantsUpdate(jid, userJids, "approve");
+
+            await sock.sendMessage(
+                jid,
+                {
+                    text:
+`${head}
+*┃ ✅ نجاح العمليات*
+*┣━━━━━━━━━━━━━━┫*
+*┃ ✅ تم قبول جميع طلبات*
+*┃ الانضمام المعلقة بنجاح*
+*┃ 👥 العدد المقبول : ${userJids.length}*
+*╰━━━━━━━━━━━━━━╯*`
+                },
+                { quoted: msg }
+            );
+
+            await sock.sendMessage(jid, { react: { text: "✅", key: msg.key } });
+
+        } catch (err) {
+            console.error("Approve Requests Error:", err);
             return sock.sendMessage(
                 jid,
                 {
                     text:
 `${head}
-
-*┃ 📜 قائمة الطلبات المعلقة*
-*┣━━━━━━━━━━━━━━━━━━━━━━┫*
-${list}
-*┃ 👥 إجمالي الطلبات : ${requests.length}*
-*╰━━━━━━━━━━━━━━━━━━━━━━╯*`,
-
-                    mentions:
-                    requests.map(
-                        req => req.number + "@s.whatsapp.net"
-                    )
-                }
+*┃ ❌ خطأ*
+*┣━━━━━━━━━━━━━━┫*
+*┃ ❌ حدث خطأ أثناء قبول الطلبات*
+*┃ ⚠️ تأكد أن البوت مشرف وأن خاصية الموافقة مفعمة*
+*╰━━━━━━━━━━━━━━╯*`
+                },
+                { quoted: msg }
             );
-
         }
-
-        // قبول أو رفض طلب
-        if(action === "قبول" || action === "رفض"){
-
-            let requests = getRequests();
-
-            if(requests.length === 0){
-                return sock.sendMessage(
-                    jid,
-                    {
-                        text:
-`${head}
-
-*┃ ⚠️ لا توجد طلبات لإدارتها*
-*╰━━━━━━━━━━━━━━━━━━━━━━╯*`
-                    }
-                );
-            }
-
-            // إذا كتب "الكل"
-            if(subAction === "الكل"){
-                
-                if(action === "قبول"){
-                    saveRequests([]);
-                    return sock.sendMessage(
-                        jid,
-                        {
-                            text:
-`${head}
-
-*┃ ✅ تم قبول جميع الطلبات بنجاح*
-*┃ 👥 العدد المقبول : ${requests.length}*
-*╰━━━━━━━━━━━━━━━━━━━━━━╯*`
-                        }
-                    );
-                } else {
-                    saveRequests([]);
-                    return sock.sendMessage(
-                        jid,
-                        {
-                            text:
-`${head}
-
-*┃ ❌ تم رفض وتهيئة جميع الطلبات*
-*╰━━━━━━━━━━━━━━━━━━━━━━╯*`
-                        }
-                    );
-                }
-
-            }
-
-            // إذا كتب رقم الطلب (مثلاً: طلبات قبول 1)
-            const index = parseInt(subAction) - 1;
-
-            if(isNaN(index) || !requests[index]){
-                return sock.sendMessage(
-                    jid,
-                    {
-                        text:
-`${head}
-
-*┃ ❌ رقم الطلب غير صحيح*
-*┃ استخدم: .طلبات عرض لمعرفة الأرقام*
-*╰━━━━━━━━━━━━━━━━━━━━━━╯*`
-                    }
-                );
-            }
-
-            const targetRequest = requests[index];
-
-            // حذف الطلب المحدد من القائمة
-            requests.splice(index, 1);
-            saveRequests(requests);
-
-            const statusText = action === "قبول" ? "✅ تم قبول الطلب بنجاح" : "❌ تم رفض الطلب";
-
-            return sock.sendMessage(
-                jid,
-                {
-                    text:
-`${head}
-
-*┃ ${statusText}*
-*┃*
-*┃ 👤 العضو : @${targetRequest.number}*
-*┃ 📋 الطلب : ${targetRequest.content || "بدون تفاصيل"}*
-*┃ 👥 المتبقي : ${requests.length}*
-*╰━━━━━━━━━━━━━━━━━━━━━━╯*`,
-
-                    mentions: [targetRequest.number + "@s.whatsapp.net"]
-                }
-            );
-
-        }
-
-        // واجهة المساعدة للأمر
-        return sock.sendMessage(
-            jid,
-            {
-                text:
-`${head}
-
-*┃ ⚜️ أوامر الطلبات (خاص بالنخبة):*
-*┃*
-*┃ 📋 .طلبات عرض*
-*┃ ✅ .طلبات قبول [رقم الطلب أو الكل]*
-*┃ ❌ .طلبات رفض [رقم الطلب أو الكل]*
-*┃*
-*┃ 📖 الوصف :*
-*┃ إدارة طلبات الأعضاء بسهولة*
-*╰━━━━━━━━━━━━━━━━━━━━━━╯*`
-            }
-        );
 
     }
 
