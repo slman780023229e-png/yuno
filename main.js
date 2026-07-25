@@ -115,7 +115,7 @@ ${chalk.yellow("║ اختر ربط جهاز وأدخل الكود          ║"
 ${chalk.cyan("╚════════════════════════════════════╝")}
 `);
 
-            console.log(chalk.green("╭━━━━━━━━━━━━━━━━━━━━━━━━━━╮\n┃ ✅ 𝐘𝐔𝐍𝐎 𝐂𝐎𝐑𝐄 𝐑𝐄𝐀𝐃𝐘   ┃\n┃ 🔗 بانتظار تأكيد الربط   ┃\n╰━━━━━━━━━━━━━━━━━━━━━━━━━━╯"));
+            console.log(chalk.green("╭━━━━━━━━━━━━━━━━━━━━━━━━━━╮\n┃ ✅ 𝐘𝐔𝐍𝐎 C𝐎𝐑𝐄 𝐑𝐄𝐀𝐃𝐘   ┃\n┃ 🔗 بانتظار تأكيد الربط   ┃\n╰━━━━━━━━━━━━━━━━━━━━━━━━━━╯"));
 
         } catch (err) {  
             console.log(chalk.red("❌ فشل كود الربط: " + err.message));  
@@ -187,6 +187,33 @@ ${chalk.cyan("╚═════════════════════
             console.log(chalk.red("❌ خطأ استقبال الرسالة: " + err.message));  
         }  
     });
+
+    // ===============================
+    // 👥 GROUP EVENTS FOR ALL PLUGINS
+    // ===============================
+
+    sock.ev.on(
+        "group-participants.update",
+        async (update) => {
+            try {
+                const plugins = await loadPlugins();
+
+                for (const plugin of plugins) {
+                    if (plugin.onGroupParticipantsUpdate) {
+                        await plugin.onGroupParticipantsUpdate(
+                            sock,
+                            update
+                        );
+                    }
+                }
+            } catch (e) {
+                console.log(
+                    "Group Participants Update Error:",
+                    e.message
+                );
+            }
+        }
+    );
 }
 
 startBot();
