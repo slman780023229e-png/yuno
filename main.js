@@ -155,9 +155,19 @@ ${chalk.cyan("╚═════════════════════
                 }
             }
 
-            try {  
-                await loadPlugins(sock);  
-                console.log(chalk.green("✅ تم تحميل البلجنات بنجاح"));  
+            try {
+                const plugins = await loadPlugins(sock);
+                console.log(chalk.green("✅ تم تحميل البلجنات بنجاح"));
+
+                for (const plugin of plugins) {
+                    if (typeof plugin.initJoinListener === "function") {
+                        try {
+                            plugin.initJoinListener(sock);
+                        } catch (e) {
+                            console.log("Join Listener Error:", e.message);
+                        }
+                    }
+                }
             } catch (err) {  
                 console.log(chalk.red("❌ خطأ تحميل البلجنات: " + err.message));  
             }
