@@ -156,18 +156,8 @@ ${chalk.cyan("╚═════════════════════
             }
 
             try {
-                const plugins = await loadPlugins(sock);
+                await loadPlugins(sock);
                 console.log(chalk.green("✅ تم تحميل البلجنات بنجاح"));
-
-                for (const plugin of plugins) {
-                    if (typeof plugin.initJoinListener === "function") {
-                        try {
-                            plugin.initJoinListener(sock);
-                        } catch (e) {
-                            console.log("Join Listener Error:", e.message);
-                        }
-                    }
-                }
             } catch (err) {  
                 console.log(chalk.red("❌ خطأ تحميل البلجنات: " + err.message));  
             }
@@ -206,7 +196,7 @@ ${chalk.cyan("╚═════════════════════
         "group-participants.update",
         async (update) => {
             try {
-                const plugins = await loadPlugins();
+                const plugins = await loadPlugins(sock);
 
                 for (const plugin of plugins) {
                     if (plugin.onGroupParticipantsUpdate) {
@@ -224,6 +214,27 @@ ${chalk.cyan("╚═════════════════════
             }
         }
     );
+
+    // ===============================
+    // 🔗 GROUP JOIN REQUESTS EVENT (لضمان عمل نظام الطلبات بلا توقف)
+    // ===============================
+
+    sock.ev.on("group.join-request", async (update) => {
+        try {
+            const plugins = await loadPlugins(sock);
+
+            for (const plugin of plugins) {
+                if (typeof plugin.onGroupJoinRequest === "function") {
+                    await plugin.onGroupJoinRequest(sock, update);
+                }
+            }
+        } catch (e) {
+            console.log(
+                "Group Join Request Error:",
+                e.message
+            );
+        }
+    });
 }
 
 startBot();
