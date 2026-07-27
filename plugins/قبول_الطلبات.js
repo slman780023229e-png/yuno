@@ -30,59 +30,7 @@ function saveState(data) {
     fs.writeFileSync(stateFile, JSON.stringify(data, null, 2));
 }
 
-let listenerStarted = false;
 const processedRequests = new Set();
-
-export function initJoinListener(sock) {
-    if (listenerStarted) return;
-    listenerStarted = true;
-
-    sock.ev.on("group.join-request", async (update) => {
-        try {
-            const db = loadState();
-            const jid = update.id;
-            if (!db[jid]?.active) return;
-
-            const user = update.participant || update.author;
-            if (!user) return;
-
-            const uniqueKey = `${jid}_${user}`;
-            if (processedRequests.has(uniqueKey)) return;
-            processedRequests.add(uniqueKey);
-            setTimeout(() => processedRequests.delete(uniqueKey), 30000);
-
-            const registeredData = getRegisteredUserData(user);
-
-            if (registeredData) {
-                await approveRequest(sock, jid, user);
-                await sendWelcome(sock, jid, user, registeredData);
-            } else {
-                // تركه معلقاً دون رفض، ومنشن المشرفين للتنبيه
-                await notifyAdminsAboutUnregistered(sock, jid, user);
-            }
-
-        } catch (e) {}
-    });
-
-    sock.ev.on("group-participants.update", async (update) => {
-        try {
-            const db = loadState();
-            const jid = update.id;
-            if (!db[jid]?.active) return;
-
-            if (update.action === "remove") {
-                const leftUsers = update.participants;
-                
-                for (const user of leftUsers) {
-                    const characterName = deleteUserRegistrationData(user);
-                    if (characterName) {
-                        await sendGoodbye(sock, jid, user, characterName);
-                    }
-                }
-            }
-        } catch (e) {}
-    });
-}
 
 function deleteUserRegistrationData(userJid) {
     try {
@@ -250,7 +198,7 @@ async function sendWelcome(sock, jid, user, registeredData) {
 
 *❉━═━╄━❪🪶❫━╃━═━❉*
 
-*نــرحــب بــك فــي مــوطــن فــلــوريـا*
+*نــرحــب بــك فــي مــوطــن فــلـوريـا*
 
 *حــيـث تـكـتـب أجـمـل الـذكـريـات بـريـشـة الـمـجـد ✨*
 
@@ -299,10 +247,47 @@ export default {
     category: "الحماية",
     description: "قبول طلبات الانضمام تلقائياً للمسجلين وإبقاء غير المسجلين معلقين مع منشن المشرفين",
 
-    initJoinListener: initJoinListener,
+    onGroupJoinRequest: async (sock, update) => {
+        try {
+            const db = loadState();
+            const jid = update.id;
+            if (!db[jid]?.active) return;
 
-    onMessage: async (sock, msg) => {
-        initJoinListener(sock);
+            const user = update.participant || update.author;
+            if (!user) return;
+
+            const uniqueKey = `${jid}_${user}`;
+            if (processedRequests.has(uniqueKey)) return;
+            processedRequests.add(uniqueKey);
+            setTimeout(() => processedRequests.delete(uniqueKey), 30000);
+
+            const registeredData = getRegisteredUserData(user);
+
+            if (registeredData) {
+                await approveRequest(sock, jid, user);
+                await sendWelcome(sock, jid, user, registeredData);
+            } else {
+                await notifyAdminsAboutUnregistered(sock, jid, user);
+            }
+        } catch (e) {}
+    },
+
+    onGroupParticipantsUpdate: async (sock, update) => {
+        try {
+            const db = loadState();
+            const jid = update.id;
+            if (!db[jid]?.active) return;
+
+            if (update.action === "remove") {
+                const leftUsers = update.participants;
+                for (const user of leftUsers) {
+                    const characterName = deleteUserRegistrationData(user);
+                    if (characterName) {
+                        await sendGoodbye(sock, jid, user, characterName);
+                    }
+                }
+            }
+        } catch (e) {}
     },
 
     execute: async (sock, msg, data) => {
@@ -315,8 +300,6 @@ export default {
                 { quoted: msg }
             );
         }
-
-        initJoinListener(sock);
 
         const text =
         data.text ||
