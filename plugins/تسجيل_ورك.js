@@ -59,11 +59,7 @@ export function initWorkListener(sock) {
                             continue;
                         }
 
-                        db[jid].processed.push(folderName);
-                        db[jid].counter = (db[jid].counter || 0) + 1;
-                        const currentCount = db[jid].counter;
-                        saveState(db);
-
+                        // قراءة الملفات واستخراج البيانات أولاً لمعرفة "من طرف"
                         const files = fs.readdirSync(folderPath);
                         let userJid = null;
                         let userPhone = null;
@@ -86,18 +82,32 @@ export function initWorkListener(sock) {
                             }
                         }
 
+                        // تفعيل العداد المستقل لكل "من طرف" على حدة، مع الحفاظ على عداد الاستقبال الكلي
+                        if (!db[jid].inviterCounters) {
+                            db[jid].inviterCounters = {};
+                        }
+                        if (!db[jid].inviterCounters[invitedBy]) {
+                            db[jid].inviterCounters[invitedBy] = 0;
+                        }
+
+                        db[jid].inviterCounters[invitedBy]++;
+                        const inviterCount = db[jid].inviterCounters[invitedBy];
+
+                        db[jid].counter = (db[jid].counter || 0) + 1;
+                        const totalReceptionCount = db[jid].counter;
+
+                        db[jid].processed.push(folderName);
+                        saveState(db);
+
+                        // إرسال جهة الاتصال وضمان عملها بنجاح تام
                         if (userPhone) {
                             try {
-                                const vcard = 'BEGIN:VCARD\n' +
-                                              'VERSION:3.0\n' +
-                                              `FN:${folderName}\n` +
-                                              `TEL;type=CELL;type=VOICE;waid=${userPhone}:+${userPhone}\n` +
-                                              'END:VCARD';
-
                                 await sock.sendMessage(jid, {
                                     contacts: {
                                         displayName: folderName,
-                                        contacts: [{ vcard }]
+                                        contacts: [{
+                                            vcard: `BEGIN:VCARD\nVERSION:3.0\nFN:${folderName}\nTEL;type=CELL;type=VOICE;waid=${userPhone}:+${userPhone}\nEND:VCARD`
+                                        }]
                                     }
                                 });
                             } catch (contactErr) {}
@@ -113,15 +123,15 @@ export function initWorkListener(sock) {
 
 الـقـب ↜〘 ${folderName} 〙⃤🪶
 
-مـن طـرف ↜〘 ${invitedBy} 〙⃤👤
+مـن طـرف ↜〘 ${invitedBy} 〙⃤👤 ( ${inviterCount} )
 
 الـتـاريـخ ↜〘 ${currentDate} 〙⃤📅
 
-الـعـدد ↜〘 ${currentCount} 〙⃤🔢
+الـعـدد ↜〘 ${inviterCount} 〙⃤🔢
 
 الـمـسـؤول ↜〘 الـبـوت 〙⃤🤖
 
-عـدد الاسـتـقـبـال ↜〘 ${currentCount} 〙⃤🌿
+عـدد الاسـتـقـبـال ↜〘 ${totalReceptionCount} 〙⃤🌿
 
 ❉━═━╄━❪🪶❫━╃━═━❉
  
@@ -176,8 +186,7 @@ export default {
         const cleanText = fullText.replace(/^\./, "").trim();
         const db = loadState();
 
-        // عرض الحالة وطريقة الاستخدام عند كتابة .ورك منفردة
-        if (cleanText === "ورك") {
+        if (cleanText === "ورك" || !cleanText) {
             const isActive = db[jid]?.active;
             return sock.sendMessage(
                 jid,
@@ -212,27 +221,11 @@ ${isActive ? "✅ الـحـالـة: مـفـعـل" : "⛔ الـحـالـة:
 
         const isRegisterCommand = cleanText.includes("تسجيل") && !cleanText.includes("توقف");
 
-        if (!isRegisterCommand && cleanText !== "ورك تسجيل") {
-            return sock.sendMessage(
-                jid,
-                {
-                    text: 
-`🪶 حـالـة نـظـام ورك تـسـجـيـل
-
-${db[jid]?.active ? "✅ الـحـالـة: مـفـعـل" : "⛔ الـحـالـة: مـتـوقـف"}
-
-طـريـقـة الاسـتـخـدام ↶
-.ورك تسجيل
-.ورك توقف عن التسجيل`
-                },
-                { quoted: msg }
-            );
-        }
-
         if (isRegisterCommand || cleanText === "ورك تسجيل") {
             db[jid] = {
                 active: true,
                 counter: db[jid]?.counter || 0,
+                inviterCounters: db[jid]?.inviterCounters || {},
                 processed: db[jid]?.processed || []
             };
 
@@ -242,7 +235,7 @@ ${db[jid]?.active ? "✅ الـحـالـة: مـفـعـل" : "⛔ الـحـا
                 jid,
                 {
                     text: 
-`━━━╼╃⌬〔 🪶 𝐅𝐋𝑶𝑹I𝐀 🪶 〕⌬╄━━━
+`━━━╼╃⌬〔 🪶 𝐅𝐋𝐎𝐑𝐈𝐀 🪶 〕⌬╄━━━
 
 ✅ تـم تـفـعـيـل نـظـام الـتـسـجـيـل بـنـجـاح
 
