@@ -77,6 +77,47 @@ function saveData(data){
     );
 }
 
+// دالة ذكية لتنظيف وتوحيد الحروف (تتجاهل الهمزات والتشكيل والأخطاء الإملائية الشائعة)
+function smartNormalize(str) {
+    return str
+        .toLowerCase()
+        .replace(/[إأآٱ]/g, "ا")
+        .replace(/ة/g, "ه")
+        .replace(/ى/g, "ي")
+        .replace(/[^أ-يa-z0-9]/g, "");
+}
+
+function detectParty(text) {
+    const cleanText = smartNormalize(text);
+    
+    // مصفوفة الكلمات المفتاحية الداخلية المخفية تماماً عن النصوص الظاهرة
+    const targets = [
+        { name: "أيزن", keys: ["ايزن", "ازن", "ايسن"] },
+        { name: "ارثر", keys: ["ارثر", "ارتور", "ارتر", "اثر"] },
+        { name: "الوكا", keys: ["الوكا", "لوكا", "الوكه"] },
+        { name: "هينا", keys: ["هينا", "هينه"] },
+        { name: "روبين", keys: ["روبين", "روبن"] },
+        { name: "نامي", keys: ["نامي", "نامه"] },
+        { name: "اسكانور", keys: ["اسكانور", "سكانور", "اسكنور"] }
+    ];
+
+    for (const item of targets) {
+        for (const key of item.keys) {
+            if (cleanText.includes(smartNormalize(key))) {
+                return item.name;
+            }
+        }
+    }
+    
+    // إذا كتب العضو أي اسم غير موجود أو نص آخر، يأخذ الكلمة الأولى أو يعتبرها كما كتبها بتنسيق نظيف
+    const words = text.trim().split(/\s+/);
+    if (words.length > 0 && words[0].length > 1) {
+        return words[0].replace(/[\[\]()]/g, "");
+    }
+    
+    return "غير معروف";
+}
+
 function isUserRegisteredInFolder(sender){
     try{
         const userNumber =
@@ -191,7 +232,7 @@ onMessage: async(sock, msg, data) => {
     if(!text && !msg.message?.imageMessage)
     return;
 
-    // طلب العضو للرابط بنفسه إذا كان مسجلاً
+    // طلب الرابط يدوياً للمسجلين
     if(text.trim() === "الرابط"){
         const registered = isUserRegisteredInFolder(sender);
         if(registered){
@@ -201,10 +242,10 @@ onMessage: async(sock, msg, data) => {
                     text:
 `🪶 𝐅𝐋𝐎𝐑𝐈𝐀
 
-رابط دخولك يا غالي:
-🔗 Https://chat.whatsapp.com/FL8ikcoc4v7CV9mkcjPeAw
+🔗 رابط دخولك للقروب الأساسي:
+Https://chat.whatsapp.com/FL8ikcoc4v7CV9mkcjPeAw
 
-اضغط الرابط وادخل القروب الأساسي 🤍
+اضغط الرابط وادخل بسرعة 🤍
 
 🪶 𝐅𝐋𝐎𝐑𝐈𝐀`,
                     mentions: [sender]
@@ -215,7 +256,7 @@ onMessage: async(sock, msg, data) => {
             const warnMsg = await sock.sendMessage(
                 jid,
                 {
-                    text: `*(ملاحظة: سيتم حذف هذا الرابط خلال دقيقة لحماية المجموعة. إذا أردت الرابط مرة أخرى اكتب: الرابط)*`,
+                    text: `*(ملاحظة: سيتم حذف هذا الرابط خلال دقيقة لحماية المجموعة)*`,
                     mentions: [sender]
                 },
                 { quoted: linkMsg }
@@ -228,22 +269,10 @@ onMessage: async(sock, msg, data) => {
         return;
     }
 
-    // استقبال رد "من طرف مين"
+    // الخطوة 2: استقبال اسم الشخص الذي جلب العضو (بذكاء تام وبدون قيود) وإرسال الاستمارة الفارغة
     if(waitingForPartyUsers.has(sender)){
-
         let rawText = text.trim();
-        let partyName = "غير محدد";
-
-        if(rawText.includes("من طرف")){
-            const parts = rawText.split("من طرف");
-            if(parts[1]){
-                partyName = parts[1].replace(/[\[\]()【】؟?]/g, "").trim();
-            }
-        } else {
-            partyName = rawText.replace(/^(من|طرف|مين|يا|؟|\?)+/g, "").trim();
-        }
-
-        if(!partyName) partyName = "غير محدد";
+        let partyName = detectParty(rawText);
 
         waitingForPartyUsers.delete(sender);
 
@@ -254,29 +283,26 @@ onMessage: async(sock, msg, data) => {
             }
         );
 
-        return sock.sendMessage(
+        // إرسال الاستمارة الفارغة بشكل مرتب وواضح جداً
+        await sock.sendMessage(
             jid,
             {
                 text:
-`🪶 𝐅𝐋𝐎𝐑𝐈𝐀
+`╭━━━〔 📝 اسـتـمـارة الـتـسـجـيـل 〕━━━╮
 
-منور يا بعد قلبي ✨
+الـقـب [ ]
+من طرف [ ${partyName} ]
 
-الحين سو هذي الخطوتين البسيطة:
-1️⃣ اكتب لقبك داخل أقواس كذا: [لقبك هنا]
-2️⃣ حط معاها صورة شخصيتك وأرسلها رسالة وحدة (أو رد على رسالة اللقب بصورة، أو رد على الصورة باللقب)
+╰━━━━━━━━━━━━━━━━━━╯
 
-*ملاحظه شخصيتك يعني:*
-*الشخصيه الي اخترتها مثلا: اخترت ناروتو ارسل صورته هيك*
-
-من طرف: ${partyName}
-
-🪶 𝐅𝐋𝐎𝐑𝐈𝐀`
+📸 **التعليمات:**
+أرسل لقبك داخل الأقواس وصورة شخصيتك مع بعض في **رسالة واحدة**!`,
+                mentions: [sender]
             },
-            {
-                quoted: msg
-            }
+            { quoted: msg }
         );
+
+        return;
     }
 
     // استخراج اللقب بدقة من داخل أي أقواس
@@ -293,18 +319,9 @@ onMessage: async(sock, msg, data) => {
         brackets[0][1].trim();
     }
 
-    // استخراج اسم الطرف بدون الحاجة لأقواس (بعد كلمة من طرف)
-    if(text.includes("من طرف")){
-        const part =
-        text.split("من طرف")[1];
-
-        if(part){
-            inviterName =
-            part
-            .replace(/[\[\]()【】]/g, "")
-            .trim()
-            .split("\n")[0];
-        }
+    let detectedFromText = detectParty(text);
+    if(detectedFromText && detectedFromText !== "غير معروف"){
+        inviterName = detectedFromText;
     }
 
     const pending =
@@ -315,28 +332,31 @@ onMessage: async(sock, msg, data) => {
         pending.inviter;
     }
 
+    if(!inviterName){
+        inviterName = "غير معروف";
+    }
+
     const imageMessage = msg.message?.imageMessage;
     const quoted = msg.message?.extendedTextMessage?.contextInfo?.quotedMessage;
 
-    // فحص تكرار اللقب والشخصية
+    // فحص تكرار اللقب
     if(characterName && characterName !== "اللقب" && characterName !== "[ ]"){
         if(isCharacterTaken(characterName)){
             return sock.sendMessage(
                 jid,
                 {
-                    text: `⚠️ عذراً، هذا اللقب أو الشخصية (**${characterName}**) مأخوذ ومسجل مسبقاً من قبل عضو آخر! اختر لقباً غيره ❌`
+                    text: `⚠️ عذراً، هذا اللقب (**${characterName}**) مأخوذ ومسجل مسبقاً من قبل عضو آخر! اختر لقباً غيره ❌`
                 },
                 { quoted: msg }
             );
         }
     }
 
-    // حالة: أرسل الصورة وحدها بدون لقب
     if(imageMessage && !characterName){
         return sock.sendMessage(
             jid,
             {
-                text: "⚠️ يا قلبي أنت أرسلت الصورة لحالها! لازم تكتب لقبك بين أقواس [ ] مع الصورة بنفس الرسالة، أو رد على رسالتك اللي فيها اللقب بصورة شخصيتك، أو رد على الصورة باللقب 📷"
+                text: "⚠️ **خطأ بسيط:** أنت أرسلت الصورة وحدها! لازم تكتب لقبك بين أقواس `[ ]` وترسلها مع الصورة برسالة واحدة 📷"
             },
             { quoted: msg }
         );
@@ -348,9 +368,6 @@ onMessage: async(sock, msg, data) => {
     characterName === "[ ]"
     )
     return;
-
-    if(!inviterName)
-    inviterName = "غير محدد";
 
     let targetMsg = null;
     let validImageSource = false;
@@ -373,12 +390,11 @@ onMessage: async(sock, msg, data) => {
         }
     }
 
-    // حالة: أرسل اللقب بدون صورة
     if(!validImageSource || !targetMsg){
         return sock.sendMessage(
             jid,
             {
-                text: "⚠️ نسيت تحط الصورة! رد على رسالة لقبك بصورة شخصيتك، أو رد على الصورة باللقب، أو أرسل اللقب مع الصورة مع بعض برسالة وحدة 📷"
+                text: "⚠️ **خطأ بسيط:** نسيت إرفاق الصورة! أرسل اللقب والصورة مع بعض برسالة واحدة 📷"
             },
             {
                 quoted: msg
@@ -423,12 +439,11 @@ onMessage: async(sock, msg, data) => {
     }catch(e){
         return sock.sendMessage(
             jid,
-            { text: "❌ ما قدرت أحمل الصورة، حاول ترسلها مرة ثانية" },
+            { text: "❌ حدث خطأ في تحميل الصورة، حاول إرسالها مرة أخرى" },
             { quoted: msg }
         );
     }
 
-    // التحقق مرة أخرى من التكرار قبل الحفظ النهائي لضمان الأمان التام
     if(isCharacterTaken(characterName)){
         return sock.sendMessage(
             jid,
@@ -511,13 +526,10 @@ onMessage: async(sock, msg, data) => {
             text:
 `🪶 𝐅𝐋𝐎𝐑𝐈𝐀
 
-✅ تم تسجيل لقبك بنجاح يا وحش
+✅ تم تسجيل لقبك بنجاح يا وحش!
 
-🎭 لقبك:
-**${characterName}**
-
-👤 من طرف:
-**${inviterName}**
+🎭 لقبك: **${characterName}**
+👤 من طرف: **${inviterName}**
 
 🔗 رابط الدخول للقروب الأساسي:
 Https://chat.whatsapp.com/FL8ikcoc4v7CV9mkcjPeAw
@@ -535,7 +547,7 @@ Https://chat.whatsapp.com/FL8ikcoc4v7CV9mkcjPeAw
     const warnMsgReg = await sock.sendMessage(
         jid,
         {
-            text: `*(ملاحظة: سيتم حذف هذا الرابط خلال دقيقة لحماية المجموعة. إذا أردت الرابط مرة أخرى اكتب: الرابط)*`,
+            text: `*(ملاحظة: سيتم حذف هذا الرابط خلال دقيقة لحماية المجموعة)*`,
             mentions: [sender]
         },
         {
@@ -559,7 +571,7 @@ execute: async(sock, msg, data) => {
     ){
         return sock.sendMessage(
             jid,
-            { text: "❌ هذا الأمر يشتغل داخل المجموعات بس" },
+            { text: "❌ هذا الأمر يشتغل داخل المجموعات فقط" },
             { quoted: msg }
         );
     }
@@ -615,7 +627,7 @@ ${db[jid]?.active ? "✅ النظام شغال ومفعل" : "⛔ النظام �
                 text:
 `━━━╼╃⌬〔 🪶 𝐅𝐋𝐎𝐑𝐈𝐀 🪶 〕⌬╄━━━
 
-✅ ابشر، تم تفعيل نظام الاستقبال بنجاح
+✅ تم تفعيل نظام الاستقبال بنجاح
 
 🪶 𝐅𝐋𝐎𝐑𝐈𝐀 𝐁𝐎𝐓`
             },
@@ -672,10 +684,8 @@ onGroupParticipantsUpdate: async(sock, update) => {
 ⚠️ يا هلا، أنت مسجل عندنا من قبل!
 👤 @${user.split("@")[0]}
 
-🎭 لقبك المسجل:
-**${registered}**
-
-لو ضاع عليك الرابط، اكتب كلمة: الرابط
+🎭 لقبك المسجل: **${registered}**
+لو ضاع عليك الرابط، اكتب كلمة: **الرابط**
 
 🪶 𝐅𝐋𝐎𝐑𝐈𝐀`,
                         mentions: [user]
@@ -690,14 +700,13 @@ onGroupParticipantsUpdate: async(sock, update) => {
                 true
             );
 
+            // الخطوة 1: طلب اسم الشخص الذي جلب العضو بشكل سريع وفوري وبدون رسائل سلام طويلة
             await sock.sendMessage(
                 jid,
                 {
                     text:
-`🪶 منورنا يا هلا بك @${user.split("@")[0]} 🤍
-
-عشان ندخلك القروب، رد على هذي الرسالة واكتب مين جابك أو من طرف مين دخلت؟
-(مثال اكتب كذا: طرف فلان)`,
+`منورنا يا هلا بك @${user.split("@")[0]} 🤍
+من طرف مين دخلت؟`,
                     mentions: [user]
                 }
             );
@@ -725,8 +734,7 @@ onGroupParticipantsUpdate: async(sock, update) => {
 👋 مع السلامة، الله يحفظه العضو:
 @${user.split("@")[0]}
 
-🎭 شخصيته كانت:
-**${oldChar}**
+🎭 شخصيته كانت: **${oldChar}**
 
 🪶 𝐅𝐋𝐎𝐑𝐈𝐀`,
                     mentions: [user]
