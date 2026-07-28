@@ -21,7 +21,7 @@
     "fs-extra": "^11.3.2",
     "human-readable": "^0.2.1",
     "instagram-url-direct": "^1.0.16",
-    "jimp": "^0.22.12",
+    "jimp": "^1.6.0",
     "link-preview-js": "^3.0.5",
     "lowdb": "^7.0.1",
     "mime-types": "^2.1.35",
