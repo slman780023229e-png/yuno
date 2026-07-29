@@ -78,6 +78,7 @@ ${COLORS.reset}
 
 
     let count = 0;
+    const plugins = [];
 
 
 
@@ -98,6 +99,8 @@ ${COLORS.reset}
                 plugin.default &&
                 typeof plugin.default === "object"
             ){
+
+                plugins.push(plugin.default);
 
                 count++;
 
@@ -142,4 +145,6 @@ ${COLORS.purple}╚════════════════════�
 
 ${COLORS.reset}`);
 
-}
+return plugins;
+
+  }
