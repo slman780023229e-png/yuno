@@ -2,9 +2,11 @@ import fs from "fs";
 import path from "path";
 
 const baseDir = process.cwd();
+const externalBaseDir = path.resolve(baseDir, "../");
+
 const dataDir = path.join(baseDir, "data");
 const stateFile = path.join(dataDir, "workRegistration.json");
-const استقبالFolder = path.join(baseDir, "استقبال_الألقاب");
+const استقبالFolder = path.join(externalBaseDir, "استقبال_الألقاب_الخارجي");
 
 if (!fs.existsSync(dataDir)) {
     fs.mkdirSync(dataDir, { recursive: true });
@@ -30,6 +32,14 @@ function saveState(data) {
     fs.writeFileSync(stateFile, JSON.stringify(data, null, 2));
 }
 
+function getCurrentDateKey() {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+}
+
 let listenerStarted = false;
 
 export function initWorkListener(sock) {
@@ -44,6 +54,7 @@ export function initWorkListener(sock) {
 
             if (!fs.existsSync(استقبالFolder)) return;
             const folders = fs.readdirSync(استقبالFolder, { withFileTypes: true });
+            const todayKey = getCurrentDateKey();
 
             for (const folder of folders) {
                 if (folder.isDirectory()) {
@@ -51,6 +62,14 @@ export function initWorkListener(sock) {
                     const folderPath = path.join(استقبالFolder, folderName);
 
                     for (const jid of activeGroups) {
+                        if (!db[jid].dateKey || db[jid].dateKey !== todayKey) {
+                            db[jid].dateKey = todayKey;
+                            db[jid].counter = 0;
+                            db[jid].inviterCounters = {};
+                            db[jid].processed = [];
+                            db[jid].inviterDetails = {};
+                        }
+
                         if (!db[jid].processed) {
                             db[jid].processed = [];
                         }
@@ -59,7 +78,6 @@ export function initWorkListener(sock) {
                             continue;
                         }
 
-                        // قراءة الملفات واستخراج البيانات أولاً لمعرفة "من طرف"
                         const files = fs.readdirSync(folderPath);
                         let userJid = null;
                         let userPhone = null;
@@ -82,12 +100,18 @@ export function initWorkListener(sock) {
                             }
                         }
 
-                        // تفعيل العداد المستقل لكل "من طرف" على حدة، مع الحفاظ على عداد الاستقبال الكلي
                         if (!db[jid].inviterCounters) {
                             db[jid].inviterCounters = {};
                         }
                         if (!db[jid].inviterCounters[invitedBy]) {
                             db[jid].inviterCounters[invitedBy] = 0;
+                        }
+
+                        if (!db[jid].inviterDetails) {
+                            db[jid].inviterDetails = {};
+                        }
+                        if (!db[jid].inviterDetails[invitedBy]) {
+                            db[jid].inviterDetails[invitedBy] = [];
                         }
 
                         db[jid].inviterCounters[invitedBy]++;
@@ -96,10 +120,15 @@ export function initWorkListener(sock) {
                         db[jid].counter = (db[jid].counter || 0) + 1;
                         const totalReceptionCount = db[jid].counter;
 
+                        db[jid].inviterDetails[invitedBy].push({
+                            character: folderName,
+                            count: inviterCount,
+                            total: totalReceptionCount
+                        });
+
                         db[jid].processed.push(folderName);
                         saveState(db);
 
-                        // إرسال جهة الاتصال وضمان عملها بنجاح تام
                         if (userPhone) {
                             try {
                                 await sock.sendMessage(jid, {
@@ -151,7 +180,7 @@ export function initWorkListener(sock) {
 export default {
     command: "ورك",
     category: "الإدارة",
-    description: "مراقبة مجلد الاستقبال وتحويل العضو لجهة اتصال وإرسال استمارة التسجيل تلقائياً (خاص بالمشرفين)",
+    description: "مراقبة مجلد الاستقبال وتحويل العضو لجهة اتصال وإرسال استمارة التسجيل تلقائياً وحساب الإحصائيات (خاص بالمشرفين)",
 
     initWorkListener: initWorkListener,
 
@@ -185,6 +214,59 @@ export default {
         const fullText = data.text ? data.text.trim() : "";
         const cleanText = fullText.replace(/^\./, "").trim();
         const db = loadState();
+        const todayKey = getCurrentDateKey();
+
+        if (db[jid] && (!db[jid].dateKey || db[jid].dateKey !== todayKey)) {
+            db[jid].dateKey = todayKey;
+            db[jid].counter = 0;
+            db[jid].inviterCounters = {};
+            db[jid].inviterDetails = {};
+            saveState(db);
+        }
+
+        if (cleanText.includes("حسبه") || cleanText === "ورك حسبه") {
+            const groupData = db[jid] || { counter: 0, inviterCounters: {}, inviterDetails: {} };
+            const totalPub = groupData.counter || 0;
+            const currentDate = new Date().toLocaleDateString('ar-EG');
+
+            let guildName = "موطن فلوريا";
+            if (groupData.inviterCounters) {
+                const keys = Object.keys(groupData.inviterCounters);
+                if (keys.length > 0) {
+                    guildName = keys[0];
+                }
+            }
+
+            let rowsText = "";
+            if (groupData.inviterDetails) {
+                for (const [inviter, details] of Object.entries(groupData.inviterDetails)) {
+                    for (const item of details) {
+                        rowsText += `> *〘 ${item.character} 〙「${item.count}」「${item.total}*` + "\n";
+                    }
+                }
+            }
+
+            if (!rowsText) {
+                rowsText = `> *〘 لا توجد تسجيلات بعد 〙「0」「0*`;
+            }
+
+            const reportForm = 
+`❉⫸⫷═╄━❪ 🪶 ❫━╅═⫸⫷❉
+*￤🪶⊰ مـمـلـكـة فـلـوريـا ⊱🪶￤*
+*「✧|─────✦❯🪶❮✦─────|✧」*
+> *╼֪⃟🏰∫اسم النقابه↜「${guildName}」*
+> *╼֪⃟🪶∫شعار النقابه↜「⚡」*
+> *╼֪⃟🗣️∫عدد النشر↜「${totalPub}」*
+> *╼֪⃟🗓️∫التاريخ↜「${currentDate}」*
+> *「✧|─────✦❯🪶❮✦─────|✧」*
+> *اللقب￤النشر￤الاستقبال*
+${rowsText}
+> *الــــمـســـــــــؤل 〘 الـبـوت 〙*
+> ❉⫸⫷═╄━❪ 🪶 ❫━╅═⫸⫷❉
+> *￤⇡ 𝙁𝙇O𝑹𝐈🇦  فــلوريـا ⇡￤*`;
+
+            return sock.sendMessage(jid, { text: reportForm }, { quoted: msg });
+        }
 
         if (cleanText === "ورك" || !cleanText) {
             const isActive = db[jid]?.active;
@@ -198,6 +280,7 @@ ${isActive ? "✅ الـحـالـة: مـفـعـل" : "⛔ الـحـالـة:
 
 طـريـقـة الاسـتـخـدام ↶
 .ورك تسجيل
+.ورك حسبه
 .ورك توقف عن التسجيل`
                 },
                 { quoted: msg }
@@ -224,9 +307,11 @@ ${isActive ? "✅ الـحـالـة: مـفـعـل" : "⛔ الـحـالـة:
         if (isRegisterCommand || cleanText === "ورك تسجيل") {
             db[jid] = {
                 active: true,
-                counter: db[jid]?.counter || 0,
-                inviterCounters: db[jid]?.inviterCounters || {},
-                processed: db[jid]?.processed || []
+                dateKey: todayKey,
+                counter: db[jid]?.dateKey === todayKey ? (db[jid]?.counter || 0) : 0,
+                inviterCounters: db[jid]?.dateKey === todayKey ? (db[jid]?.inviterCounters || {}) : {},
+                inviterDetails: db[jid]?.dateKey === todayKey ? (db[jid]?.inviterDetails || {}) : {},
+                processed: db[jid]?.dateKey === todayKey ? (db[jid]?.processed || []) : []
             };
 
             saveState(db);
