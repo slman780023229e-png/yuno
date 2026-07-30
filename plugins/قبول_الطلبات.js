@@ -2,9 +2,11 @@ import fs from "fs";
 import path from "path";
 
 const baseDir = process.cwd();
+const externalBaseDir = path.resolve(baseDir, "../");
+
 const dataDir = path.join(baseDir, "data");
 const stateFile = path.join(dataDir, "autoJoinState.json");
-const استقبالFolder = path.join(baseDir, "استقبال_الألقاب");
+const استقبالFolder = path.join(externalBaseDir, "استقبال_الألقاب_الخارجي");
 
 if (!fs.existsSync(dataDir)) {
     fs.mkdirSync(dataDir, { recursive: true });
@@ -208,7 +210,7 @@ async function sendWelcome(sock, jid, user, registeredData) {
 
 *المـنـشـن ↜〘@${user.split("@")[0]}〙⃤🔊*
 
-*❉━═━╄━╃━═━❉*
+*❉━═━╄━❪🪶❫━╃━═━❉*
 
 *🍷 نـود مـنـك الـدخـول إلـى....*
 
@@ -291,7 +293,7 @@ export default {
     },
 
     execute: async (sock, msg, data) => {
-        const jid = data.jid;
+        const jid = data.jid || msg.key.remoteJid;
 
         if (!jid.endsWith("@g.us")) {
             return sock.sendMessage(
@@ -320,6 +322,7 @@ export default {
 
         if (
             action !== "تفعيل" &&
+            action !== "تعطيلق" &&
             action !== "تعطيل"
         ) {
             return sock.sendMessage(
@@ -357,7 +360,7 @@ ${db[jid]?.active ? "✅ مفعل" : "⛔ متوقف"}
             );
         }
 
-        if (action === "تعطيل") {
+        if (action === "تعطيل" || action === "تعطيلق") {
             delete db[jid];
             saveState(db);
 
