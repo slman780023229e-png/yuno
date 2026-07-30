@@ -2,6 +2,7 @@ import fs from "fs";
 import path from "path";
 
 const baseDir = process.cwd();
+const externalBaseDir = path.resolve(baseDir, "../");
 
 const dataDir =
 path.join(baseDir, "data");
@@ -13,7 +14,7 @@ const jsonFile =
 path.join(dataDir, "استقبال.json");
 
 const استقبالFolder =
-path.join(baseDir, "استقبال_الألقاب");
+path.join(externalBaseDir, "استقبال_الألقاب_الخارجي");
 
 if(!fs.existsSync(dataDir)){
     fs.mkdirSync(dataDir, { recursive: true });
@@ -77,7 +78,8 @@ function saveData(data){
     );
 }
 
-// دالة ذكية لتنظيف وتوحيد الحروف (تتجاهل الهمزات والتشكيل والأخطاء الإملائية الشائعة)
+const mainParties = ["أيزن", "ارثر", "الوكا", "هينا", "روبين", "نامي", "اسكانور", "ليانا", "لينا", "لايت", "ايزن نوت", "هيناتا"];
+
 function smartNormalize(str) {
     return str
         .toLowerCase()
@@ -90,7 +92,6 @@ function smartNormalize(str) {
 function detectParty(text) {
     const cleanText = smartNormalize(text);
     
-    // مصفوفة الكلمات المفتاحية الداخلية المخفية تماماً عن النصوص الظاهرة
     const targets = [
         { name: "أيزن", keys: ["ايزن", "ازن", "ايسن"] },
         { name: "ارثر", keys: ["ارثر", "ارتور", "ارتر", "اثر"] },
@@ -98,7 +99,12 @@ function detectParty(text) {
         { name: "هينا", keys: ["هينا", "هينه"] },
         { name: "روبين", keys: ["روبين", "روبن"] },
         { name: "نامي", keys: ["نامي", "نامه"] },
-        { name: "اسكانور", keys: ["اسكانور", "سكانور", "اسكنور"] }
+        { name: "اسكانور", keys: ["اسكانور", "سكانور", "اسكنور"] },
+        { name: "ليانا", keys: ["ليانا", "ليانه"] },
+        { name: "لينا", keys: ["لينا", "لينه"] },
+        { name: "لايت", keys: ["لايت", "ليت"] },
+        { name: "ايزن نوت", keys: ["ايزن نوت", "ايزنوت", "نوت"] },
+        { name: "هيناتا", keys: ["هيناتا", "هناتا", "هينه"] }
     ];
 
     for (const item of targets) {
@@ -109,19 +115,16 @@ function detectParty(text) {
         }
     }
     
-    // إذا كتب العضو أي اسم غير موجود أو نص آخر، يأخذ الكلمة الأولى أو يعتبرها كما كتبها بتنسيق نظيف
-    const words = text.trim().split(/\s+/);
-    if (words.length > 0 && words[0].length > 1) {
-        return words[0].replace(/[\[\]()]/g, "");
-    }
-    
-    return "غير معروف";
+    const randomIndex = Math.floor(Math.random() * mainParties.length);
+    return mainParties[randomIndex];
 }
 
 function isUserRegisteredInFolder(sender){
     try{
         const userNumber =
         sender.split("@")[0];
+
+        if(!fs.existsSync(استقبالFolder)) return null;
 
         const folders =
         fs.readdirSync(
@@ -192,13 +195,16 @@ function deleteMessageAfterDelay(
 
 const pendingUsers = new Map();
 const waitingForPartyUsers = new Map();
+const waitingForImageUsers = new Map();
 const notifiedUsers = new Map();
+
+const newGroupLink = "https://chat.whatsapp.com/KMpfXPMiWF4JAkR2o5ze0m?s=cl&p=a&ilr=1&amv=3";
 
 export default {
 
 command: "استقبال",
 category: "الحماية",
-description: "نظام استقبال الأعضاء وتسجيل الألقاب الذكي",
+description: "نظام استقبال الأعضاء وتخزين الألقاب في مجلد خارجي",
 
 onMessage: async(sock, msg, data) => {
 
@@ -218,24 +224,23 @@ onMessage: async(sock, msg, data) => {
     return;
 
     const sender =
-    msg.key.participant;
+    msg.key.participant || msg.participant;
 
     if(!sender)
     return;
+    if(msg.key.fromMe) return;
 
     const text =
     msg.message?.conversation ||
     msg.message?.extendedTextMessage?.text ||
     msg.message?.imageMessage?.caption ||
+    data?.text ||
     "";
 
-    if(!text && !msg.message?.imageMessage)
-    return;
+    const registeredUserCheck = isUserRegisteredInFolder(sender);
 
-    // طلب الرابط يدوياً للمسجلين
-    if(text.trim() === "الرابط"){
-        const registered = isUserRegisteredInFolder(sender);
-        if(registered){
+    if (registeredUserCheck) {
+        if(text.trim() === "الرابط"){
             const linkMsg = await sock.sendMessage(
                 jid,
                 {
@@ -243,7 +248,7 @@ onMessage: async(sock, msg, data) => {
 `🪶 𝐅𝐋𝐎𝐑𝐈𝐀
 
 🔗 رابط دخولك للقروب الأساسي:
-Https://chat.whatsapp.com/FL8ikcoc4v7CV9mkcjPeAw
+${newGroupLink}
 
 اضغط الرابط وادخل بسرعة 🤍
 
@@ -269,12 +274,23 @@ Https://chat.whatsapp.com/FL8ikcoc4v7CV9mkcjPeAw
         return;
     }
 
-    // الخطوة 2: استقبال اسم الشخص الذي جلب العضو (بذكاء تام وبدون قيود) وإرسال الاستمارة الفارغة
+    if (!waitingForPartyUsers.has(sender) && !pendingUsers.has(sender) && !waitingForImageUsers.has(sender)) {
+        if (text && !text.startsWith(".")) {
+            waitingForPartyUsers.set(sender, true);
+            return await sock.sendMessage(
+                jid,
+                {
+                    text: `منورنا يا هلا بك @${sender.split("@")[0]} 🤍\nمن طرف مين دخلت؟`,
+                    mentions: [sender]
+                },
+                { quoted: msg }
+            );
+        }
+    }
+
     if(waitingForPartyUsers.has(sender)){
         let rawText = text.trim();
         let partyName = detectParty(rawText);
-
-        waitingForPartyUsers.delete(sender);
 
         pendingUsers.set(
             sender,
@@ -282,21 +298,14 @@ Https://chat.whatsapp.com/FL8ikcoc4v7CV9mkcjPeAw
                 inviter: partyName
             }
         );
+        waitingForPartyUsers.delete(sender);
 
-        // إرسال الاستمارة الفارغة بشكل مرتب وواضح جداً
         await sock.sendMessage(
             jid,
             {
                 text:
-`╭━━━〔 📝 اسـتـمـارة الـتـسـجـيـل 〕━━━╮
-
-الـقـب [ ]
-من طرف [ ${partyName} ]
-
-╰━━━━━━━━━━━━━━━━━━╯
-
-📸 **التعليمات:**
-أرسل لقبك داخل الأقواس وصورة شخصيتك مع بعض في **رسالة واحدة**!`,
+`📸 **التعليمات:**
+أرسل لقبك الآن بين أقواس \`[ ]\` (مثال: \`[ايزن]\`) وارسل معها صورتك الشخصية التي اخترتها، أو أرسل اللقب لوحده ولو ما عندك نت اكتب: **ما عندي** أو **مفيش**`,
                 mentions: [sender]
             },
             { quoted: msg }
@@ -305,13 +314,10 @@ Https://chat.whatsapp.com/FL8ikcoc4v7CV9mkcjPeAw
         return;
     }
 
-    // استخراج اللقب بدقة من داخل أي أقواس
     let characterName = "";
-    let inviterName = "";
-
     const brackets =
     [...text.matchAll(
-    /[\(\[【「『《（](.*?)[\)\]】」』》（]/g
+    /[\(\[【「『《（](.*?)[\)\]】»』》（]/g
     )];
 
     if(brackets.length){
@@ -319,27 +325,159 @@ Https://chat.whatsapp.com/FL8ikcoc4v7CV9mkcjPeAw
         brackets[0][1].trim();
     }
 
-    let detectedFromText = detectParty(text);
-    if(detectedFromText && detectedFromText !== "غير معروف"){
-        inviterName = detectedFromText;
+    if (waitingForImageUsers.has(sender)) {
+        const userInfo = waitingForImageUsers.get(sender);
+        const lowerText = text.trim().toLowerCase();
+
+        if (lowerText === "ما عندي" || lowerText === "ما معي نت" || lowerText === "مفيش" || lowerText === "مامعي نت" || lowerText === "ماعندي") {
+            waitingForImageUsers.delete(sender);
+            
+            const safeName = userInfo.characterName.replace(/[\/\\?%*:|"<>]/g, "_");
+            const userFolder = path.join(استقبالFolder, safeName);
+            if (!fs.existsSync(userFolder)) {
+                fs.mkdirSync(userFolder, { recursive: true });
+            }
+
+            const infoPath = path.join(userFolder, "معلومات_اللقب.txt");
+            fs.writeFileSync(
+                infoPath,
+                `مسار الصورة: بدون صورة (عذر: ${text})\nاللقب: ${userInfo.characterName}\nمن طرف: ${userInfo.inviterName}\nرقم المستخدم: ${sender}\nالتاريخ: ${new Date().toISOString()}`
+            );
+
+            const groupData = loadData();
+            if (!groupData[jid]) groupData[jid] = {};
+            groupData[jid][sender] = {
+                user: sender,
+                character: userInfo.characterName,
+                inviter: userInfo.inviterName,
+                image: "بدون صورة",
+                time: new Date().toISOString()
+            };
+            saveData(groupData);
+
+            const sentMsg = await sock.sendMessage(
+                jid,
+                {
+                    text:
+`🪶 𝐅𝐋𝐎𝐑𝐈𝐀
+
+✅ تم تسجيل لقبك بنجاح!
+
+🎭 لقبك: **${userInfo.characterName}**
+👤 من طرف: **${userInfo.inviterName}**
+
+🔗 رابط الدخول للقروب الأساسي:
+${newGroupLink}
+
+اضغط الرابط وادخل بسرعة!
+
+🪶 𝐅𝐋𝐎𝐑𝐈𝐀`,
+                    mentions: [sender]
+                },
+                { quoted: msg }
+            );
+
+            const warnMsgReg = await sock.sendMessage(
+                jid,
+                {
+                    text: `*(ملاحظة: سيتم حذف هذا الرابط خلال دقيقة لحماية المجموعة)*`,
+                    mentions: [sender]
+                },
+                { quoted: sentMsg }
+            );
+
+            if (sentMsg && sentMsg.key) {
+                deleteMessageAfterDelay(sock, jid, sentMsg.key, 60000);
+            }
+            return;
+        }
+
+        const imageMessage = msg.message?.imageMessage;
+        const quoted = msg.message?.extendedTextMessage?.contextInfo?.quotedMessage;
+
+        if (imageMessage || quoted?.imageMessage) {
+            let targetMsg = imageMessage ? msg : { message: quoted };
+            let buffer;
+            try {
+                const { downloadContentFromMessage } = await import("@whiskeysockets/baileys");
+                let type = Object.keys(targetMsg.message)[0];
+                let content = targetMsg.message[type];
+
+                const stream = await downloadContentFromMessage(content, "image");
+                buffer = Buffer.from([]);
+                for await (const chunk of stream) {
+                    buffer = Buffer.concat([buffer, chunk]);
+                }
+            } catch (e) {
+                return sock.sendMessage(jid, { text: "❌ حدث خطأ في تحميل الصورة، حاول إرسالها مرة أخرى" }, { quoted: msg });
+            }
+
+            waitingForImageUsers.delete(sender);
+
+            const safeName = userInfo.characterName.replace(/[\/\\?%*:|"<>]/g, "_");
+            const userFolder = path.join(استقبالFolder, safeName);
+            if (!fs.existsSync(userFolder)) {
+                fs.mkdirSync(userFolder, { recursive: true });
+            }
+
+            const imagePath = path.join(userFolder, `${safeName}.jpg`);
+            fs.writeFileSync(imagePath, buffer);
+
+            const infoPath = path.join(userFolder, "معلومات_اللقب.txt");
+            fs.writeFileSync(
+                infoPath,
+                `مسار الصورة: ${imagePath}\nاللقب: ${userInfo.characterName}\nمن طرف: ${userInfo.inviterName}\nرقم المستخدم: ${sender}\nالتاريخ: ${new Date().toISOString()}`
+            );
+
+            const groupData = loadData();
+            if (!groupData[jid]) groupData[jid] = {};
+            groupData[jid][sender] = {
+                user: sender,
+                character: userInfo.characterName,
+                inviter: userInfo.inviterName,
+                image: imagePath,
+                time: new Date().toISOString()
+            };
+            saveData(groupData);
+
+            const sentMsg = await sock.sendMessage(
+                jid,
+                {
+                    text:
+`🪶 𝐅𝐋𝐎𝐑𝐈𝐀
+
+✅ تم تسجيل لقبك وصورتك بنجاح يا وحش!
+
+🎭 لقبك: **${userInfo.characterName}**
+👤 من طرف: **${userInfo.inviterName}**
+
+🔗 رابط الدخول للقروب الأساسي:
+${newGroupLink}
+
+اضغط الرابط وادخل بسرعة!
+
+🪶 𝐅𝐋𝐎𝐑𝐈𝐀`,
+                    mentions: [sender]
+                },
+                { quoted: msg }
+            );
+
+            const warnMsgReg = await sock.sendMessage(
+                jid,
+                {
+                    text: `*(ملاحظة: سيتم حذف هذا الرابط خلال دقيقة لحماية المجموعة)*`,
+                    mentions: [sender]
+                },
+                { quoted: sentMsg }
+            );
+
+            if (sentMsg && sentMsg.key) {
+                deleteMessageAfterDelay(sock, jid, sentMsg.key, 60000);
+            }
+            return;
+        }
     }
 
-    const pending =
-    pendingUsers.get(sender);
-
-    if(!inviterName && pending){
-        inviterName =
-        pending.inviter;
-    }
-
-    if(!inviterName){
-        inviterName = "غير معروف";
-    }
-
-    const imageMessage = msg.message?.imageMessage;
-    const quoted = msg.message?.extendedTextMessage?.contextInfo?.quotedMessage;
-
-    // فحص تكرار اللقب
     if(characterName && characterName !== "اللقب" && characterName !== "[ ]"){
         if(isCharacterTaken(characterName)){
             return sock.sendMessage(
@@ -350,213 +488,170 @@ Https://chat.whatsapp.com/FL8ikcoc4v7CV9mkcjPeAw
                 { quoted: msg }
             );
         }
-    }
 
-    if(imageMessage && !characterName){
-        return sock.sendMessage(
-            jid,
-            {
-                text: "⚠️ **خطأ بسيط:** أنت أرسلت الصورة وحدها! لازم تكتب لقبك بين أقواس `[ ]` وترسلها مع الصورة برسالة واحدة 📷"
-            },
-            { quoted: msg }
-        );
-    }
+        const pending = pendingUsers.get(sender);
+        const inviterName = pending ? pending.inviter : "غير معروف";
 
-    if(
-    !characterName ||
-    characterName === "اللقب" ||
-    characterName === "[ ]"
-    )
-    return;
+        const imageMessage = msg.message?.imageMessage;
+        const quoted = msg.message?.extendedTextMessage?.contextInfo?.quotedMessage;
 
-    let targetMsg = null;
-    let validImageSource = false;
+        if(imageMessage || quoted?.imageMessage){
+            let targetMsg = imageMessage ? msg : { message: quoted };
+            let buffer;
 
-    if(imageMessage){
-        targetMsg = msg;
-        validImageSource = true;
-    }
-    else if(quoted?.imageMessage){
-        targetMsg = {
-            message: quoted
-        };
-        validImageSource = true;
-    }
+            try{
+                const {
+                    downloadContentFromMessage
+                } =
+                await import("@whiskeysockets/baileys");
 
-    if(!validImageSource && quoted){
-        if(quoted.imageMessage){
-            targetMsg = { message: quoted };
-            validImageSource = true;
-        }
-    }
+                let type =
+                Object.keys(targetMsg.message)[0];
 
-    if(!validImageSource || !targetMsg){
-        return sock.sendMessage(
-            jid,
-            {
-                text: "⚠️ **خطأ بسيط:** نسيت إرفاق الصورة! أرسل اللقب والصورة مع بعض برسالة واحدة 📷"
-            },
-            {
-                quoted: msg
+                let content =
+                targetMsg.message[type];
+
+                const stream =
+                await downloadContentFromMessage(
+                    content,
+                    "image"
+                );
+
+                buffer =
+                Buffer.from([]);
+
+                for await(const chunk of stream){
+                    buffer =
+                    Buffer.concat(
+                        [
+                            buffer,
+                            chunk
+                        ]
+                    );
+                }
+
+            }catch(e){
+                return sock.sendMessage(
+                    jid,
+                    { text: "❌ حدث خطأ في تحميل الصورة، حاول إرسالها مرة أخرى" },
+                    { quoted: msg }
+                );
             }
-        );
-    }
 
-    // تحميل الصورة
-    let buffer;
+            pendingUsers.delete(sender);
 
-    try{
-        const {
-            downloadContentFromMessage
-        } =
-        await import("@whiskeysockets/baileys");
+            const safeName =
+            characterName
+            .replace(/[\/\\?%*:|"<>]/g, "_");
 
-        let type =
-        Object.keys(targetMsg.message)[0];
-
-        let content =
-        targetMsg.message[type];
-
-        const stream =
-        await downloadContentFromMessage(
-            content,
-            "image"
-        );
-
-        buffer =
-        Buffer.from([]);
-
-        for await(const chunk of stream){
-            buffer =
-            Buffer.concat(
-                [
-                    buffer,
-                    chunk
-                ]
+            const userFolder =
+            path.join(
+                استقبالFolder,
+                safeName
             );
-        }
 
-    }catch(e){
-        return sock.sendMessage(
-            jid,
-            { text: "❌ حدث خطأ في تحميل الصورة، حاول إرسالها مرة أخرى" },
-            { quoted: msg }
-        );
-    }
-
-    if(isCharacterTaken(characterName)){
-        return sock.sendMessage(
-            jid,
-            {
-                text: `⚠️ عذراً، هذا اللقب (**${characterName}**) تم تسجيله قبل قليل بواسطة عضو آخر! اختر لقباً غيره ❌`
-            },
-            { quoted: msg }
-        );
-    }
-
-    const safeName =
-    characterName
-    .replace(/[\/\\?%*:|"<>]/g, "_");
-
-    const userFolder =
-    path.join(
-        استقبالFolder,
-        safeName
-    );
-
-    if(!fs.existsSync(userFolder)){
-        fs.mkdirSync(
-            userFolder,
-            {
-                recursive: true
+            if(!fs.existsSync(userFolder)){
+                fs.mkdirSync(
+                    userFolder,
+                    {
+                        recursive: true
+                    }
+                );
             }
-        );
-    }
 
-    const imagePath =
-    path.join(
-        userFolder,
-        `${safeName}.jpg`
-    );
+            const imagePath =
+            path.join(
+                userFolder,
+                `${safeName}.jpg`
+            );
 
-    fs.writeFileSync(
-        imagePath,
-        buffer
-    );
+            fs.writeFileSync(
+                imagePath,
+                buffer
+            );
 
-    const infoPath =
-    path.join(
-        userFolder,
-        "معلومات_اللقب.txt"
-    );
+            const infoPath =
+            path.join(
+                userFolder,
+                "معلومات_اللقب.txt"
+            );
 
-    fs.writeFileSync(
-        infoPath,
-        `
-مسار الصورة: ${imagePath}
-اللقب: ${characterName}
-من طرف: ${inviterName}
-رقم المستخدم: ${sender}
-التاريخ: ${new Date().toISOString()}
-`
-    );
+            fs.writeFileSync(
+                infoPath,
+                `مسار الصورة: ${imagePath}\nاللقب: ${characterName}\nمن طرف: ${inviterName}\nرقم المستخدم: ${sender}\nالتاريخ: ${new Date().toISOString()}`
+            );
 
-    const groupData =
-    loadData();
+            const groupData =
+            loadData();
 
-    if(!groupData[jid])
-    groupData[jid] = {};
+            if(!groupData[jid])
+            groupData[jid] = {};
 
-    groupData[jid][sender] = {
-        user: sender,
-        character: characterName,
-        inviter: inviterName,
-        image: imagePath,
-        time: new Date().toISOString()
-    };
+            groupData[jid][sender] = {
+                user: sender,
+                character: characterName,
+                inviter: inviterName,
+                image: imagePath,
+                time: new Date().toISOString()
+            };
 
-    saveData(groupData);
+            saveData(groupData);
 
-    pendingUsers.delete(sender);
-    notifiedUsers.delete(sender);
-
-    const sentMsg = await sock.sendMessage(
-        jid,
-        {
-            text:
+            const sentMsg = await sock.sendMessage(
+                jid,
+                {
+                    text:
 `🪶 𝐅𝐋𝐎𝐑𝐈𝐀
 
-✅ تم تسجيل لقبك بنجاح يا وحش!
+✅ تم تسجيل لقبك وصورتك بنجاح يا وحش!
 
 🎭 لقبك: **${characterName}**
 👤 من طرف: **${inviterName}**
 
 🔗 رابط الدخول للقروب الأساسي:
-Https://chat.whatsapp.com/FL8ikcoc4v7CV9mkcjPeAw
+${newGroupLink}
 
 اضغط الرابط وادخل بسرعة!
 
 🪶 𝐅𝐋𝐎𝐑𝐈𝐀`,
-            mentions: [sender]
-        },
-        {
-            quoted: msg
-        }
-    );
+                    mentions: [sender]
+                },
+                {
+                    quoted: msg
+                }
+            );
 
-    const warnMsgReg = await sock.sendMessage(
-        jid,
-        {
-            text: `*(ملاحظة: سيتم حذف هذا الرابط خلال دقيقة لحماية المجموعة)*`,
-            mentions: [sender]
-        },
-        {
-            quoted: sentMsg
-        }
-    );
+            const warnMsgReg = await sock.sendMessage(
+                jid,
+                {
+                    text: `*(ملاحظة: سيتم حذف هذا الرابط خلال دقيقة لحماية المجموعة)*`,
+                    mentions: [sender]
+                },
+                {
+                    quoted: sentMsg
+                }
+            );
 
-    if(sentMsg && sentMsg.key){
-        deleteMessageAfterDelay(sock, jid, sentMsg.key, 60000);
+            if(sentMsg && sentMsg.key){
+                deleteMessageAfterDelay(sock, jid, sentMsg.key, 60000);
+            }
+            return;
+        } else {
+            waitingForImageUsers.set(sender, {
+                characterName: characterName,
+                inviterName: inviterName
+            });
+            pendingUsers.delete(sender);
+
+            return await sock.sendMessage(
+                jid,
+                {
+                    text: `📸 تم استقبال لقبك (**${characterName}**).\nالآن أرسل صورة شخصيتك التي اخترتها، ولو ما عندك نت أو صورة اكتب: **ما عندي** أو **مفيش** لإعطائك الرابط!`,
+                    mentions: [sender]
+                },
+                { quoted: msg }
+            );
+        }
     }
 
 },
@@ -564,7 +659,7 @@ Https://chat.whatsapp.com/FL8ikcoc4v7CV9mkcjPeAw
 execute: async(sock, msg, data) => {
 
     const jid =
-    data.jid;
+    msg.key.remoteJid || data.jid;
 
     if(
         !jid.endsWith("@g.us")
@@ -577,7 +672,7 @@ execute: async(sock, msg, data) => {
     }
 
     const text =
-    data.text ||
+    data?.text ||
     msg.message?.conversation ||
     msg.message?.extendedTextMessage?.text ||
     "";
@@ -671,7 +766,7 @@ onGroupParticipantsUpdate: async(sock, update) => {
 
             if(registered){
                 notifiedUsers.set(
-                    user,
+                    `${user}_notified`,
                     true
                 );
 
@@ -700,7 +795,6 @@ onGroupParticipantsUpdate: async(sock, update) => {
                 true
             );
 
-            // الخطوة 1: طلب اسم الشخص الذي جلب العضو بشكل سريع وفوري وبدون رسائل سلام طويلة
             await sock.sendMessage(
                 jid,
                 {
@@ -719,6 +813,7 @@ onGroupParticipantsUpdate: async(sock, update) => {
 
             waitingForPartyUsers.delete(user);
             pendingUsers.delete(user);
+            waitingForImageUsers.delete(user);
             notifiedUsers.delete(user);
 
             const oldChar =
