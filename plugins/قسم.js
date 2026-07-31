@@ -5,23 +5,20 @@ import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// تسجيل وقت بدء تشغيل البوت
 const startTime = Date.now();
 
 export default {
-
     command: "ق",
-
     category: "النظام",
-
-    description: "عرض أقسام وأوامر البوت",
+    description: "عرض واجهة القائمة والأقسام",
 
     execute: async(sock, msg, data) => {
-
         const pluginsPath = path.join(__dirname, "../plugins");
-        const imagesPath = path.join(__dirname, "../صور"); // مسار مجلد الصور بجانب مجلد البلجنات
 
-        const files = fs.readdirSync(pluginsPath).filter(f => f.endsWith(".js"));
+        let files = [];
+        try {
+            files = fs.readdirSync(pluginsPath).filter(f => f.endsWith(".js"));
+        } catch {}
 
         let categories = {};
         let order = [];
@@ -32,6 +29,7 @@ export default {
                 const cmd = plugin.default;
 
                 if (!cmd || !cmd.command || !cmd.category) continue;
+                if (file === "قسم.js" || file === "ق.js") continue;
 
                 if (!categories[cmd.category]) {
                     categories[cmd.category] = [];
@@ -45,27 +43,16 @@ export default {
             } catch {}
         }
 
-        const input = data.text.trim();
-
-        const args = input
-            .replace(/^ق/, "ق ")
-            .trim()
-            .split(/\s+/);
+        const input = data.text ? data.text.trim() : "";
+        const args = input.replace(/^\.ق/, "").trim().split(/\s+/);
+        const subCommand = args[0] ? args[0].toLowerCase() : "";
+        const pageArg = args[1] ? parseInt(args[1]) : 1;
 
         const now = new Date();
-
         const date = now.toLocaleDateString("ar-SA");
-
-        const day = now.toLocaleDateString(
-            "ar-SA",
-            {
-                weekday: "long"
-            }
-        );
-
+        const day = now.toLocaleDateString("ar-SA", { weekday: "long" });
         const time = now.toLocaleTimeString("ar-SA");
 
-        // حساب وقت التشغيل (Uptime)
         const uptimeSeconds = Math.floor((Date.now() - startTime) / 1000);
         const hours = Math.floor(uptimeSeconds / 3600);
         const minutes = Math.floor((uptimeSeconds % 3600) / 60);
@@ -73,120 +60,87 @@ export default {
         const uptimeFormatted = `${hours}س ${minutes}د ${seconds}ث`;
 
         const sender = data.sender || msg.key.participant || msg.key.remoteJid;
-
-        const mention = sender.split("@")[0];
-
-        // إعدادات القناة (Newsletter / Channel Forwarding)
-        const newsletterConfig = {
-            forwardingScore: 999,
-            isForwarded: true,
-            forwardedNewsletterMessageInfo: {
-                newsletterJid: '120363410672713016@newsletter',
-                newsletterName: 'ARTHUR BOT',
-                serverMessageId: -1
-            }
-        };
-
-        // دمج إعدادات القناة مع المنشن
-        const context = {
-            ...newsletterConfig,
-            mentionedJid: [sender]
-        };
+        const mention = sender ? sender.split("@")[0] : "مستخدم";
 
         const react = async (emoji) => {
             try {
-                await sock.sendMessage(
-                    data.jid,
-                    {
-                        react: {
-                            text: emoji,
-                            key: msg.key
-                        }
-                    }
-                );
+                await sock.sendMessage(data.jid, { react: { text: emoji, key: msg.key } });
             } catch {}
         };
 
-        // دالة لجلب صورة عشوائية أو صورة خاصة بالقسم من مجلد الصور
         const getRandomImage = () => {
             try {
-                if (fs.existsSync(imagesPath)) {
-                    const imgFiles = fs.readdirSync(imagesPath).filter(f => /\.(jpg|jpeg|png|webp)$/i.test(f));
-                    if (imgFiles.length > 0) {
-                        const randomFile = imgFiles[Math.floor(Math.random() * imgFiles.length)];
-                        return path.join(imagesPath, randomFile);
+                const possiblePaths = [
+                    path.join(__dirname, "../صور"),
+                    path.join(__dirname, "صور"),
+                    path.join(process.cwd(), "صور")
+                ];
+
+                for (const targetPath of possiblePaths) {
+                    if (fs.existsSync(targetPath)) {
+                        const imgFiles = fs.readdirSync(targetPath).filter(f => /\.(jpg|jpeg|png|webp)$/i.test(f));
+                        if (imgFiles.length > 0) {
+                            const randomFile = imgFiles[Math.floor(Math.random() * imgFiles.length)];
+                            return path.join(targetPath, randomFile);
+                        }
                     }
                 }
             } catch {}
             return null;
         };
 
-        // رموز الأقسام الذكية (مع إضافة الأقسام الجديدة مثل الدين، الأغاني، الخطبة والزواج، إلخ)
         const getIcon = (name) => {
-
-            const n = name
-                .toLowerCase()
-                .replace(/[أإآ]/g, "ا")
-                .replace(/ة/g, "ه")
-                .replace(/\s+/g, "");
-
+            const n = name.toLowerCase().replace(/[أإآ]/g, "ا").replace(/ة/g, "ه").replace(/\s+/g, "");
             const icons = {
-                "ادار": "⚙️",
-                "المطور": "👑",
-                "مطور": "👑",
-                "dev": "👑",
-                "ادوات": "🛠️",
-                "tool": "🛠️",
-                "النظام": "⭐",
-                "nad": "⭐",
-                "تحميل": "📥",
-                "download": "📥",
-                "نقاب": "⚔️",
-                "guild": "⚔️",
-                "بوت": "🤖",
-                "bot": "🤖",
-                "حما": "🛡️",
-                "protect": "🛡️",
-                "نخب": "👑",
-                "elite": "👑",
-                "العاب": "🎮",
-                "لعب": "🎮",
-                "game": "🎮",
-                "زرف": "💸",
-                "مجموع": "👥",
-                "group": "👥",
-                "بنك": "🏦",
-                "bank": "🏦",
-                "rpg": "⚔️",
-                "قتال": "⚔️",
-                "الدين": "🕌",
-                "دين": "🕌",
-                "اسلامي": "🕌",
-                "الاغاني": "🎵",
-                "اغاني": "🎵",
-                "صوتيات": "🎵",
-                "زواج": "💍",
-                "غزل": "💍",
-                "خطبه": "💍",
-                "الفديوهات": "🎬",
-                "فيديو": "🎬"
+                "ادار": "⚙️", "المطور": "👑", "مطور": "👑", "dev": "👑",
+                "ادوات": "🛠️", "tool": "🛠️", "النظام": "⭐", "nad": "⭐",
+                "تحميل": "📥", "download": "📥", "نقاب": "⚔️", "guild": "⚔️",
+                "بوت": "🤖", "bot": "🤖", "حما": "🛡️", "protect": "🛡️",
+                "نخب": "👑", "elite": "👑", "العاب": "🎮", "لعب": "🎮",
+                "game": "🎮", "زرف": "💸", "مجموع": "👥", "group": "👥",
+                "بنك": "🏦", "bank": "🏦", "rpg": "⚔️", "قتال": "⚔️",
+                "الدين": "🕌", "دين": "🕌", "اسلامي": "🕌", "الاغاني": "🎵",
+                "اغاني": "🎵", "صوتيات": "🎵", "زواج": "💍", "غزل": "💍",
+                "خطبه": "💍", "الفديوهات": "🎬", "فيديو": "🎬",
+                "الذكاء": "🧠", "ai": "🧠", "تسلية": "🎯", "رفاهية": "🎉",
+                "صانع": "⚡", "مميزات": "💎", "تفاعل": "💬", "تخزين": "🗄️"
             };
-
             for (const key in icons) {
-                if (n.includes(key))
-                    return icons[key];
+                if (n.includes(key)) return icons[key];
             }
-
             return "📂";
-
         };
 
-        // =================
-        // .ق
-        // =================
+        const sendWithImageAndButtons = async (textMessage, buttonsArray) => {
+            const imagePath = getRandomImage();
 
-        if (args.length === 1) {
+            if (imagePath && fs.existsSync(imagePath)) {
+                try {
+                    await sock.sendMessage(data.jid, { 
+                        image: { url: imagePath }, 
+                        mentions: [sender] 
+                    });
+                } catch (e) {}
+            }
 
+            if (buttonsArray && typeof sock.sendRealButtons === "function") {
+                try {
+                    return await sock.sendRealButtons(
+                        data.jid,
+                        textMessage,
+                        "ARTHUR BOT SYSTEM 2026",
+                        buttonsArray
+                    );
+                } catch (e) {}
+            }
+
+            return await sock.sendMessage(data.jid, { text: textMessage, mentions: [sender] });
+        };
+
+        // ==========================================
+        // 1. القائمة الرئيسية (.ق)
+        // ==========================================
+        if (!subCommand) {
             await react("👑");
 
             let menu =
@@ -199,7 +153,7 @@ export default {
 *┤ 👑┊المالك : ARTHUR*
 *┤ ⚡┊الحالة : ONLINE*
 *┤ ⏱┊العمل : ${uptimeFormatted}*
-*┤ 📦┊الإصدار : 1.0.0*
+*┤ 📦┊الإصدار : 2.0.0*
 *┤ 📅┊التاريخ : ${date}*
 *┤ 📆┊اليوم : ${day}*
 *┤ ⏱┊الوقت : ${time}*
@@ -219,66 +173,78 @@ export default {
 `
 *┤━━━━━━━━━━━━━━···*
 *⋅ ───━ • ﹝❄ 𖤍 ❄﹞ • ━─── ⋅*
-*┇ 𓆩 ⚜ 𝐀𝐑𝐓𝐇𝐔𝐑 𝐒𝐘𝐒𝐓𝐄𝐌 ⚜ 𓆪 👑*`;
+*┇ 𓆩 ⚜ 𝐀𝐑𝐓𝐇𝐔𝐑 𝐁𝐎𝐓 ⚜ 𓆪 👑*`;
 
-            const imagePath = getRandomImage();
+            const buttonsArray = [
+                { displayText: "📋 قائمة الأقسام", id: ".ق الاقسام" },
+                { displayText: "⭐ تقييم البوت", id: ".تقييم" },
+                { displayText: "📢 قناة البوت", id: "https://whatsapp.com/channel/YOUR_CHANNEL_ID" }
+            ];
 
-            if (imagePath) {
-                return sock.sendMessage(
-                    data.jid,
-                    {
-                        image: { url: imagePath },
-                        caption: menu,
-                        contextInfo: context
-                    },
-                    { quoted: msg }
-                );
-            } else {
-                return sock.sendMessage(
-                    data.jid,
-                    {
-                        text: menu,
-                        contextInfo: context
-                    },
-                    { quoted: msg }
-                );
-            }
-
+            return await sendWithImageAndButtons(menu, buttonsArray);
         }
 
-        // =================
-        // .ق رقم
-        // =================
+        // ==========================================
+        // 2. عرض جميع الأقسام مع نظام الصفحات (.ق الاقسام أو .ق الاقسام 2)
+        // ==========================================
+        if (subCommand === "الاقسام" || subCommand === "الأقسام") {
+            await react("📋");
 
-        const index = parseInt(args[1]) - 1;
+            const itemsPerPage = 3;
+            const totalPages = Math.ceil(order.length / itemsPerPage);
+            const currentPage = isNaN(pageArg) || pageArg < 1 ? 1 : (pageArg > totalPages ? totalPages : pageArg);
 
-        if (
-            isNaN(index) ||
-            index < 0 ||
-            index >= order.length
-        ) {
+            const startIndex = (currentPage - 1) * itemsPerPage;
+            const currentCategories = order.slice(startIndex, startIndex + itemsPerPage);
 
-            return sock.sendMessage(
-                data.jid,
-                {
-                    text:
-`*╭━━〔 ❌ خطأ 〕━━╮*
-*┤ القسم غير موجود*
-*┤ استخدم .ق*
-*╰━━━━━━━━━━━━╯*`,
-                    contextInfo: context
-                },
-                { quoted: msg }
-            );
+            let listText = 
+`━╼╃⌬〔 📋 قائمة أقسام 〕⌬╄╾━ (${currentPage}/${totalPages}) 〕⌬╄╾━
+*┤ اختر القسم الذي تريد دخوله بالرقم أو الزر:*
+`;
 
+            currentCategories.forEach((cat, index) => {
+                const absoluteIndex = startIndex + index + 1;
+                listText += `\n*【 ${absoluteIndex} 】* ⟵ ${getIcon(cat)} قسم *${cat}*`;
+            });
+
+            listText += `\n\n*━━━━━━━━━━━━━━━━━━━*\n*💡 صفحة ${currentPage} من ${totalPages}*`;
+
+            let buttonsArray = currentCategories.map((cat, index) => {
+                const absoluteIndex = startIndex + index + 1;
+                return {
+                    displayText: `${getIcon(cat)} ${cat.length > 15 ? cat.substring(0, 12) + ".." : cat}`,
+                    id: `.ق ${absoluteIndex}`
+                };
+            });
+
+            if (currentPage < totalPages) {
+                buttonsArray.push({ displayText: `➡️ التالي (${currentPage + 1})`, id: `.ق الاقسام ${currentPage + 1}` });
+            }
+            if (currentPage > 1) {
+                buttonsArray.push({ displayText: `⬅️ السابق (${currentPage - 1})`, id: `.ق الاقسام ${currentPage - 1}` });
+            }
+
+            buttonsArray.push({ displayText: "📜 الرئيسية", id: ".ق" });
+
+            return await sendWithImageAndButtons(listText, buttonsArray);
+        }
+
+        // ==========================================
+        // 3. عرض أوامر القسم المحدد (.ق 1, .ق 2...)
+        // ==========================================
+        const index = parseInt(subCommand) - 1;
+
+        if (isNaN(index) || index < 0 || index >= order.length) {
+            return sock.sendMessage(data.jid, {
+                text: `*╭━━〔 ❌ خطأ 〕━━╮*\n*┤ القسم غير موجود*\n*┤ استخدم .ق للقائمة الرئيسية*\n*╰━━━━━━━━━━━━╯*`
+            });
         }
 
         const category = order[index];
-
         await react(getIcon(category));
 
         let text =
-`━━━╼╃⌬〔  👑𝐀𝐑𝐓𝐇𝐔𝐑 👑 〕⌬╄━━━
+`━━━╼╃⌬〔  👑𝐀𝐑𝐓𝐇𝐔𝐑 👑 〕⌬╄╾━━━
 *✧━━━〔 ${getIcon(category)} قسم ${category} 〕━━━✧*
 
 `;
@@ -297,29 +263,13 @@ export default {
 *⋅ ───━ • ﹝❄ 𖤍 ❄﹞ • ━─── ⋅*
 *┇ 𓆩 ⚜ 𝐀𝐑𝐓𝐇𝐔𝐑 𝐁𝐎𝐓 ⚜ 𓆪 👑*`;
 
-        const imagePath = getRandomImage();
+        const categoryButtons = [
+            { displayText: "📋 قائمة الأقسام", id: ".ق الاقسام" },
+            { displayText: "📜 الرئيسية", id: ".ق" },
+                    { displayText: "🌐 القناة", id: "قناه" },
+            { displayText: "⭐ تقييم البوت", id: ".تقييم" }
+        ];
 
-        if (imagePath) {
-            return sock.sendMessage(
-                data.jid,
-                {
-                    image: { url: imagePath },
-                    caption: text,
-                    contextInfo: context
-                },
-                { quoted: msg }
-            );
-        } else {
-            return sock.sendMessage(
-                data.jid,
-                {
-                    text,
-                    contextInfo: context
-                },
-                { quoted: msg }
-            );
-        }
-
+        return await sendWithImageAndButtons(text, categoryButtons);
     }
-
 };
