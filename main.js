@@ -3,7 +3,9 @@ import { loadPlugins } from "./utils/loader.js";
 import makeWASocket, {
     useMultiFileAuthState,
     DisconnectReason,
-    fetchLatestBaileysVersion
+    fetchLatestBaileysVersion,
+    generateWAMessageFromContent,
+    proto
 } from "@whiskeysockets/baileys";
 
 import pino from "pino";
@@ -86,39 +88,50 @@ async function startBot() {
     sock.ev.on("creds.update", saveCreds);  
 
     // ==========================================
-    // 🔘 دالة مساعدة مدمجة لإرسال الأزرار التفاعلية
+    // 🔘 دالة الأزرار الحقيقية والمتخطية للقيود (Binary Nodes)
     // ==========================================
-    sock.sendButtonMessage = async (jid, options = {}) => {
-        const { text, footer = "", buttons = [], imageUrl = null } = options;
-        
-        let interactiveMessage = {
-            text: text,
-            footer: footer,
-            interactiveMessage: {
-                header: {
-                    hasMediaAttachment: !!imageUrl,
-                    ...(imageUrl ? { imageMessage: imageUrl } : {})
-                },
-                body: {
-                    text: text
-                },
-                footer: {
-                    text: footer
-                },
-                nativeFlowMessage: {
-                    buttons: buttons.map(btn => ({
+    sock.sendRealButtons = async (jid, text, footerText, buttonsArray) => {
+        const messageContent = generateWAMessageFromContent(jid, {
+            interactiveMessage: proto.Message.InteractiveMessage.create({
+                body: proto.Message.InteractiveMessage.Body.create({ text: text }),
+                footer: proto.Message.InteractiveMessage.Footer.create({ text: footerText || "Yuno Bot Framework" }),
+                nativeFlowMessage: proto.Message.InteractiveMessage.NativeFlowMessage.create({
+                    buttons: buttonsArray.map(btn => ({
                         name: btn.name || "quick_reply",
                         buttonParamsJson: JSON.stringify({
                             display_text: btn.displayText || btn.text,
                             id: btn.id || btn.command
                         })
                     }))
-                }
-            }
-        };
+                })
+            })
+        }, { userJid: sock.user.id });
 
-        return await sock.sendMessage(jid, interactiveMessage);
+        return await sock.relayMessage(jid, messageContent.message, {
+            messageId: messageContent.key.id,
+            additionalNodes: [
+                {
+                    tag: "biz",
+                    attrs: {},
+                    content: [
+                        {
+                            tag: "interactive",
+                            attrs: { type: "native_flow", v: "1" },
+                            content: [
+                                {
+                                    tag: "native_flow",
+                                    attrs: { name: "quick_reply" }
+                                }
+                            ]
+                        }
+                    ]
+                }
+            ]
+        });
     };
+
+    // ربط السوكيت عالمياً لضمان عمل أوامر التحديث الطيري دون إعادة تشغيل الجلسة
+    global.sock = sock;
 
     if (!state.creds.registered) {
         let phone = "967715795639";  
