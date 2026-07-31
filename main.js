@@ -85,6 +85,41 @@ async function startBot() {
 
     sock.ev.on("creds.update", saveCreds);  
 
+    // ==========================================
+    // 🔘 دالة مساعدة مدمجة لإرسال الأزرار التفاعلية
+    // ==========================================
+    sock.sendButtonMessage = async (jid, options = {}) => {
+        const { text, footer = "", buttons = [], imageUrl = null } = options;
+        
+        let interactiveMessage = {
+            text: text,
+            footer: footer,
+            interactiveMessage: {
+                header: {
+                    hasMediaAttachment: !!imageUrl,
+                    ...(imageUrl ? { imageMessage: imageUrl } : {})
+                },
+                body: {
+                    text: text
+                },
+                footer: {
+                    text: footer
+                },
+                nativeFlowMessage: {
+                    buttons: buttons.map(btn => ({
+                        name: btn.name || "quick_reply",
+                        buttonParamsJson: JSON.stringify({
+                            display_text: btn.displayText || btn.text,
+                            id: btn.id || btn.command
+                        })
+                    }))
+                }
+            }
+        };
+
+        return await sock.sendMessage(jid, interactiveMessage);
+    };
+
     if (!state.creds.registered) {
         let phone = "967715795639";  
         phone = phone.replace(/[^0-9]/g, "");  
