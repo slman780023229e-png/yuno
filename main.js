@@ -21,13 +21,13 @@ import http from "http";
 const PORT = process.env.PORT || 3000;
 http.createServer((req, res) => {
     res.writeHead(200, { "Content-Type": "text/plain" });
-    res.end("YUNO BOT IS RUNNING 🟢\n");
+    res.end("ARTHUR BOT IS RUNNING 🟢\n");
 }).listen(PORT, () => {
     console.log(`🌐 Keep-alive server is listening on port ${PORT}`);
 });
 
 // ================================
-// 🕒 YUNO LIVE CLOCK
+// 🕒 ARTHUR LIVE CLOCK
 // ================================
 
 setInterval(() => {
@@ -35,7 +35,7 @@ setInterval(() => {
     const time = now.toLocaleTimeString("ar-SA");  
     const date = now.toLocaleDateString("ar-SA");  
 
-    console.log(`🕒 𝐘𝐔𝐍𝐎 | ${date} | ${time} | 🟢 ONLINE`);
+    console.log(`🕒 𝐀𝐑𝐓𝐇𝐔𝐑 | ${date} | ${time} | 🟢 ONLINE`);
 }, 60000);
 
 process.on("unhandledRejection", (err) => {
@@ -62,11 +62,10 @@ const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 async function startBot() {
     console.clear();  
 
-    console.log(chalk.magenta(`
-╭━━━━━━━━━━━━━━━━━━━━━━╮
-┃      𝐘𝐔𝐍𝐎 BOT
-┃      Starting...
-╰━━━━━━━━━━━━━━━━━━━━━━╯
+    console.log(chalk.hex("#FFD700")(`
+╔═══════════════════╗
+║   👑 𝐀𝐑𝐓𝐇𝐔𝐑 𝐁𝐎𝐓   ║
+╚═══════════════════╝
 `));
 
     const sessionDir = path.join(__dirname, "ملف_الاتصال");  
@@ -94,7 +93,7 @@ async function startBot() {
         const messageContent = generateWAMessageFromContent(jid, {
             interactiveMessage: proto.Message.InteractiveMessage.create({
                 body: proto.Message.InteractiveMessage.Body.create({ text: text }),
-                footer: proto.Message.InteractiveMessage.Footer.create({ text: footerText || "Yuno Bot Framework" }),
+                footer: proto.Message.InteractiveMessage.Footer.create({ text: footerText || "Arthur Bot Framework" }),
                 nativeFlowMessage: proto.Message.InteractiveMessage.NativeFlowMessage.create({
                     buttons: buttonsArray.map(btn => ({
                         name: btn.name || "quick_reply",
@@ -138,32 +137,21 @@ async function startBot() {
         phone = phone.replace(/[^0-9]/g, "");  
 
         try {  
-            console.log(chalk.cyan("⌛ جاري تجهيز الربط تلقائياً للرقم: " + phone));  
+            console.log(chalk.hex("#00FFFF")("⌛ جاري تجهيز الربط تلقائياً للرقم: " + phone));  
             await sleep(5000);
 
             const code = await sock.requestPairingCode(phone);
 
             console.log(`
-${chalk.cyan("╔════════════════════════════════════╗")}
-${chalk.blue("║                                    ║")}
-${chalk.green("║        🔗 𝐘𝐔𝐍𝐎 𝐏𝐀𝐈𝐑𝐈𝐍𝐆 🔗       ║")}
-${chalk.blue("║                                    ║")}
-${chalk.cyan("╠════════════════════════════════════╣")}
-${chalk.white("║                                    ║")}
-${chalk.yellow("║ 📱 𝐍𝐔𝐌𝐁𝐄𝐑 : ")}${chalk.bold.white(phone)}
-${chalk.white("║                                    ║")}
-${chalk.green("║ 🔑 𝐂𝐎𝐃𝐄   : ")}${chalk.bold.green(code)}
-${chalk.white("║                                    ║")}
-${chalk.magenta("║ ⚡ 𝐒𝐓𝐀𝐓𝐔𝐒 : WAITING             ║")}
-${chalk.red("║ 🛡️ 𝐒𝐄𝐂𝐔𝐑𝐈𝐓𝐘 : PROTECTED        ║")}
-${chalk.white("║                                    ║")}
-${chalk.cyan("╠════════════════════════════════════╣")}
-${chalk.yellow("║ WhatsApp > الأجهزة المرتبطة        ║")}
-${chalk.yellow("║ اختر ربط جهاز وأدخل الكود          ║")}
-${chalk.cyan("╚════════════════════════════════════╝")}
+${chalk.hex("#FF4500")("╔═════════════════════════╗")}
+${chalk.hex("#FFD700").bold("║  ⚡ 𝐀𝐑𝐓𝐇𝐔𝐑 𝐏𝐀𝐈𝐑𝐈𝐍𝐆  ║")}
+${chalk.hex("#FF4500")("╠═════════════════════════╣")}
+${chalk.hex("#00FFFF")("║ 📱 " + phone + " ║")}
+${chalk.hex("#00FFFF")("║ 🔑 " + code + " ║")}
+${chalk.hex("#FF4500")("╚═════════════════════════╝")}
 `);
 
-            console.log(chalk.green("╭━━━━━━━━━━━━━━━━━━━━━━━━━━╮\n┃ ✅ 𝐘𝐔𝐍𝐎 C𝐎𝐑𝐄 𝐑𝐄𝐀𝐃𝐘   ┃\n┃ 🔗 بانتظار تأكيد الربط   ┃\n╰━━━━━━━━━━━━━━━━━━━━━━━━━━╯"));
+            console.log(chalk.hex("#00FF7F")("╭─────────────────────────╮\n│ ✅ 𝐀𝐑𝐓𝐇𝐔𝐑 𝐂𝐎𝐑𝐄 𝐑𝐄𝐀𝐃𝐘  │\n╰─────────────────────────╯"));
 
         } catch (err) {  
             console.log(chalk.red("❌ فشل كود الربط: " + err.message));  
@@ -174,15 +162,14 @@ ${chalk.cyan("╚═════════════════════
         const { connection, lastDisconnect } = update;  
 
         if (connection === "connecting") {  
-            console.log(chalk.yellow("⏳ جاري الاتصال..."));  
+            console.log(chalk.hex("#FFA500")("⏳ جاري الاتصال بالخادم الرئيسي..."));  
         }  
 
         if (connection === "open") {  
-            console.log(chalk.green(`
-╭━━━━━━━━━━━━━━━━━━━━━━╮
-┃   𝐘𝐔𝐍𝐎 ONLINE ✅
-┃   Connected
-╰━━━━━━━━━━━━━━━━━━━━━━╯
+            console.log(chalk.hex("#00FF7F")(`
+╔═════════════════════╗
+║  𝐀𝐑𝐓𝐇𝐔𝐑 𝐎𝐍𝐋𝐈𝐍𝐄 🟢  ║
+╚═════════════════════╝
 `));
 
             const restartFile = path.join(process.cwd(), "data", "restart.json");
@@ -193,7 +180,7 @@ ${chalk.cyan("╚═════════════════════
 
                     if (Date.now() - info.time < 60000) {  
                         await sock.sendMessage(info.jid, {  
-                            text: "╭━━━━━━━━━━━━━━╮\n┃ ✅ تم التشغيل   ┣━━━━━━━━━━━━━━┫\n┃ 👑 𝐘𝐔𝐍𝐎 ONLINE   ┃\n┃ 🚀 تمت إعادة تشغيل البوت بنجاح   ┃\n╰━━━━━━━━━━━━━━╯"
+                            text: "*╔════════════╗*\n*║ 👑 𝐀𝐑𝐓𝐇𝐔𝐑 𝐎𝐍𝐋𝐈𝐍𝐄  ║*\n*╠═════════════╣*\n*║ 🚀 تمت إعادة تشغيل  ║*\n*║    البوت بنجاح!    ║*\n*╚════════════╝*"
                         });
                     }  
 
@@ -205,7 +192,7 @@ ${chalk.cyan("╚═════════════════════
 
             try {
                 await loadPlugins(sock);
-                console.log(chalk.green("✅ تم تحميل البلجنات بنجاح"));
+                console.log(chalk.hex("#00FF7F")("✅ تم تحميل البلجنات بنجاح"));
             } catch (err) {  
                 console.log(chalk.red("❌ خطأ تحميل البلجنات: " + err.message));  
             }
@@ -213,13 +200,13 @@ ${chalk.cyan("╚═════════════════════
 
         if (connection === "close") {
             const reason = lastDisconnect?.error?.output?.statusCode;  
-            console.log(chalk.red("❌ Connection closed : " + reason));  
+            console.log(chalk.red("❌ انقطع الاتصال | الكود : " + reason));  
 
             if (reason !== DisconnectReason.loggedOut) {  
-                console.log(chalk.yellow("🔄 إعادة الاتصال..."));  
+                console.log(chalk.hex("#FFA500")("🔄 جاري إعادة المحاولة..."));  
                 setTimeout(startBot, 3000);  
             } else {  
-                console.log(chalk.red("تم تسجيل الخروج من الحساب"));  
+                console.log(chalk.red("⚠️ تم تسجيل الخروج من الحساب"));  
             }  
         }  
     });  
