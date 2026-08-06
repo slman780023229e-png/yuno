@@ -63,13 +63,13 @@ export async function loadPlugins(sock){
     console.log(`
 ${COLORS.purple}╔═══════════════════════════════════════════════╗
 ${COLORS.blue}║                                                    ║
-${COLORS.gold}║             👑 𝐘𝐔𝐍𝐎 𝐒𝐘𝐒𝐓𝐄𝐌 👑              ║
+${COLORS.gold}║             👑 𝐀𝐑𝐓𝐇𝐔𝐑 𝐒𝐘𝐒𝐓𝐄𝐌 👑             ║
 ${COLORS.blue}║                                                    ║
 ${COLORS.cyan}╠═══════════════════════════════════════════════╣
 ${COLORS.green}║ ⚡ MODULE   : Plugin Loader                        ║
 ${COLORS.yellow}║ 📦 STATUS   : Scanning Plugins...                  ║
 ${COLORS.orange}║ 🛡️ SECURITY : ACTIVE                               ║
-${COLORS.pink}║ 🚀 ENGINE   : YUNO CORE                            ║
+${COLORS.pink}║ 🚀 ENGINE   : ARTHUR CORE                          ║
 ${COLORS.gray}║ 🕒 ${new Date().toLocaleString("ar-SA").padEnd(43)}║
 ${COLORS.purple}╚═══════════════════════════════════════════════╝
 ${COLORS.reset}
@@ -105,13 +105,13 @@ ${COLORS.reset}
                 count++;
 
                 console.log(
-`${COLORS.green}✔${COLORS.reset} ${COLORS.white}${file}${COLORS.reset}`
+`${COLORS.green}╔═══╣${COLORS.reset} ${COLORS.white}${file}${COLORS.reset} ${COLORS.green}╠═══╝${COLORS.reset}`
                 );
 
             }else{
 
                 console.log(
-`${COLORS.yellow}⚠${COLORS.reset} ${COLORS.white}${file}${COLORS.reset} ${COLORS.orange}(غير صالح)${COLORS.reset}`
+`${COLORS.yellow}╔═══╣${COLORS.reset} ${COLORS.white}${file}${COLORS.reset} ${COLORS.orange}(غير صالح)${COLORS.reset} ${COLORS.yellow}╠═══╝${COLORS.reset}`
                 );
 
             }
@@ -119,7 +119,7 @@ ${COLORS.reset}
         }catch(err){
 
             console.log(
-`${COLORS.red}✘${COLORS.reset} ${COLORS.white}${file}${COLORS.reset}
+`${COLORS.red}╔═══╣${COLORS.reset} ${COLORS.white}${file}${COLORS.reset} ${COLORS.red}╠═══╝${COLORS.reset}
 ${COLORS.red}└─ ${err.message}${COLORS.reset}`
             );
 
@@ -130,7 +130,7 @@ ${COLORS.red}└─ ${err.message}${COLORS.reset}`
 
 ${COLORS.purple}╔═══════════════════════════════════════════════╗
 ${COLORS.blue}║                                                    ║
-${COLORS.green}║              ✅ 𝐘𝐔𝐍𝐎 𝐎𝐍𝐋𝐈𝐍𝐄 ✅               ║
+${COLORS.green}║              ✅ 𝐀𝐑𝐓𝐇𝐔𝐑 𝐎𝐍𝐋𝐈𝐍𝐄 ✅              ║
 ${COLORS.blue}║                                                    ║
 ${COLORS.cyan}╠═══════════════════════════════════════════════╣
 ${COLORS.gold}║ 📦 PLUGINS   : ${String(count).padEnd(35)}║
