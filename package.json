@@ -2,10 +2,10 @@
   "name": "yuno-bot",
   "version": "2.0.0",
   "description": "Yuno WhatsApp Bot - Baileys Latest & Full Toolkit",
-  "main": "start.js",
+  "main": "Main.js",
   "type": "module",
   "scripts": {
-    "start": "node start.js"
+    "start": "node Main.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.61.0",
@@ -53,11 +53,11 @@
     "url-regex-safe": "^4.0.0",
     "ws": "^8.18.0",
     "yargs": "^17.7.2",
-    "youtube-dl-exec": "^3.0.8"
+    "youtube-dl-exec": "^3.0.8",
+    "yt-search": "^2.12.1"
   },
   "optionalDependencies": {
     "moment-timezone": "^0.5.45",
     "wa-sticker-formatter": "^4.3.2"
   }
 }
- 
