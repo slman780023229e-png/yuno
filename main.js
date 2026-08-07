@@ -15,32 +15,25 @@ import path from "path";
 import { fileURLToPath } from "url";
 import http from "http";
 
-// ================================
-// 🌐 KEEP ALIVE SERVER (لابقاء المنصة شغالة)
-// ================================
 const PORT = process.env.PORT || 3000;
 http.createServer((req, res) => {
     res.writeHead(200, { "Content-Type": "text/plain" });
     res.end("ARTHUR BOT IS RUNNING 🟢\n");
 }).listen(PORT, () => {
-    console.log(`🌐 Keep-alive server is listening on port ${PORT}`);
+    console.log(chalk.gray(`[KEEP-ALIVE] Server is listening on port ${PORT}`));
 });
-
-// ================================
-// 🕒 ARTHUR LIVE CLOCK
-// ================================
 
 setInterval(() => {
     const now = new Date();  
     const time = now.toLocaleTimeString("ar-SA");  
     const date = now.toLocaleDateString("ar-SA");  
 
-    console.log(`🕒 𝐀𝐑𝐓𝐇𝐔𝐑 | ${date} | ${time} | 🟢 ONLINE`);
+    console.log(chalk.blue(`[ARTHUR CLOCK] ${date} - ${time} | 🟢 ONLINE`));
 }, 60000);
 
 process.on("unhandledRejection", (err) => {
     if (err && String(err).includes("Bad MAC")) {
-        console.log("⚠️ تجاهل خطأ Bad MAC");
+        console.log(chalk.yellow("[WARN] تجاهل خطأ Bad MAC"));
         return;
     }
     console.error("Unhandled Rejection:", err);
@@ -48,7 +41,7 @@ process.on("unhandledRejection", (err) => {
 
 process.on("uncaughtException", (err) => {
     if (err && String(err).includes("Bad MAC")) {
-        console.log("⚠️ تجاهل خطأ Bad MAC");
+        console.log(chalk.yellow("[WARN] تجاهل خطأ Bad MAC"));
         return;
     }
     console.error("Uncaught Exception:", err);
@@ -63,10 +56,10 @@ async function startBot() {
     console.clear();  
 
     console.log(chalk.magenta(`
-╔════════════════════════════════════╗
-║         👑 𝐀𝐑𝐓𝐇𝐔𝐑 𝐁𝐎𝐓 👑          ║
-║         System Initializing...     ║
-╚════════════════════════════════════╝
+┌─────────────────────────────────┐
+│         👑 ARTHUR BOT 👑        │
+│      System Initializing...     │
+└─────────────────────────────────┘
 `));
 
     const sessionDir = path.join(__dirname, "ملف_الاتصال");  
@@ -87,9 +80,6 @@ async function startBot() {
 
     sock.ev.on("creds.update", saveCreds);  
 
-    // ==========================================
-    // 🔘 دالة الأزرار الحقيقية والمتخطية للقيود (Binary Nodes)
-    // ==========================================
     sock.sendRealButtons = async (jid, text, footerText, buttonsArray) => {
         const messageContent = generateWAMessageFromContent(jid, {
             interactiveMessage: proto.Message.InteractiveMessage.create({
@@ -130,7 +120,6 @@ async function startBot() {
         });
     };
 
-    // ربط السوكيت عالمياً لضمان عمل أوامر التحديث الطيري دون إعادة تشغيل الجلسة
     global.sock = sock;
 
     if (!state.creds.registered) {
@@ -144,26 +133,13 @@ async function startBot() {
             const code = await sock.requestPairingCode(phone);
 
             console.log(`
-${chalk.cyan("╔════════════════════════════════════╗")}
-${chalk.blue("║                                    ║")}
-${chalk.green("║     👑 𝐀𝐑𝐓𝐇𝐔𝐑 𝐏𝐀𝐈𝐑𝐈𝐍𝐆 👑        ║")}
-${chalk.blue("║                                    ║")}
-${chalk.cyan("╠════════════════════════════════════╣")}
-${chalk.white("║                                    ║")}
-${chalk.yellow("║ 📱 𝐍𝐔𝐌𝐁𝐄𝐑 : ")}${chalk.bold.white(phone)}
-${chalk.white("║                                    ║")}
-${chalk.green("║ 🔑 𝐂𝐎𝐃𝐄   : ")}${chalk.bold.green(code)}
-${chalk.white("║                                    ║")}
-${chalk.magenta("║ ⚡ 𝐒𝐓𝐀𝐓𝐔𝐒 : WAITING             ║")}
-${chalk.red("║ 🛡️ 𝐒𝐄𝐂𝐔𝐑𝐈𝐓𝐘 : PROTECTED        ║")}
-${chalk.white("║                                    ║")}
-${chalk.cyan("╠════════════════════════════════════╣")}
-${chalk.yellow("║ WhatsApp > الأجهزة المرتبطة        ║")}
-${chalk.yellow("║ اختر ربط جهاز وأدخل الكود          ║")}
-${chalk.cyan("╚════════════════════════════════════╝")}
+${chalk.bold.yellow("========================================")}
+${chalk.bold.green("   👑 ARTHUR PAIRING CODE 👑")}
+${chalk.bold.yellow("========================================")}
+${chalk.bold.white(" 📱 الرقم : " + phone)}
+${chalk.bold.cyan(" 🔑 الكود : " + code)}
+${chalk.bold.yellow("========================================")}
 `);
-
-            console.log(chalk.green("╔════════════════════════════╗\n║ 👑 𝐀𝐑𝐓𝐇𝐔𝐑 𝐂𝐎𝐑𝐄 𝐑𝐄𝐀𝐃𝐘     ║\n║ 🔗 بانتظار تأكيد الربط     ║\n╚════════════════════════════╝"));
 
         } catch (err) {  
             console.log(chalk.red("❌ فشل كود الربط: " + err.message));  
@@ -179,10 +155,10 @@ ${chalk.cyan("╚═════════════════════
 
         if (connection === "open") {  
             console.log(chalk.green(`
-╔════════════════════════════╗
-║   👑 𝐀𝐑𝐓𝐇𝐔𝐑 ONLINE ✅     ║
-║   Successfully Connected   ║
-╚════════════════════════════╝
+┌─────────────────────────────────┐
+│        👑 ARTHUR ONLINE ✅      │
+│      Successfully Connected     │
+└─────────────────────────────────┘
 `));
 
             const restartFile = path.join(process.cwd(), "data", "restart.json");
@@ -193,7 +169,7 @@ ${chalk.cyan("╚═════════════════════
 
                     if (Date.now() - info.time < 60000) {  
                         await sock.sendMessage(info.jid, {  
-                            text: "╔════════════════════════════╗\n║ 👑 ✅ تم التشغيل بنجاح     ╠════════════════════════════╣\n║ ⚜️ 𝐀𝐑𝐓𝐇𝐔𝐑 ONLINE         ║\n║ 🚀 تمت إعادة تشغيل البوت   ║\n╚════════════════════════════╝"
+                            text: "👑 *ARTHUR ONLINE* ✅\n🚀 تمت إعادة تشغيل البوت بنجاح."
                         });
                     }  
 
@@ -219,14 +195,10 @@ ${chalk.cyan("╚═════════════════════
                 console.log(chalk.yellow("🔄 إعادة الاتصال..."));  
                 setTimeout(startBot, 3000);  
             } else {  
-                console.log(chalk.red("تم تسجيل الخروج من الحساب"));  
+                console.log(chalk.red("❌ تم تسجيل الخروج من الحساب"));  
             }  
         }  
     });  
-
-    // ===============================  
-    // MESSAGE HANDLER  
-    // ===============================  
 
     sock.ev.on("messages.upsert", async (m) => {  
         try {  
@@ -235,10 +207,6 @@ ${chalk.cyan("╚═════════════════════
             console.log(chalk.red("❌ خطأ استقبال الرسالة: " + err.message));  
         }  
     });
-
-    // ===============================
-    // 👥 GROUP EVENTS FOR ALL PLUGINS
-    // ===============================
 
     sock.ev.on(
         "group-participants.update",
@@ -262,10 +230,6 @@ ${chalk.cyan("╚═════════════════════
             }
         }
     );
-
-    // ===============================
-    // 🔗 GROUP JOIN REQUESTS EVENT (لضمان عمل نظام الطلبات بلا توقف)
-    // ===============================
 
     sock.ev.on("group.join-request", async (update) => {
         try {
