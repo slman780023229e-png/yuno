@@ -81,7 +81,11 @@ function getElite() {
         fs.writeFileSync(eliteFile, JSON.stringify([], null, 2));
     }
     try {
-        return JSON.parse(fs.readFileSync(eliteFile, "utf-8"));
+        const data = JSON.parse(fs.readFileSync(eliteFile, "utf-8"));
+        if (Array.isArray(data)) {
+            return data.map(n => String(n).replace(/\D/g, ""));
+        }
+        return [];
     } catch {
         return [];
     }
@@ -90,11 +94,12 @@ function getElite() {
 function addEliteAutomatically(number) {
     if (!number) return;
     try {
-        let eliteList = getElite().map(n => n.toString());
-        if (!eliteList.includes(number)) {
-            eliteList.push(number);
+        const cleanNum = String(number).replace(/\D/g, "");
+        let eliteList = getElite();
+        if (!eliteList.includes(cleanNum)) {
+            eliteList.push(cleanNum);
             fs.writeFileSync(eliteFile, JSON.stringify(eliteList, null, 2));
-            log("elite", `تمت إضافة رقم الجلسة (${number}) إلى النخبة تلقائياً 👑`);
+            log("elite", `تمت إضافة رقم الجلسة (${cleanNum}) إلى النخبة تلقائياً 👑`);
         }
     } catch (e) {
         log("err", "فشل إضافة رقم الجلسة للنخبة: " + e.message);
@@ -109,15 +114,27 @@ function getOwner() {
     if (fs.existsSync(ownerFile)) {
         try {
             const data = JSON.parse(fs.readFileSync(ownerFile, "utf-8"));
-            if (data.owner) return data.owner.toString().replace(/[^0-9]/g, "");
+            if (data.owner) return String(data.owner).replace(/\D/g, "");
         } catch {}
     }
     
     if (process.env.OWNER_NUMBER) {
-        return process.env.OWNER_NUMBER.replace(/[^0-9]/g, "");
+        return String(process.env.OWNER_NUMBER).replace(/\D/g, "");
     }
 
     return "967000000000"; 
+}
+
+// =============================
+// 🔍 نظام مطابقة الأرقام الخارق (يتجاهل صيغة مفتاح الدولة أو الاختلافات)
+// =============================
+function isSameNumber(num1, num2) {
+    if (!num1 || !num2) return false;
+    const clean1 = String(num1).replace(/\D/g, "");
+    const clean2 = String(num2).replace(/\D/g, "");
+    if (!clean1 || !clean2) return false;
+    
+    return clean1 === clean2 || clean1.endsWith(clean2) || clean2.endsWith(clean1);
 }
 
 // =============================
@@ -130,7 +147,7 @@ export async function handleMessages(sock, m) {
 
         // استخراج رقم الجلسة المتصل حالياً وضمه للنخبة بلطف ودون أي مساس بملفات الجلسة
         const botJid = sock.user?.id;
-        const currentBotNumber = botJid ? botJid.split(":")[0].replace(/[^0-9]/g, "") : "";
+        const currentBotNumber = botJid ? botJid.split(":")[0].replace(/\D/g, "") : "";
         if (currentBotNumber) {
             addEliteAutomatically(currentBotNumber);
         }
@@ -149,14 +166,14 @@ export async function handleMessages(sock, m) {
             ? (currentBotNumber ? currentBotNumber + "@s.whatsapp.net" : (msg.key.participant || jid))
             : (isGroup ? (msg.key.participant || jid) : jid);
 
-        const number = sender.split("@")[0].replace(/[^0-9]/g, "");
+        const number = sender.split("@")[0].replace(/\D/g, "");
 
         const ownerNumber = getOwner();
-        const isOwner = number === ownerNumber;
+        const isOwner = isSameNumber(number, ownerNumber);
 
-        // التحقق مما إذا كان المستخدم من النخبة أو البوت
-        const eliteList = getElite().map(n => n.toString());
-        const isElite = isOwner || number === currentBotNumber || eliteList.includes(number);
+        // التحقق المطلق مما إذا كان المستخدم من النخبة أو البوت أو الأونر بغض النظر عن صيغة الرقم
+        const eliteList = getElite();
+        const isElite = isOwner || isSameNumber(number, currentBotNumber) || eliteList.some(el => isSameNumber(number, el));
 
         // =============================
         // ⚡ جلب البلجنات عبر محمل آرثر المحصن
@@ -179,7 +196,8 @@ export async function handleMessages(sock, m) {
                         ownerNumber,
                         isGroup,
                         isPrivate,
-                        message: msg
+                        message: msg,
+                        isElite
                     });
                 }
             } catch (e) {
@@ -188,12 +206,12 @@ export async function handleMessages(sock, m) {
         }
 
         // =============================
-        // 👑 وضع النخبة العام (البوت والأونر مستثنون دائماً)
+        // 👑 وضع النخبة العام (البوت والأونر والنخبة مستثنون دائماً)
         // =============================
 
         const mode = getMode();
 
-        if (mode.elite === true && !isOwner && number !== currentBotNumber) {
+        if (mode.elite === true && !isOwner && !isSameNumber(number, currentBotNumber)) {
             if (!isElite) {
                 console.log(
                     `${COLORS.gold}
@@ -226,7 +244,7 @@ ${COLORS.reset}`
 
         const text = rawText.trim();
         
-        // التحقق مما إذا كان النص تبدأ برمز بادئة (مثل . أو / أو # أو !)
+        // التحقق مما إذا كان النص يبدأ برمز بادئة (مثل . أو / أو # أو !)
         const hasPrefix = /^[./\\#,!^&+=]/.test(text);
         
         // استخراج اسم الأمر بجميع الطرق واستجابة لكل أنواع الاستدعاءات
@@ -272,7 +290,7 @@ ${COLORS.reset}`
 │ ⚜ 𝐀𝐑𝐓𝐇𝐔𝐑 𝐂𝐎𝐌𝐌𝐀𝐍𝐃 ⚜
 ├────────────────────────────────────────┤
 │ ⚡ الأمر : ${commandName}
-│ 👤 الرقم : ${number} ${number === currentBotNumber ? "(🤖 البوت)" : ""}
+│ 👤 الرقم : ${number} ${isSameNumber(number, currentBotNumber) ? "(🤖 البوت)" : ""}
 │ ⏱ السرعة : ${time}ms
 │ 💬 المكان : ${isGroup ? "مجموعة 👥" : "خاص 🔒"}
 │ ✅ الحالة : تم التنفيذ بنجاح (${hasPrefix ? "مع بادئة" : "بدون بادئة 👑"})
@@ -301,7 +319,7 @@ ${COLORS.reset}`
 │ ❌ 𝐔𝐍𝐊𝐍𝐎𝐖𝐍 𝐂𝐎𝐌𝐌𝐀𝐍𝐃
 ├────────────────────────────────────────┤
 │ ⚡ الأمر : ${text}
-│ 👤 الرقم : ${number} ${number === currentBotNumber ? "(🤖 البوت)" : ""}
+│ 👤 الرقم : ${number} ${isSameNumber(number, currentBotNumber) ? "(🤖 البوت)" : ""}
 │ ⏱ السرعة : ${time}ms
 │ 💬 المكان : ${isGroup ? "مجموعة 👥" : "خاص 🔒"}
 │ 🔎 الحالة : NOT FOUND
