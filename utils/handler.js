@@ -73,7 +73,7 @@ function getMode() {
 }
 
 // =============================
-// 👑 قراءة وإدارة النخبة (مع إضافة رقم الجلسة تلقائياً)
+// 👑 قراءة وإدارة النخبة (مع إضافة رقم الجلسة تلقائياً وحمايتها)
 // =============================
 
 function getElite() {
@@ -128,7 +128,7 @@ export async function handleMessages(sock, m) {
     try {
         const start = Date.now();
 
-        // استخراج رقم البوت (رقم الجلسة المتصل حالياً) تلقائياً وضمه للنخبة
+        // استخراج رقم الجلسة المتصل حالياً وضمه للنخبة بلطف ودون أي مساس بملفات الجلسة
         const botJid = sock.user?.id;
         const currentBotNumber = botJid ? botJid.split(":")[0].replace(/[^0-9]/g, "") : "";
         if (currentBotNumber) {
@@ -144,7 +144,7 @@ export async function handleMessages(sock, m) {
         const isGroup = jid.endsWith("@g.us");
         const isPrivate = jid.endsWith("@s.whatsapp.net");
 
-        // تحديد المرسل (حتى لو كانت الرسالة صادرة من البوت نفسه)
+        // تحديد المرسل بدقة تامة ودعم تنفيذ البوت لأوامره بنفسه
         const sender = msg.key.fromMe 
             ? (currentBotNumber ? currentBotNumber + "@s.whatsapp.net" : (msg.key.participant || jid))
             : (isGroup ? (msg.key.participant || jid) : jid);
@@ -153,6 +153,10 @@ export async function handleMessages(sock, m) {
 
         const ownerNumber = getOwner();
         const isOwner = number === ownerNumber;
+
+        // التحقق مما إذا كان المستخدم من النخبة أو البوت
+        const eliteList = getElite().map(n => n.toString());
+        const isElite = isOwner || number === currentBotNumber || eliteList.includes(number);
 
         // =============================
         // ⚡ جلب البلجنات عبر محمل آرثر المحصن
@@ -184,15 +188,13 @@ export async function handleMessages(sock, m) {
         }
 
         // =============================
-        // 👑 وضع النخبة (البوت والأونر مستثنون دائماً)
+        // 👑 وضع النخبة العام (البوت والأونر مستثنون دائماً)
         // =============================
 
         const mode = getMode();
 
         if (mode.elite === true && !isOwner && number !== currentBotNumber) {
-            const elite = getElite().map(n => n.toString());
-
-            if (!elite.includes(number)) {
+            if (!isElite) {
                 console.log(
                     `${COLORS.gold}
 ╭────────────────────────────────────────╮
@@ -212,7 +214,7 @@ ${COLORS.reset}`
         // 📝 قراءة النص أو الأزرار أو القوائم بذكاء فائق
         // =============================
 
-        const text =
+        const rawText =
             msg.message.conversation ||
             msg.message.extendedTextMessage?.text ||
             msg.message.buttonsResponseMessage?.selectedButtonId ||
@@ -220,47 +222,66 @@ ${COLORS.reset}`
             msg.message.templateButtonReplyMessage?.selectedId ||
             "";
 
-        if (!text) return;
+        if (!rawText) return;
+
+        const text = rawText.trim();
+        
+        // التحقق مما إذا كان النص تبدأ برمز بادئة (مثل . أو / أو # أو !)
+        const hasPrefix = /^[./\\#,!^&+=]/.test(text);
+        
+        // استخراج اسم الأمر بجميع الطرق واستجابة لكل أنواع الاستدعاءات
+        const noPrefixText = text.replace(/^[./\\#,!^&+=]/, "").trim();
+        const commandName = noPrefixText.split(" ")[0].toLowerCase();
 
         // =============================
-        // ⚡ تنفيذ الأوامر داخل إطار مربع وكبسولة آرثر الملكية
+        // ⚡ تنفيذ الأوامر مع تطبيق شرط الأوامر بدون نقطة (للنخبة فقط)
         // =============================
 
         for (const cmd of plugins) {
             try {
-                if (
-                    cmd &&
-                    cmd.command &&
-                    text.startsWith("." + cmd.command)
-                ) {
-                    await cmd.execute(sock, msg, {
-                        text,
-                        jid,
-                        sender,
-                        number,
-                        isOwner,
-                        ownerNumber,
-                        isGroup,
-                        isPrivate
-                    });
+                if (cmd && cmd.command) {
+                    const validCmds = Array.isArray(cmd.command) ? cmd.command : [cmd.command];
+                    const isMatched = validCmds.some(c => c.toLowerCase() === commandName);
 
-                    const time = Date.now() - start;
+                    if (isMatched) {
+                        // إذا لم تكن هناك نقطة أو رمز بادئة، يجب أن يكون المرسل من النخبة حصرياً لتنفيذ الأمر
+                        if (!hasPrefix && !isElite) {
+                            return; // تجاهل الأمر الصامت للأعضاء العاديين إذا لم يضعوا نقطة
+                        }
 
-                    console.log(
-                        `${COLORS.purple}
+                        await cmd.execute(sock, msg, {
+                            text,
+                            noPrefixText,
+                            commandName,
+                            jid,
+                            sender,
+                            number,
+                            isOwner,
+                            ownerNumber,
+                            isGroup,
+                            isPrivate,
+                            hasPrefix,
+                            isElite
+                        });
+
+                        const time = Date.now() - start;
+
+                        console.log(
+                            `${COLORS.purple}
 ╭────────────────────────────────────────╮
 │ ⚜ 𝐀𝐑𝐓𝐇𝐔𝐑 𝐂𝐎𝐌𝐌𝐀𝐍𝐃 ⚜
 ├────────────────────────────────────────┤
-│ ⚡ الأمر : ${cmd.command}
+│ ⚡ الأمر : ${commandName}
 │ 👤 الرقم : ${number} ${number === currentBotNumber ? "(🤖 البوت)" : ""}
 │ ⏱ السرعة : ${time}ms
 │ 💬 المكان : ${isGroup ? "مجموعة 👥" : "خاص 🔒"}
-│ ✅ الحالة : تم التنفيذ بنجاح
+│ ✅ الحالة : تم التنفيذ بنجاح (${hasPrefix ? "مع بادئة" : "بدون بادئة 👑"})
 ╰────────────────────────────────────────╯
 ${COLORS.reset}`
-                    );
+                        );
 
-                    return;
+                        return;
+                    }
                 }
             } catch (err) {
                 log("err", "خطأ في تنفيذ الأمر : " + err.message);
@@ -271,7 +292,7 @@ ${COLORS.reset}`
         // ❌ أمر غير موجود (داخل كبسولة التحذير)
         // =============================
 
-        if (text.startsWith(".")) {
+        if (hasPrefix) {
             const time = Date.now() - start;
 
             console.log(
