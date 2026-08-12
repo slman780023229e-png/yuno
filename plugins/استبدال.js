@@ -37,7 +37,7 @@ const checkElitePermission = (msg, data) => {
 export default {
     command: "استبدال",
     category: "المطور",
-    description: "عرض قائمة ملفات مجلد utils والبلجنات أو استبدال أي ملف بالرد على الكود برقم أو اسم الملف (خاص بالنخبة فقط)",
+    description: "عرض قائمة ملفات النظام، Utils، البلجنات وملف التشغيل أو استبدال أي ملف بالرد على الكود برقم أو اسم الملف (خاص بالنخبة فقط)",
 
     execute: async (sock, msg, data) => {
         const jid = data?.jid || msg.key.remoteJid;
@@ -51,20 +51,37 @@ export default {
             });
         }
 
+        const rootPath = path.join(__dirname, "..");
         const pluginsPath = path.join(__dirname, "../plugins");
         const utilsPath = path.join(__dirname, "../utils");
 
         let allFiles = [];
         try {
-            // جلب ملفات مجلد utils (الهبلر، الهيدرا، وملفات المعالجة)
+            // 1. جلب ملفات الجذر الأساسية (مثل index.js ملف التشغيل الرئيسي، package.json ملف المكتبات والإصدار، وملفات الإعدادات)
+            if (fs.existsSync(rootPath)) {
+                const rootFiles = fs.readdirSync(rootPath)
+                    .filter(f => {
+                        const full = path.join(rootPath, f);
+                        return fs.statSync(full).isFile() && (f.endsWith(".js") || f.endsWith(".json") || f.endsWith(".env"));
+                    })
+                    .map(f => ({ name: f, fullPath: path.join(rootPath, f), type: "System / Main" }));
+                allFiles.push(...rootFiles);
+            }
+
+            // 2. جلب ملفات مجلد utils (الهبلر، الهيدرا، وملفات المعالجة)
             if (fs.existsSync(utilsPath)) {
                 const utilsFiles = fs.readdirSync(utilsPath)
                     .filter(f => f.endsWith(".js") || f.endsWith(".json"))
                     .map(f => ({ name: f, fullPath: path.join(utilsPath, f), type: "Utils / Handler" }));
-                allFiles.push(...utilsFiles);
+                
+                for (const uf of utilsFiles) {
+                    if (!allFiles.some(af => af.name === uf.name)) {
+                        allFiles.push(uf);
+                    }
+                }
             }
 
-            // جلب ملفات البلجنات
+            // 3. جلب ملفات البلجنات
             if (fs.existsSync(pluginsPath)) {
                 const pluginFiles = fs.readdirSync(pluginsPath)
                     .filter(f => f.endsWith(".js"))
@@ -82,15 +99,19 @@ export default {
         const args = input.replace(/^\.استبدال/, "").trim().split(/\s+/);
         const query = args[0] ? args[0].toLowerCase() : "";
 
-        // إذا لم يتم كتابة رقم أو اسم، عرض قائمة ملفات utils والبلجنات المتاحة
+        // إذا لم يتم كتابة رقم أو اسم، عرض قائمة الملفات الشاملة المتاحة
         if (!query) {
-            let listText = `╭━━━ ⚡ *قائمة ملفات النظام & Utils* ━━━╮\n\n`;
+            let listText = `╭━━━ ⚡ *قائمة ملفات النظام الشاملة* ━━━╮\n\n`;
             allFiles.forEach((file, index) => {
-                const icon = file.type === "Utils / Handler" ? "⚡" : "🧩";
+                let icon = "📂";
+                if (file.type === "System / Main") icon = "⚙️";
+                else if (file.type === "Utils / Handler") icon = "⚡";
+                else if (file.type === "Plugin") icon = "🧩";
+
                 listText += `*${index + 1}-* ${icon} \`${file.name}\` (${file.type})\n`;
             });
             listText += `\n╰━━━━━━━━━━━━━━━━━━━━╯\n`;
-            listText += `💡 *للاستبدال:* رد على رسالة الكود الجديد واكتب:\n\`.استبدال [الرقم أو الاسم]\`\n*مثال:* \`.استبدال 1\` أو \`.استبدال handler.js\``;
+            listText += `💡 *للاستبدال:* رد على رسالة الكود الجديد واكتب:\n\`.استبدال [الرقم أو الاسم]\`\n*مثال:* \`.استبدال 1\` أو \`.استبدال index.js\``;
 
             return await sock.sendMessage(jid, { text: listText }, { quoted: msg });
         }
@@ -111,7 +132,7 @@ export default {
 
         // استخراج الكود الصافي إذا كان داخل كود بلوك
         if (newContent.includes("```")) {
-            const match = newContent.match(/```(?:javascript|js|json)?\n([\s\S]*?)```/);
+            const match = newContent.match(/```(?:javascript|js|json|env)?\n([\s\S]*?)```/);
             if (match && match[1]) {
                 newContent = match[1];
             }
@@ -130,7 +151,7 @@ export default {
         if (!isNaN(parsedIndex) && parsedIndex >= 1 && parsedIndex <= allFiles.length) {
             targetFileObj = allFiles[parsedIndex - 1];
         } else {
-            targetFileObj = allFiles.find(f => f.name.toLowerCase() === query || f.name.toLowerCase().replace(/\.(js|json)$/, "") === query);
+            targetFileObj = allFiles.find(f => f.name.toLowerCase() === query || f.name.toLowerCase().replace(/\.(js|json|env)$/, "") === query);
         }
 
         if (!targetFileObj) {
@@ -144,7 +165,7 @@ export default {
             fs.writeFileSync(targetFileObj.fullPath, newContent, "utf8");
 
             await sock.sendMessage(jid, {
-                text: `*✅ تم استبدال الملف بنجاح!*\n*📄 الملف:* \`${targetFileObj.name}\`\n\n*🛡️ تم تحديث وحفظ الملف في مجلد (${targetFileObj.type}) فوراً.*`,
+                text: `*✅ تم استبدال الملف بنجاح!*\n*📄 الملف:* \`${targetFileObj.name}\`\n\n*🛡️ تم تحديث وحفظ الملف في (${targetFileObj.type}) فوراً.*`,
                 quoted: msg
             });
 

@@ -13,31 +13,55 @@ export default {
     description: "عرض واجهة القائمة والأقسام",
 
     execute: async(sock, msg, data) => {
+        // بداية قياس السرعة الحقيقية للأمر
+        const speedStart = process.hrtime();
+
         const pluginsPath = path.join(__dirname, "../plugins");
 
         let files = [];
         try {
-            files = fs.readdirSync(pluginsPath).filter(f => f.endsWith(".js"));
+            if (fs.existsSync(pluginsPath)) {
+                files = fs.readdirSync(pluginsPath).filter(f => f.endsWith(".js"));
+            }
         } catch {}
 
-        let categories = {};
+        let categories = Object.create(null);
         let order = [];
         let totalCommandsCount = 0;
 
-        for (const file of files) {
+        const normalizeCategoryName = (name) => {
+            if (!name) return "أخرى";
+            let clean = name.trim().replace(/[أإآ]/g, "ا").replace(/ة/g, "ه");
+            
+            if (/^(مطور|المطور|dev)$/i.test(clean)) return "المطور";
+            if (/^(الادوات|ادوات|tools?)$/i.test(clean)) return "الادوات";
+            if (/^(النخبه|نخبه|النخب|elite)$/i.test(clean)) return "النخبة";
+            if (/^(الادار|اداره|إدارة|admin)$/i.test(clean)) return "الإدارة";
+            if (/^(التحميل|تحميل|download)$/i.test(clean)) return "التحميل";
+            if (/^(العاب|لعب|games?)$/i.test(clean)) return "الألعاب";
+            if (/^(اسلامي|دين|الدين|islamic)$/i.test(clean)) return "الإسلامي";
+
+            return name.trim();
+        };
+
+        for (let i = 0; i < files.length; i++) {
+            const file = files[i];
+            if (file === "قسم.js" || file === "ق.js" || file === "اوامر.js") continue;
+            
             try {
-                const plugin = await import(`../plugins/${file}?${Date.now()}`);
+                const plugin = await import(`../plugins/${file}?t=${startTime}`);
                 const cmd = plugin.default;
 
                 if (!cmd || !cmd.command || !cmd.category) continue;
-                if (file === "قسم.js" || file === "ق.js" || file === "اوامر.js") continue;
 
-                if (!categories[cmd.category]) {
-                    categories[cmd.category] = [];
-                    order.push(cmd.category);
+                const formattedCategory = normalizeCategoryName(cmd.category);
+
+                if (!categories[formattedCategory]) {
+                    categories[formattedCategory] = [];
+                    order.push(formattedCategory);
                 }
 
-                categories[cmd.category].push({
+                categories[formattedCategory].push({
                     command: cmd.command,
                     description: cmd.description || "لا يوجد وصف"
                 });
@@ -63,6 +87,26 @@ export default {
 
         const memoryUsage = (process.memoryUsage().heapUsed / 1024 / 1024).toFixed(1) + "MB";
 
+        // فحص حالة البوت من مجلد data/مود
+        let botMode = "عام";
+        try {
+            const possibleModePaths = [
+                path.join(__dirname, "../data/مود"),
+                path.join(__dirname, "data/مود"),
+                path.join(process.cwd(), "data/مود")
+            ];
+            
+            for (const modePath of possibleModePaths) {
+                if (fs.existsSync(modePath)) {
+                    const modeFiles = fs.readdirSync(modePath);
+                    if (modeFiles.length > 0) {
+                        botMode = "خاص";
+                        break;
+                    }
+                }
+            }
+        } catch {}
+
         const arthurReactions = ["👑", "⚡", "❄️", "🛡️", "⚜️", "⚔️"];
         const react = async (emoji) => {
             try {
@@ -79,7 +123,8 @@ export default {
                     path.join(process.cwd(), "صور")
                 ];
 
-                for (const targetPath of possiblePaths) {
+                for (let i = 0; i < possiblePaths.length; i++) {
+                    const targetPath = possiblePaths[i];
                     if (fs.existsSync(targetPath)) {
                         const imgFiles = fs.readdirSync(targetPath).filter(f => /\.(jpg|jpeg|png|webp)$/i.test(f));
                         if (imgFiles.length > 0) {
@@ -137,25 +182,29 @@ export default {
             return await sock.sendMessage(data.jid, { text: textMessage });
         };
 
+        // حساب السرعة النهائية بدقة بالمللي ثانية (ms)
+        const endTime = process.hrtime(speedStart);
+        const pingSpeed = (endTime[0] * 1000 + endTime[1] / 1000000).toFixed(2) + "ms";
+
         // ==========================================
-        // 1. القائمة الرئيسية (.اوامر) - معلومات النظام فقط
+        // 1. القائمة الرئيسية (.اوامر)
         // ==========================================
         if (!subCommand) {
             react("👑");
 
             let menu =
 `*╔═══════════╗*
-*  👑 𝐀𝐑𝐓𝐇𝐔𝐑 👑*
+  *👑 𝐀𝐑𝐓𝐇𝐔𝐑 👑*
 *╚═══════════╝*
 
 *╭━━━━━━━━━━━╮*
 *┃ 🤖 البوت : Arthur*
 *┃ 👑 المطور : Arthur*
-*┃ ⚡ الحالة : 🟢 Online*
+*┃ ⚡ الحالة : ${botMode}*
 *┃ 📦 الإصدار : 2.0.0*
 *┃ ⏳ التشغيل : ${uptimeFormatted}*
 *┃ 💾 الذاكرة : ${memoryUsage}*
-*┃ 🚀 السرعة : 0.18s*
+*┃ 🚀 السرعة : ${pingSpeed}*
 *┃ 📂 الأقسام : ${order.length} أقسام*
 *┃ 📜 الأوامر : ${totalCommandsCount} أمر*
 *┃ 📅 التاريخ : ${date}*
@@ -185,18 +234,19 @@ export default {
 
             let allText = 
 `*╔═══════════╗*
-*  📚 كل الأقسام*
+   *✨ 📚 كل الأقسام ✨*
 *╚═══════════╝*\n`;
 
-            order.forEach((cat, index) => {
+            for (let i = 0; i < order.length; i++) {
+                const cat = order[i];
                 const cmdCount = categories[cat].length;
                 allText += 
 `
-*╭──〔 ${index + 1} 〕──╮*
+*╭──〔 ${i + 1} 〕──╮*
 *┃ ${getIcon(cat)} ${cat}*
 *┃ 📌 ${cmdCount} أمر*
 *╰─────────╯*`;
-            });
+            }
 
             allText += `\n\n*━━━━━━━━━━━━━*\n*💡 جميع أقسام البوت المتاحة.*`;
 
@@ -209,7 +259,7 @@ export default {
         }
 
         // ==========================================
-        // 2. عرض جميع الأقسام مع نظام الصفحات (.اوامر الاقسام أو .اوامر الاقسام 2)
+        // 2. عرض جميع الأقسام بنظام الصفحات (.اوامر الاقسام)
         // ==========================================
         if (subCommand === "الاقسام" || subCommand === "الأقسام") {
             react("📁");
@@ -223,11 +273,12 @@ export default {
 
             let listText = 
 `*╔═══════════╗*
-*  📂 أقسام البوت*
+  *✨ 📂 أقسام البوت ✨*
 *╚═══════════╝*\n`;
 
-            currentCategories.forEach((cat, index) => {
-                const absoluteIndex = startIndex + index + 1;
+            for (let i = 0; i < currentCategories.length; i++) {
+                const cat = currentCategories[i];
+                const absoluteIndex = startIndex + i + 1;
                 const cmdCount = categories[cat].length;
                 listText += 
 `
@@ -235,7 +286,7 @@ export default {
 *┃ ${getIcon(cat)} ${cat}*
 *┃ 📌 ${cmdCount} أمر*
 *╰───────────╯*`;
-            });
+            }
 
             listText += `\n\n*━━━━━━━━━━━━━*\n*💡 صفحة ${currentPage} من ${totalPages} | اضغط رقم القسم أو الزر.*`;
 
@@ -248,14 +299,13 @@ export default {
             });
 
             if (currentPage < totalPages) {
-                buttonsArray.push({ displayText: `➡️ التالي (${currentPage + 1})`, id: `.اوامر الاقسام ${currentPage + 1}` });
+                buttonsArray.push({ displayText: `➡️ التالي (${currentPage + 1})`, id: ".اوامر الاقسام " + (currentPage + 1) });
             }
             if (currentPage > 1) {
-                buttonsArray.push({ displayText: `⬅️ السابق (${currentPage - 1})`, id: `.اوامر الاقسام ${currentPage - 1}` });
+                buttonsArray.push({ displayText: `⬅️ السابق (${currentPage - 1})`, id: ".اوامر الاقسام " + (currentPage - 1) });
             }
 
-            buttonsArray.push({ displayText: "🌟 كل الأقسام", id: ".اوامر كل_الاقسام" });
-            buttonsArray.push({ displayText: "📜 الرئيسية", id: ".اوامر" });
+            buttonsArray.push({ displayText: "🌟 كل الأقسام", id: ".اوامر كل_الاقسام" }, { displayText: "📜 الرئيسية", id: ".اوامر" });
 
             return await sendResponse(listText, buttonsArray);
         }
@@ -276,19 +326,20 @@ export default {
 
         let text =
 `*╔═══════════╗*
-*  ${getIcon(category)} ${category}*
+  *✨ ${getIcon(category)} ${category} ✨*
 *╚═══════════╝*
 
 *┏━━━━━━━━━━┓*\n`;
 
-        for (const cmd of categories[category]) {
-            text += `*┃ ⭐ .${cmd.command}*\n`;
+        const cmdList = categories[category];
+        for (let i = 0; i < cmdList.length; i++) {
+            text += `*┃ ⭐ .${cmdList[i].command}*\n`;
         }
 
         text += 
 `*┗━━━━━━━━━━┛*
 
-*📌 عدد الأوامر : ${categories[category].length}*`;
+*📌 عدد الأوامر : ${cmdList.length}*`;
 
         const categoryButtons = [
             { displayText: "📂 قائمة الأقسام", id: ".اوامر الاقسام" },

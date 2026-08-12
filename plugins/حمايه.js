@@ -1,296 +1,153 @@
 import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
-const file =
-"./data/contactGuard.json";
+const dataDir = path.join(__dirname, "../data");
+const file = path.join(dataDir, "contactGuard.json");
+const eliteFile = path.join(dataDir, "النخبة.json");
 
-
-
-if(!fs.existsSync("./data")){
-
-    fs.mkdirSync("./data");
-
+if (!fs.existsSync(dataDir)) {
+    fs.mkdirSync(dataDir, { recursive: true });
 }
 
-
-
-if(!fs.existsSync(file)){
-
-    fs.writeFileSync(
-        file,
-        "{}"
-    );
-
+if (!fs.existsSync(file)) {
+    fs.writeFileSync(file, "{}");
 }
 
-
-
-function loadData(){
-
-    try{
-
-        return JSON.parse(
-            fs.readFileSync(file,"utf-8")
-        );
-
-    }catch{
-
+function loadData() {
+    try {
+        return JSON.parse(fs.readFileSync(file, "utf-8"));
+    } catch {
         return {};
-
     }
-
 }
 
-
-
-function saveData(data){
-
-    fs.writeFileSync(
-        file,
-        JSON.stringify(data,null,2)
-    );
-
+function saveData(data) {
+    fs.writeFileSync(file, JSON.stringify(data, null, 2));
 }
 
+const cleanJid = (jid) => {
+    if (!jid) return "";
+    return jid.replace(/:[0-9]+@/, "@");
+};
 
-
-
+// دالة فحص النخبة مطابقة تماماً لطريقة تخزين ملف نخبة.json
+const isEliteUser = (userJid) => {
+    try {
+        if (!fs.existsSync(eliteFile)) return false;
+        const eliteUsers = JSON.parse(fs.readFileSync(eliteFile, "utf-8"));
+        const senderNumber = cleanJid(userJid).split("@")[0];
+        return Array.isArray(eliteUsers) && eliteUsers.includes(senderNumber);
+    } catch {
+        return false;
+    }
+};
 
 export default {
+    command: "حمايه",
+    category: "الحماية",
+    description: "حماية جهات الاتصال",
 
+    execute: async (sock, msg, data) => {
+        const jid = data.jid;
 
-    command:"حمايه",
-
-
-    category:"الحماية",
-
-
-    description:"حماية جهات الاتصال",
-
-
-
-
-    execute: async(sock,msg,data)=>{
-
-
-        const jid =
-        data.jid;
-
-
-
-        if(!jid.endsWith("@g.us")){
-
-            return sock.sendMessage(
-                jid,
-                {
-                    text:
-`❌ الأمر للمجموعات فقط`
-                }
-            );
-
+        if (!jid.endsWith("@g.us")) {
+            return sock.sendMessage(jid, {
+                text: `*╭━━〔 ❌ خطأ 〕━━╮*\n*┤ الأمر للمجموعات فقط*\n*╰━━━━━━━━━━━━╯*`
+            });
         }
 
+        const sender = cleanJid(data.sender || msg.key.participant || msg.participant);
 
+        try {
+            const metadata = await sock.groupMetadata(jid);
+            const participant = metadata.participants.find(p => cleanJid(p.id) === sender);
 
+            const isAdmin = participant && Boolean(participant.admin);
+            const isElite = isEliteUser(sender);
 
-        const metadata =
-        await sock.groupMetadata(jid);
-
-
-
-        const admin =
-        metadata.participants.find(
-            p =>
-            p.id === data.sender
-        );
-
-
-
-        if(!admin?.admin){
-
-            return sock.sendMessage(
-                jid,
-                {
-                    text:
-`❌ الأمر للمشرفين فقط`
-                }
-            );
-
-        }
-
-
-
-
-        const db =
-        loadData();
-
-
-
-        db[jid] =
-        !db[jid];
-
-
-
-        saveData(db);
-
-
-
-        await sock.sendMessage(
-            jid,
-            {
-                text:
-
-db[jid]
-?
-`━━━ ╼╃ ⌬〔 ✦ 🛡️ 𝐘𝐔𝐍𝐎 𝐒𝐄𝐂𝐔𝐑𝐈𝐓𝐘 ✦ 〕⌬ ╄╾ ━━━
-
-*┤ ✅ تم تشغيل الحماية*
-
-*┤ 📱 حذف جهات الاتصال*
-*┤ 🚫 طرد المرسل*
-*┤ ⚡ نظام سريع*
-
-*┇ 𓆩 ⚜ 𝐘𝐔𝐍𝐎 𝐁𝐎𝐓 ⚜ 𓆪 👑*`
-:
-`🔓 تم إيقاف حماية جهات الاتصال`
-
+            // الشرط: لو لم يكن مشرفاً وليس نخبة، يرفض الأمر
+            if (!isAdmin && !isElite) {
+                return sock.sendMessage(jid, {
+                    text: `*╭━━〔 ❌ خطأ 〕━━╮*\n*┤ الأمر للمشرفين والنخبة فقط*\n*╰━━━━━━━━━━━━╯*`
+                });
             }
-        );
 
+            const db = loadData();
+            db[jid] = !db[jid];
+            saveData(db);
 
+            const statusText = db[jid]
+                ? `*╔═══════════╗*\n  *✨ 🛡️ حماية جهات الاتصال ✨*\n*╚═══════════╝*\n\n*╭━━━━━━━━━━━╮*\n*┃ ✅ تم تشغيل الحماية*\n*┃ 📱 حذف جهات الاتصال*\n*┃ 🚫 طرد المرسل الفوري*\n*┃ ⚡ سرعة فائقة جداً*\n*╰━━━━━━━━━━━╯*`
+                : `*╔═══════════╗*\n  *✨ 🛡️ حماية جهات الاتصال ✨*\n*╚═══════════╝*\n\n*╭━━━━━━━━━━━╮*\n*┃ 🔓 تم إيقاف الحماية*\n*╰━━━━━━━━━━━╯*`;
+
+            await sock.sendMessage(jid, { text: statusText });
+
+        } catch (e) {
+            console.log("خطأ في التحقق من الصلاحيات:", e.message);
+            await sock.sendMessage(jid, {
+                text: `*╭━━〔 ❌ خطأ 〕━━╮*\n*┤ تعذر التحقق من الصلاحيات*\n*╰━━━━━━━━━━━━╯*`
+            });
+        }
     },
 
+    onMessage: async (sock, msg) => {
+        const jid = msg.key.remoteJid;
 
+        if (!jid || !jid.endsWith("@g.us")) return;
 
+        const db = loadData();
+        if (!db[jid]) return;
 
+        const botNumber = cleanJid(sock.user?.id);
+        const sender = cleanJid(msg.key.participant || msg.participant);
+        if (msg.key.fromMe || (botNumber && sender === botNumber)) return;
 
-    onMessage: async(sock,msg)=>{
+        const message = msg.message;
+        if (!message) return;
 
+        let hasContact = false;
+        let contactCount = 0;
 
-        const jid =
-        msg.key.remoteJid;
-
-
-
-        if(
-            !jid ||
-            !jid.endsWith("@g.us")
-        )
-        return;
-
-
-
-        const db =
-        loadData();
-
-
-
-        if(!db[jid])
-        return;
-
-
-
-        const message =
-        msg.message;
-
-
-
-        let contacts = [];
-
-
-
-        if(message?.contactMessage){
-
-            contacts.push(
-                message.contactMessage
-            );
-
+        if (message.contactMessage) {
+            hasContact = true;
+            contactCount = 1;
+        } else if (message.contactsArrayMessage) {
+            hasContact = true;
+            contactCount = message.contactsArrayMessage.contacts?.length || 1;
         }
 
+        if (!hasContact) return;
+        if (!sender) return;
 
-
-        if(message?.contactsArrayMessage){
-
-            contacts =
-            message.contactsArrayMessage.contacts;
-
-        }
-
-
-
-        if(!contacts.length)
-        return;
-
-
-
-        const user =
-        msg.key.participant;
-
-
-
-        if(!user)
-        return;
-
-
-
-
-        try{
-
-
-            // حذف الرسالة فوراً
-
-            await sock.sendMessage(
-                jid,
-                {
-                    delete:{
-                        remoteJid:jid,
-                        id:msg.key.id,
-                        participant:user
+        try {
+            await Promise.all([
+                sock.sendMessage(jid, {
+                    delete: {
+                        remoteJid: jid,
+                        id: msg.key.id,
+                        participant: msg.key.participant || msg.participant
                     }
-                }
-            );
-
-
-
-            // الطرد
-
-            await sock.groupParticipantsUpdate(
-                jid,
-                [
-                    user
-                ],
-                "remove"
-            );
-
-
+                }),
+                sock.groupParticipantsUpdate(jid, [msg.key.participant || msg.participant], "remove")
+            ]);
 
             console.log(
 `╭━━━━━━━━━━━━━━━━━━━━━━╮
-┃ 🛡️ 𝐘𝐔𝐍𝐎 𝐒𝐄𝐂𝐔𝐑𝐈𝐓𝐘
+┃ 🛡️ 𝐘𝐔𝐍𝐎 𝐒𝐄𝐂𝐔𝐑Ｉ𝐓𝐘
 ┣━━━━━━━━━━━━━━━━━━━━━━┫
-┃ 🚫 تم منع جهة اتصال
-┃ 👤 ${user}
-┃ 📦 العدد : ${contacts.length}
-┃ ⚡ تم التنفيذ
+┃ 🚫 تم منع جهة اتصال بسرعة قصوى
+┃ 👤 ${sender}
+┃ 📦 العدد : ${contactCount}
+┃ ⚡ تم التنفيذ الفوري
 ╰━━━━━━━━━━━━━━━━━━━━━━╯`
             );
 
-
-
-        }catch(e){
-
-
-            console.log(
-                "حماية:",
-                e.message
-            );
-
-
+        } catch (e) {
+            console.log("حماية جهات الاتصال:", e.message);
         }
-
-
-
     }
-
-
 };
