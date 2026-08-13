@@ -1,6 +1,6 @@
 import fs from "fs";
 import path from "path";
-import { fileURLToPath } from "url";
+import { fileURLToPath, pathToFileURL } from "url";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -57,8 +57,10 @@ ${COLORS.reset}
 
     for (const file of files) {
         try {
-            // استخدام Timestamp لمنع كاش الملفات القديمة وضمان تحديث البلجنات الفوري
-            const plugin = await import(`../plugins/${file}?update=${Date.now()}`);
+            const filePath = path.join(pluginsPath, file);
+            // تحويل المسار إلى صيغة URL صحيحة متوافقة مع جميع المنصات (Windows / Termux / Linux) مع كسر الكاش
+            const fileUrl = `${pathToFileURL(filePath).href}?update=${Date.now()}`;
+            const plugin = await import(fileUrl);
 
             if (plugin.default && typeof plugin.default === "object") {
                 plugins.push(plugin.default);
@@ -123,13 +125,13 @@ export function watchPlugins(onChangeCallback) {
 
     fs.watch(pluginsPath, async (eventType, filename) => {
         if (filename && filename.endsWith(".js")) {
-            // تفريغ الكاش فور حدوث أي تعديل
+            // تفريغ الكاش فور حدوث أي تعديل لضمان التحديث اللحظي
             pluginsCache = null;
 
             console.log(
                 `${COLORS.gold}
 ╭────────────────────────────────────────╮
-│ 🔄 𝐀𝐑𝐓𝐇𝐔𝐑 𝐋Ｉ𝐕𝐄 𝐖𝐀𝐓𝐂𝐇𝐄𝐑             │
+│ 🔄 𝐀𝐑𝐓𝐇𝐔𝐑 𝐋𝐈𝐕𝐄 𝐖𝐀𝐓𝐂𝐇𝐄𝐑             │
 ├────────────────────────────────────────┤
 │ ⚡ الحدث : تم تعديل الملف ${filename.slice(0, 13).padEnd(13)} │
 │ ♻️ جاري مسح الكاش وتحديث البلجنات...     │
