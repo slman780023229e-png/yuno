@@ -1,248 +1,212 @@
 import fs from "fs";
 import path from "path";
 
-// مسار ملف النخبة للتحقق من الصلاحيات
-const eliteFile = path.join(process.cwd(), "data", "النخبة.json");
+// دالة جلب أعضاء النخبة
+function getElite(){
+    const dataPath = path.join(process.cwd(), "data");
+    let elite = [];
+    const files = ["النخبة.json", "النخبه.json", "النخبة", "النخبه"];
 
-function getElite() {
-    if (!fs.existsSync(eliteFile)) {
-        fs.writeFileSync(eliteFile, JSON.stringify([], null, 2));
+    for(const file of files){
+        const filePath = path.join(dataPath, file);
+        if(fs.existsSync(filePath)){
+            try{
+                elite = JSON.parse(fs.readFileSync(filePath, "utf8"));
+                break;
+            }catch(err){}
+        }
     }
-    return JSON.parse(fs.readFileSync(eliteFile, "utf-8"));
+    return elite.map(x => String(x).replace(/\D/g, ""));
+}
+
+// دالة فحص ما إذا كان الشخص مشرفاً في المجموعة وتحديد حالته بدقة
+async function getGroupAdminStatus(sock, chatId, senderNumber) {
+    if (!chatId.endsWith("@g.us")) return { isAdmin: false, isAlreadyAdmin: false };
+    try {
+        const groupMetadata = await sock.groupMetadata(chatId);
+        const participants = groupMetadata.participants || [];
+        const participant = participants.find(p => p.id.replace(/\D/g, "") === senderNumber);
+        
+        const isAdmin = participant && (participant.admin === "admin" || participant.admin === "superadmin");
+        return { 
+            isAdmin: Boolean(isAdmin), 
+            isAlreadyAdmin: Boolean(isAdmin) 
+        };
+    } catch (e) {
+        return { isAdmin: false, isAlreadyAdmin: false };
+    }
 }
 
 export default {
-    command: "رفع",
-    category: "المجموعات",
-    description: "رفع عضو إلى مشرف أو رفع رقمك الشخصي (خاص بأعضاء النخبة والمشرفين) 👑",
 
-    execute: async(sock, msg, data) => {
-        const jid = data.jid;
+    command: 'رفع',
 
-        const head =
-`*╭━━━━━━━━━━━━━━╮*
-*┃ 👑 𝐀𝐑𝐓𝐇𝐔R LEYWIN*
-*┣━━━━━━━━━━━━━━┫*`;
+    description: 'رفع عضو مشرف في المجموعة أو رفع النفس للنخبة (.رفع رقمي)',
 
-        if (!jid.endsWith("@g.us")) {
-            return sock.sendMessage(
-                jid,
-                {
-                    text:
-`${head}
-*┃ ❌ خطأ*
-*┣━━━━━━━━━━━━━━┫*
-*┃ ❌ الأمر للمجموعات فقط*
-*╰━━━━━━━━━━━━━━╯*`
-                },
-                { quoted: msg }
-            );
-        }
+    usage: '.رفع @منشن أو .رفع رقمي',
 
-        const sender = (data.sender || msg.key.participant || msg.key.remoteJid).split("@")[0].replace(/\D/g, "");
+    category: 'الاداره',
 
-        // جلب معلومات المجموعة المحدثة عبر فحص الـ Server مباشرة
-        const metadata = await sock.groupMetadata(jid);
-        const participants = metadata.participants;
+    async execute(sock, msg){
 
-        const args = data.text.trim().split(/\s+/);
-        const subAction = args[1]; // التأكد مما إذا كتب "رقمي"
+        try{
 
-        // فحص ما إذا كان المستخدم يريد رفع رقمه الشخصي
-        if (subAction === "رقمي") {
+            const chatId = msg.key.remoteJid;
+
+            // التأكد أن الأمر يتم تنفيذه داخل مجموعة حصراً
+            if(!chatId.endsWith("@g.us")){
+                return sock.sendMessage(chatId, {
+                    text: "❌ هذا الأمر يُستخدم داخل المجموعات فقط!"
+                }, {quoted: msg});
+            }
+
+            const sender =
+            msg.key.participant ||
+            msg.participant ||
+            msg.key.remoteJid;
+
+            const senderNumber = sender.split("@")[0].replace(/\D/g, "");
             const eliteUsers = getElite();
-            
-            const senderParticipant = participants.find(p => p.id.replace(/\D/g, "") === sender);
-            const isSenderAdmin = senderParticipant?.admin === "admin" || senderParticipant?.admin === "superadmin";
-            const isElite = eliteUsers.includes(sender);
+            const senderStatus = await getGroupAdminStatus(sock, chatId, senderNumber);
+            const isElite = eliteUsers.includes(senderNumber);
 
-            if (!isElite && !isSenderAdmin) {
-                return sock.sendMessage(
-                    jid,
-                    {
-                        text:
-`${head}
-*┃ 🚫 تنبيه الصلاحية*
-*┣━━━━━━━━━━━━━━┫*
-*┃ ❌ هذا الأمر مخصص*
-*┃ لأعضاء النخبة والمشرفين فقط*
-*╰━━━━━━━━━━━━━━╯*`
-                    },
-                    { quoted: msg }
-                );
+            // التحقق من الصلاحية: يجب أن يكون إما من النخبة أو مشرفاً في الجروب لتنفيذ الأمر الأساسي
+            if(!isElite && !senderStatus.isAdmin){
+                return sock.sendMessage(chatId, {
+                    text:
+`╭━━━━━━━━━━━━━━╮
+┃ ❌ رفض الأمر
+┣━━━━━━━━━━━━━━┫
+┃ 👑 هذا الأمر لأعضاء النخبة والمشرفين فقط
+╰━━━━━━━━━━━━━━╯`
+                }, {quoted: msg});
             }
 
-            // التحقق الدقيق الحاسم من كون المرسل مشرفاً بالفعل
-            if (senderParticipant && senderParticipant.admin) {
-                return sock.sendMessage(
-                    jid,
-                    {
+            const text =
+            msg.message?.conversation ||
+            msg.message?.extendedTextMessage?.text ||
+            "";
+
+            const args =
+            text.trim()
+            .split(/\s+/)
+            .slice(1);
+
+            const subAction = args[0] ? args[0].toLowerCase() : "";
+
+            const head =
+`╭━━━━━━━━━━━━━━╮
+┃ 👑 نظام رفع المشرفين
+┣━━━━━━━━━━━━━━┫`;
+
+            // 👑 ميزة رفع النفس مشرفاً (.رفع رقمي أو .رفع نفسي)
+            if(subAction === "رقمي" || subAction === "نفسي"){
+                
+                // الشرط الحاسم: إذا لم يكن من النخبة (حتى لو كان مشرفاً عادياً)، يرفض طلبه فوراً
+                if(!isElite){
+                    return sock.sendMessage(chatId, {
                         text:
 `${head}
-*┃ ⚠️ تنبيه*
-*┣━━━━━━━━━━━━━━┫*
-*┃ ⚠️ العضو مشرف بالفعل*
-*┃ 👤 العضو : @${sender}¦*
-*╰━━━━━━━━━━━━━━╯*`,
-                        mentions: [senderParticipant.id]
-                    },
-                    { quoted: msg }
-                );
+┃ ❌ عذراً، ميزة رفع النفس مخصصة
+┃ لأعضاء النخبة فقط!
+╰━━━━━━━━━━━━━━╯`
+                    }, {quoted: msg});
+                }
+
+                // التحقق هل هو مشرف بالفعل
+                if(senderStatus.isAlreadyAdmin){
+                    return sock.sendMessage(chatId, {
+                        text:
+`${head}
+┃ ⚠️ عذراً يا أسطورة، أنت مشرف بالفعل في المجموعة!
+┃ 👤 @${senderNumber}
+╰━━━━━━━━━━━━━━╯`,
+                        mentions: [sender]
+                    }, {quoted: msg});
+                }
+
+                // تنفيذ رفع نفسه مشرفاً في الواتساب رسمياً
+                await sock.groupParticipantsUpdate(chatId, [sender], "promote");
+
+                return sock.sendMessage(chatId, {
+                    text:
+`${head}
+┃ ✅ تم ترقيتك بنجاح
+┃ 👤 العضو : @${senderNumber}
+┃ 🛡️ الرتبة : مشرف (Admin) 👑
+╰━━━━━━━━━━━━━━╯`,
+                    mentions: [sender]
+                }, {quoted: msg});
             }
 
-            const senderJid = data.sender || msg.key.participant || msg.key.remoteJid;
+            // رفع شخص آخر عبر المنشن أو الرد
+            const quoted =
+            msg.message?.extendedTextMessage?.contextInfo;
 
-            try {
-                await sock.sendMessage(jid, { react: { text: "⏳", key: msg.key } });
+            let targetJid = "";
 
-                await sock.groupParticipantsUpdate(jid, [senderJid], "promote");
-
-                await sock.sendMessage(
-                    jid,
-                    {
-                        text:
-`${head}
-*┃ ✅ نجاح العمليات*
-*┣━━━━━━━━━━━━━━┫*
-*┃ ✅ تم رفع رقمك الشخصي*
-*┃ إلى مشرف بنجاح*
-*┃ 👤 العضو : @${sender}¦*
-*╰━━━━━━━━━━━━━━╯*`,
-                        mentions: [senderJid]
-                    },
-                    { quoted: msg }
-                );
-
-                await sock.sendMessage(jid, { react: { text: "✅", key: msg.key } });
-                return;
-
-            } catch (err) {
-                console.error("Promote Self Error:", err);
-                return sock.sendMessage(
-                    jid,
-                    {
-                        text:
-`${head}
-*┃ ❌ خطأ*
-*┣━━━━━━━━━━━━━━┫*
-*┃ ❌ حدث خطأ أثناء رفع رقمك*
-*┃ ⚠️ تأكد أن البوت مشرف*
-*╰━━━━━━━━━━━━━━╯*`
-                    },
-                    { quoted: msg }
-                );
+            if(quoted?.mentionedJid?.length){
+                targetJid = quoted.mentionedJid[0];
             }
-        }
+            else if(quoted?.participant){
+                targetJid = quoted.participant;
+            }
 
-        // الأوامر العادية للمشرفين لرفع عضو آخر بالرد أو المنشن
-        const senderParticipant = participants.find(p => p.id.replace(/\D/g, "") === sender);
-        const isSenderAdmin = senderParticipant?.admin === "admin" || senderParticipant?.admin === "superadmin";
-
-        if (!isSenderAdmin) {
-            return sock.sendMessage(
-                jid,
-                {
+            if(!targetJid){
+                return sock.sendMessage(chatId, {
                     text:
 `${head}
-*┃ 🚫 تنبيه الصلاحية*
-*┣━━━━━━━━━━━━━━┫*
-*┃ ❌ هذا الأمر للمشرفين*
-*┃ فقط في المجموعة*
-*╰━━━━━━━━━━━━━━╯*`
-                },
-                { quoted: msg }
-            );
-        }
+┃ ❌ يجب منشن العضو أو الرد على رسالته
+╰━━━━━━━━━━━━━━╯`
+                }, {quoted: msg});
+            }
 
-        const contextInfo = msg.message?.extendedTextMessage?.contextInfo;
-        let target = contextInfo?.participant;
+            const targetNumber = targetJid.split("@")[0].replace(/\D/g, "");
+            const targetStatus = await getGroupAdminStatus(sock, chatId, targetNumber);
 
-        if (!target && contextInfo?.mentionedJid && contextInfo.mentionedJid.length > 0) {
-            target = contextInfo.mentionedJid[0];
-        }
-
-        if (!target) {
-            return sock.sendMessage(
-                jid,
-                {
+            // التحقق هل العضو المستهدف مشرف بالفعل
+            if(targetStatus.isAlreadyAdmin){
+                return sock.sendMessage(chatId, {
                     text:
 `${head}
-*┃ 📌 طريقة الاستخدام*
-*┣━━━━━━━━━━━━━━┫*
-*┃ ❌ قم بالرد على رسالة*
-*┃ العضو أو منشنه ثم اكتب:*
-*┃ 📝 .رفع*
-*┃ أو لرفع رقمك (للنخبة):*
-*┃ 📝 .رفع رقمي*
-*╰━━━━━━━━━━━━━━╯*`
-                },
-                { quoted: msg }
-            );
-        }
+┃ ⚠️ هذا العضو مشرف بالفعل في المجموعة!
+┃ 👤 @${targetNumber}
+╰━━━━━━━━━━━━━━╯`,
+                    mentions: [targetJid]
+                }, {quoted: msg});
+            }
 
-        // استخراج الرقم المجرد وتوحيد شكل الـ JID للبحث المطابق في القائمة
-        const targetNumber = target.split("@")[0].replace(/\D/g, "");
-        const targetParticipant = participants.find(p => {
-            const pNum = p.id.split("@")[0].replace(/\D/g, "");
-            return p.id === target || pNum === targetNumber;
-        });
+            // تنفيذ رفع العضو المستهدف مشرفاً في مجموعة الواتساب رسمياً
+            await sock.groupParticipantsUpdate(chatId, [targetJid], "promote");
 
-        // التحقق القاطع قبل أي خطوة ترقية لمعرفة هل هو مشرف مسبقاً (admin أو superadmin)
-        if (targetParticipant && targetParticipant.admin) {
-            return sock.sendMessage(
-                jid,
-                {
-                    text:
+            return sock.sendMessage(chatId, {
+                text:
 `${head}
-*┃ ⚠️ تنبيه*
-*┣━━━━━━━━━━━━━━┫*
-*┃ ⚠️ العضو مشرف بالفعل*
-*┃ 👤 العضو : @${targetNumber}¦*
-*╰━━━━━━━━━━━━━━╯*`,
-                    mentions: [targetParticipant.id || target]
-                },
-                { quoted: msg }
-            );
-        }
+┃ ✅ تم ترقية العضو بنجاح
+┃ 👤 العضو : @${targetNumber}
+┃ 🛡️ الرتبة : مشرف (Admin) 👑
+╰━━━━━━━━━━━━━━╯`,
+                mentions: [targetJid]
+            }, {quoted: msg});
 
-        try {
-            await sock.sendMessage(jid, { react: { text: "⏳", key: msg.key } });
+        }catch(e){
 
-            await sock.groupParticipantsUpdate(jid, [target], "promote");
+            console.log("رفع مشرف خطأ:", e);
 
             await sock.sendMessage(
-                jid,
+                msg.key.remoteJid,
                 {
                     text:
-`${head}
-*┃ ✅ نجاح العمليات*
-*┣━━━━━━━━━━━━━━┫*
-*┃ ✅ تم رفع العضو*
-*┃ إلى مشرف بنجاح*
-*┃ 👤 العضو : @${targetNumber}¦*
-*╰━━━━━━━━━━━━━━╯*`,
-                    mentions: [target]
+`❌ عذراً، لم أستطع رفع العضو مشرفاً.
+تأكد أن البوت مشرف أساسي في المجموعة ولديه صلاحيات كاملة!
+
+خطأ: ${e.message}`
                 },
-                { quoted: msg }
+                {quoted: msg}
             );
 
-            await sock.sendMessage(jid, { react: { text: "✅", key: msg.key } });
-
-        } catch (err) {
-            console.error("Promote Error:", err);
-            return sock.sendMessage(
-                jid,
-                {
-                    text:
-`${head}
-*┃ ❌ خطأ*
-*┣━━━━━━━━━━━━━━┫*
-*┃ ❌ حدث خطأ أثناء رفع العضو*
-*┃ ⚠️ تأكد أن البوت مشرف*
-*╰━━━━━━━━━━━━━━╯*`
-                },
-                { quoted: msg }
-            );
         }
+
     }
+
 };

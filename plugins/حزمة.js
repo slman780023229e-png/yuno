@@ -46,7 +46,7 @@ function enqueuePackTask(taskFn) {
     });
 }
 
-/* ========= إعدادات Pinterest ========= */
+/* ========= إعدادات Pinterest السريعة والعميقة ========= */
 const base = "https://www.pinterest.com";
 const search = "/resource/BaseSearchResource/get/";
 
@@ -95,7 +95,7 @@ async function searchPinterest(query) {
           query,
           scope: "pins",
           bookmarks: [""],
-          page_size: 40, 
+          page_size: 50, 
         },
         context: {},
       }),
@@ -253,38 +253,37 @@ async function uploadToServer(conn, buffer, { hkdf, mediaPath, mediaKey = crypto
 }
 
 export default {
-    command: "حزمه",
-    category: "تحميل",
-    description: "جلب حزمة ملصقات (30 ملصق) من بينترست بدقة عالية ونظام ذكي للأنمي والشخصيات",
+    command: "حزمة",
+    category: "التحميل",
+    description: "جلب حزمة ملصقات (30 ملصق) بدقة عالية مع 5 ستايلات قوية ومضمونة الظهور",
 
     execute: async (sock, msg, data) => {
         const input = data.text ? data.text.trim() : "";
-        const cleanInput = input.replace(/^\.حزمه/, "").trim();
+        const cleanInput = input.replace(/^\.حزمة/, "").trim();
         const args = cleanInput.split(/\s+/);
         
-        let typeMode = ""; // هل الكلمة الأولى "انمي" أو "شخصية" أو اسم مباشر؟
+        let typeMode = ""; 
         let query = "";
         let style = "";
 
         if (args[0] && (args[0].toLowerCase() === "انمي" || args[0].toLowerCase() === "أنمي")) {
             typeMode = "anime";
-            args.shift(); // إزالة كلمة "انمي"
+            args.shift();
             query = args[0] ? args[0] : "";
             style = args[1] ? args[1].toLowerCase() : "";
         } else if (args[0] && (args[0].toLowerCase() === "شخصيه" || args[0].toLowerCase() === "شخصية")) {
             typeMode = "character";
-            args.shift(); // إزالة كلمة "شخصية"
+            args.shift();
             query = args[0] ? args[0] : "";
             style = args[1] ? args[1].toLowerCase() : "";
         } else {
-            // إذا لم يكتب نوع، نعتبرها بحث مباشر بالشخصية أو الكلمة
             query = args[0] ? args[0] : "";
             style = args[1] ? args[1].toLowerCase() : "";
         }
 
         if (!query) {
             return await sock.sendMessage(data.jid, {
-                text: `*╭━━〔 ⚡ 𝐀𝐑𝐓𝐇𝐔𝐑 ⚡ 〕━━╮*\n*┃ ❌ يرجى كتابة الطلب بشكل صحيح*\n*┃ 📌 مثال: .حزمه انمي ناروتو*\n*┃ 📌 مثال: .حزمه ايزن*\n*╰━━━━━━━━━━━━━╯*`
+                text: `*╭━━〔 ⚡ 𝐀𝐑𝐓𝐇𝐔𝐑 𝐒𝐘𝐒𝐓𝐄𝐌 ⚡ 〕━━╮*\n*┃ ❌ يرجى كتابة الطلب بشكل صحيح*\n*┃ 📌 مثال: .حزمة انمي ناروتو*\n*┃ 📌 مثال: .حزمة غوجو*\n*╰━━━━━━━━━━━━━━━━━━━━╯*`
             }, { quoted: msg });
         }
 
@@ -296,21 +295,23 @@ export default {
             let modeTitle = typeMode === "anime" ? `أنمي ${query}` : query;
             let menuText = 
 `*╔═══════════╗*
-*👑 اختيار نمط حزمة ${modeTitle}*
+  *👑 𝐀𝐑𝐓𝐇𝐔𝐑 𝐏𝐀𝐂𝐊 𝐒𝐘𝐒𝐓𝐄𝐌 👑*
 *╚═══════════╝*
 
-*╭━━━━━━━━━━━╮*
-*┃ 📌 تحتوي على 30 ملصق بدقة عالية*
-*┃ 🎨 اختر النمط المناسب لطلبك:*
-*╰━━━━━━━━━━━╯*`;
+*╭━━〔 📦 تفاصيل الحزمة 〕━━╮*
+*┃ 🎯 الطلب : ${modeTitle}*
+*┃ ⚡ المحتوى : 30 ملصق فخم وعالي الدقة*
+*┃ 🎨 اختر أحد الستايلات الـ 5 القوية:*
+*╰━━━━━━━━━━━━━━━━━━━━╯*`;
 
-            // بناء معرف الأزرار لكي يحافظ على وضع (انمي / شخصية) عند الاختيار
-            let prefixCmd = typeMode === "anime" ? ".حزمه انمي" : (typeMode === "character" ? ".حزمه شخصية" : ".حزمه");
+            let prefixCmd = typeMode === "anime" ? ".حزمة انمي" : (typeMode === "character" ? ".حزمة شخصية" : ".حزمة");
 
             const buttonsArray = [
-                { displayText: `⚡ ستايل 1 (منوع)`, id: `${prefixCmd} ${query} style1` },
-                { displayText: `🔥 ستايل 2 (فخم/دارك)`, id: `${prefixCmd} ${query} style2` },
-                { displayText: `💎 ستايل 3 (قتال/حماسي)`, id: `${prefixCmd} ${query} style3` }
+                { displayText: `⚡ ستايل 1 (Aesthetic / هادئ)`, id: `${prefixCmd} ${query} style1` },
+                { displayText: `🔥 ستايل 2 (Dark Badass / فخم)`, id: `${prefixCmd} ${query} style2` },
+                { displayText: `💎 ستايل 3 (Epic Action / قتالي)`, id: `${prefixCmd} ${query} style3` },
+                { displayText: `🌌 ستايل 4 (Cinematic / سينمائي)`, id: `${prefixCmd} ${query} style4` },
+                { displayText: `⚡ ستايل 5 (Manga Raw / مانغا)`, id: `${prefixCmd} ${query} style5` }
             ];
 
             if (typeof sock.sendRealButtons === "function") {
@@ -318,7 +319,7 @@ export default {
                     return await sock.sendRealButtons(
                         data.jid,
                         menuText,
-                        "ARTHUR BOT SYSTEM 2026",
+                        "ARTHUR ELITE SYSTEM 2026",
                         buttonsArray
                     );
                 } catch (e) {}
@@ -327,27 +328,27 @@ export default {
             return await sock.sendMessage(data.jid, { text: menuText });
         }
 
-        // تحديد كلمات البحث الذكية بناءً على رغبة المستخدم (أنمي بالكامل أو شخصية)
         let searchQuery = query;
-        let packNameSuffix = "منوع";
+        let packNameSuffix = "مميز";
 
         if (typeMode === "anime") {
-            // لو طلب حزمة أنمي، كل النتائج تكون أنمي بغض النظر عن الاسم
             if (style === "style1") {
                 searchQuery = `anime ${query} aesthetic wallpaper`;
                 packNameSuffix = "Anime Aesthetic";
             } else if (style === "style2") {
                 searchQuery = `anime ${query} dark badass icon`;
-                packNameSuffix = "Anime Badass";
+                packNameSuffix = "Anime Dark Badass";
             } else if (style === "style3") {
-                searchQuery = `anime ${query} fight pose`;
-                packNameSuffix = "Anime Fight";
-            } else {
-                searchQuery = `anime ${query}`;
-                packNameSuffix = "Anime";
+                searchQuery = `anime ${query} epic fight pose`;
+                packNameSuffix = "Anime Action";
+            } else if (style === "style4") {
+                searchQuery = `anime ${query} cinematic atmosphere`;
+                packNameSuffix = "Anime Cinematic";
+            } else if (style === "style5") {
+                searchQuery = `anime ${query} manga raw panel`;
+                packNameSuffix = "Anime Manga Raw";
             }
         } else {
-            // لو طلب شخصية أو بحث عادي، يحددها حسب سياق الستايل
             if (style === "style1") {
                 searchQuery = `${query} aesthetic wallpaper`;
                 packNameSuffix = "Aesthetic";
@@ -355,8 +356,14 @@ export default {
                 searchQuery = `${query} dark badass icon`;
                 packNameSuffix = "Badass";
             } else if (style === "style3") {
-                searchQuery = `${query} action fight pose`;
+                searchQuery = `${query} epic action fight`;
                 packNameSuffix = "Action";
+            } else if (style === "style4") {
+                searchQuery = `${query} cinematic atmosphere`;
+                packNameSuffix = "Cinematic";
+            } else if (style === "style5") {
+                searchQuery = `${query} manga raw panel`;
+                packNameSuffix = "Manga Raw";
             }
         }
 
@@ -383,9 +390,9 @@ export default {
                 let stickersMetadata = [];
                 const zip = new JSZip();
 
-                for (let i = 0; i < selectedPins.length; i++) {
+                await Promise.all(selectedPins.map(async (pin) => {
                     try {
-                        let imgRes = await axios.get(selectedPins[i].image, { responseType: 'arraybuffer', timeout: 7000 });
+                        let imgRes = await axios.get(pin.image, { responseType: 'arraybuffer', timeout: 7000 });
                         let originalBuffer = Buffer.from(imgRes.data);
                         let stickerBuffer = await makeStickerWebp(originalBuffer);
                         const fileName = `${toB64Url(sha256(stickerBuffer))}.webp`;
@@ -401,10 +408,10 @@ export default {
                             mimetype: 'image/webp',
                         });
                     } catch {}
-                }
+                }));
 
                 if (stickersMetadata.length === 0) {
-                    throw new Error('فشل تحويل الصور إلى ملصقات.');
+                    throw new Error('فشل معالجة وتحويل الصور إلى ملصقات.');
                 }
 
                 let firstSticker = zip.file(stickersMetadata[0].fileName);
@@ -433,10 +440,10 @@ export default {
                     {
                         messageContextInfo: { messageSecret: crypto.randomBytes(32) },
                         stickerPackMessage: {
-                            stickerPackId: 'Pack_' + crypto.randomBytes(8).toString('hex'),
+                            stickerPackId: 'Arthur_Pack_' + crypto.randomBytes(8).toString('hex'),
                             name: `Arthur | ${query.toUpperCase()} ⚡`, 
-                            publisher: '𝐴𝑟𝑡𝘩𝑢𝑟 𝐵𝑜𝑡 ⚡', 
-                            packDescription: `حزمة ملصقات ${packNameSuffix} لـ ${query} (${stickersMetadata.length} ملصق)`, 
+                            publisher: '𝐴𝑟𝑡𝘩𝑢𝑟 𝐵𝑜𝑡 𝑆𝑦𝑠𝑡𝑒𝑚 👑', 
+                            packDescription: `حزمة ملصقات ${packNameSuffix} لـ ${query} (${stickersMetadata.length} ملصق فخم)`, 
                             stickers: stickersMetadata,
                             fileLength: packUpload.fileLength,
                             fileSha256: packUpload.fileSha256,
@@ -467,7 +474,7 @@ export default {
             try {
                 await sock.sendMessage(data.jid, { react: { text: '❌', key: msg.key } });
             } catch {}
-            await sock.sendMessage(data.jid, { text: `❌ فشل إرسال الحزمة: ${e.message}` }, { quoted: msg });
+            await sock.sendMessage(data.jid, { text: `*❌ فشل إرسال الحزمة: ${e.message}*` }, { quoted: msg });
         }
     }
 };
