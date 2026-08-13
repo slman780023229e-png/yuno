@@ -58,75 +58,147 @@ ${COLORS.reset}`
 }
 
 // =============================
-// قراءة وضع النخبة
+// قراءة وضع النخبة (مع التخزين المؤقت لمنع الضغط)
 // =============================
 
+let cachedMode = null;
+let lastModeCheck = 0;
+
 function getMode() {
+    const now = Date.now();
+    if (cachedMode && (now - lastModeCheck < 2000)) {
+        return cachedMode;
+    }
     if (!fs.existsSync(modeFile)) {
-        fs.writeFileSync(modeFile, JSON.stringify({ elite: false }, null, 2));
+        try {
+            fs.writeFileSync(modeFile, JSON.stringify({ elite: false }, null, 2));
+        } catch {}
     }
     try {
-        return JSON.parse(fs.readFileSync(modeFile, "utf-8"));
+        cachedMode = JSON.parse(fs.readFileSync(modeFile, "utf-8"));
+        lastModeCheck = now;
+        return cachedMode;
     } catch {
         return { elite: false };
     }
 }
 
 // =============================
-// 👑 قراءة وإدارة النخبة (مع إضافة رقم الجلسة تلقائياً وحمايتها)
+// 👑 قراءة وإدارة النخبة الفائقة (دعم التزامن والكتابة الآمنة)
 // =============================
 
+let eliteCache = null;
+let lastEliteCheck = 0;
+
 function getElite() {
+    const now = Date.now();
+    if (eliteCache && (now - lastEliteCheck < 3000)) {
+        return eliteCache;
+    }
+
     if (!fs.existsSync(eliteFile)) {
-        fs.writeFileSync(eliteFile, JSON.stringify([], null, 2));
+        try {
+            fs.writeFileSync(eliteFile, JSON.stringify([], null, 2));
+        } catch {}
     }
     try {
-        const data = JSON.parse(fs.readFileSync(eliteFile, "utf-8"));
+        const fileContent = fs.readFileSync(eliteFile, "utf-8");
+        if (!fileContent.trim()) return [];
+
+        const data = JSON.parse(fileContent);
+        let eliteNumbers = [];
+        
         if (Array.isArray(data)) {
-            return data.map(n => String(n).replace(/\D/g, ""));
+            eliteNumbers = data.map(n => {
+                if (typeof n === "object" && n !== null) {
+                    return String(n.number || n.id || "").replace(/\D/g, "");
+                }
+                return String(n).replace(/\D/g, "");
+            });
+        } else if (typeof data === "object" && data !== null) {
+            const stringified = JSON.stringify(data);
+            eliteNumbers = stringified.match(/[0-9]+/g) || [];
+        } else {
+            eliteNumbers = fileContent.match(/[0-9]+/g) || [];
         }
-        return [];
+
+        eliteCache = eliteNumbers.filter(Boolean);
+        lastEliteCheck = now;
+        return eliteCache;
     } catch {
-        return [];
+        return eliteCache || [];
     }
 }
 
+let isWritingElite = false;
 function addEliteAutomatically(number) {
-    if (!number) return;
+    if (!number || isWritingElite) return;
     try {
         const cleanNum = String(number).replace(/\D/g, "");
-        let eliteList = getElite();
-        if (!eliteList.includes(cleanNum)) {
-            eliteList.push(cleanNum);
+        if (!cleanNum) return;
+
+        let eliteList = [];
+        if (fs.existsSync(eliteFile)) {
+            try {
+                const content = fs.readFileSync(eliteFile, "utf-8");
+                const parsed = JSON.parse(content);
+                if (Array.isArray(parsed)) {
+                    eliteList = parsed;
+                }
+            } catch {}
+        }
+
+        const exists = eliteList.some(n => {
+            const str = typeof n === "object" && n !== null ? String(n.number || "") : String(n);
+            return str.replace(/\D/g, "") === cleanNum;
+        });
+
+        if (!exists) {
+            isWritingElite = true;
+            eliteList.push({
+                number: cleanNum,
+                type: "SYSTEM_BOT",
+                label: "🤖 بوت آرثر الرسمي"
+            });
             fs.writeFileSync(eliteFile, JSON.stringify(eliteList, null, 2));
-            log("elite", `تمت إضافة رقم الجلسة (${cleanNum}) إلى النخبة تلقائياً 👑`);
+            eliteCache = null; // إعادة تعيين الكاش لتحديث البيانات فوراً
+            isWritingElite = false;
+            log("elite", `تمت إضافة رقم الجلسة (${cleanNum}) إلى النخبة بصيغة نظام بوت مميزة 👑`);
         }
     } catch (e) {
+        isWritingElite = false;
         log("err", "فشل إضافة رقم الجلسة للنخبة: " + e.message);
     }
 }
 
 // =============================
-// 🛡️ قراءة الأونر
+// 🛡️ قراءة الأونر (مع التخزين المؤقت للسرعة القصوى)
 // =============================
 
+let cachedOwner = null;
 function getOwner() {
+    if (cachedOwner) return cachedOwner;
+
     if (fs.existsSync(ownerFile)) {
         try {
             const data = JSON.parse(fs.readFileSync(ownerFile, "utf-8"));
-            if (data.owner) return String(data.owner).replace(/\D/g, "");
+            if (data.owner) {
+                cachedOwner = String(data.owner).replace(/\D/g, "");
+                return cachedOwner;
+            }
         } catch {}
     }
     
     if (process.env.OWNER_NUMBER) {
-        return String(process.env.OWNER_NUMBER).replace(/\D/g, "");
+        cachedOwner = String(process.env.OWNER_NUMBER).replace(/\D/g, "");
+        return cachedOwner;
     }
 
     return "967000000000"; 
 }
 
 // =============================
-// 🔍 نظام مطابقة الأرقام الخارق (يتجاهل صيغة مفتاح الدولة أو الاختلافات)
+// 🔍 نظام مطابقة الأرقام الخارق (دعم النهايات والأجزاء بكل الصيغ)
 // =============================
 function isSameNumber(num1, num2) {
     if (!num1 || !num2) return false;
@@ -134,18 +206,57 @@ function isSameNumber(num1, num2) {
     const clean2 = String(num2).replace(/\D/g, "");
     if (!clean1 || !clean2) return false;
     
-    return clean1 === clean2 || clean1.endsWith(clean2) || clean2.endsWith(clean1);
+    if (clean1.length < 3 || clean2.length < 3) {
+        return clean1 === clean2;
+    }
+
+    return (
+        clean1 === clean2 || 
+        clean1.endsWith(clean2) || 
+        clean2.endsWith(clean1) ||
+        clean1.includes(clean2) ||
+        clean2.includes(clean1)
+    );
 }
 
 // =============================
-// 🚀 بداية ARTHUR HANDLER الأقوى على الإطلاق
+// 🚀 نظام طابور العمليات المتزامنة (Queue Handler) لتحمل الضغط الفلكي دون تعليق
 // =============================
 
+const messageQueue = [];
+let isProcessingQueue = false;
+
+async function processQueue(sock) {
+    if (isProcessingQueue || messageQueue.length === 0) return;
+    isProcessingQueue = true;
+
+    while (messageQueue.length > 0) {
+        const { sockInstance, m } = messageQueue.shift();
+        try {
+            await executeHandlerLogic(sockInstance, m);
+        } catch (err) {
+            log("err", "Queue Execution Error: " + err.message);
+        }
+    }
+
+    isProcessingQueue = false;
+}
+
 export async function handleMessages(sock, m) {
+    // إضافة الرسالة إلى الطابور فوراً لمنع الانهيار أو التعليق عند تدفق آلاف الرسائل في نفس اللحظة
+    messageQueue.push({ sockInstance: sock, m });
+    processQueue(sock);
+}
+
+// =============================
+// ⚡ المنطق الأساسي للـ Handler المعالج للرسائل والأوامر
+// =============================
+
+async function executeHandlerLogic(sock, m) {
     try {
         const start = Date.now();
 
-        // استخراج رقم الجلسة المتصل حالياً وضمه للنخبة بلطف ودون أي مساس بملفات الجلسة
+        // استخراج رقم الجلسة وضمه للنخبة بصيغة مخصصة بأمان تامة
         const botJid = sock.user?.id;
         const currentBotNumber = botJid ? botJid.split(":")[0].replace(/\D/g, "") : "";
         if (currentBotNumber) {
@@ -171,7 +282,6 @@ export async function handleMessages(sock, m) {
         const ownerNumber = getOwner();
         const isOwner = isSameNumber(number, ownerNumber);
 
-        // التحقق المطلق مما إذا كان المستخدم من النخبة أو البوت أو الأونر بغض النظر عن صيغة الرقم
         const eliteList = getElite();
         const isElite = isOwner || isSameNumber(number, currentBotNumber) || eliteList.some(el => isSameNumber(number, el));
 
@@ -182,48 +292,37 @@ export async function handleMessages(sock, m) {
         const plugins = await loadPlugins(sock);
 
         // =============================
-        // 🔒 تشغيل مستمعات البلجنات
+        // 🔒 تشغيل مستمعات البلجنات (بشكل متوازي غير معرقل)
         // =============================
 
-        for (const cmd of plugins) {
-            try {
-                if (cmd?.onMessage) {
-                    await cmd.onMessage(sock, msg, {
-                        jid,
-                        sender,
-                        number,
-                        isOwner,
-                        ownerNumber,
-                        isGroup,
-                        isPrivate,
-                        message: msg,
-                        isElite
-                    });
-                }
-            } catch (e) {
-                log("err", "Listener Error : " + e.message);
-            }
+        if (plugins && plugins.length > 0) {
+            Promise.all(plugins.map(async (cmd) => {
+                try {
+                    if (cmd?.onMessage) {
+                        await cmd.onMessage(sock, msg, {
+                            jid,
+                            sender,
+                            number,
+                            isOwner,
+                            ownerNumber,
+                            isGroup,
+                            isPrivate,
+                            message: msg,
+                            isElite
+                        });
+                    }
+                } catch (e) {}
+            })).catch(() => {});
         }
 
         // =============================
-        // 👑 وضع النخبة العام (البوت والأونر والنخبة مستثنون دائماً)
+        // 👑 وضع النخبة العام
         // =============================
 
         const mode = getMode();
 
         if (mode.elite === true && !isOwner && !isSameNumber(number, currentBotNumber)) {
             if (!isElite) {
-                console.log(
-                    `${COLORS.gold}
-╭────────────────────────────────────────╮
-│ 👑 𝐀𝐑𝐓𝐇𝐔𝐑 𝐄𝐋𝐈𝐓𝐄 𝐌𝐎𝐃𝐄
-├────────────────────────────────────────┤
-│ 🚫 تم تجاهل الرسالة
-│ 👤 الرقم : ${number}
-│ ❌ ليس من النخبة
-╰────────────────────────────────────────╯
-${COLORS.reset}`
-                );
                 return;
             }
         }
@@ -243,16 +342,12 @@ ${COLORS.reset}`
         if (!rawText) return;
 
         const text = rawText.trim();
-        
-        // التحقق مما إذا كان النص يبدأ برمز بادئة (مثل . أو / أو # أو !)
         const hasPrefix = /^[./\\#,!^&+=]/.test(text);
-        
-        // استخراج اسم الأمر بجميع الطرق واستجابة لكل أنواع الاستدعاءات
         const noPrefixText = text.replace(/^[./\\#,!^&+=]/, "").trim();
         const commandName = noPrefixText.split(" ")[0].toLowerCase();
 
         // =============================
-        // ⚡ تنفيذ الأوامر مع تطبيق شرط الأوامر بدون نقطة (للنخبة فقط)
+        // ⚡ تنفيذ الأوامر بكفاءة خارقة وسرعة قصوى
         // =============================
 
         for (const cmd of plugins) {
@@ -262,9 +357,8 @@ ${COLORS.reset}`
                     const isMatched = validCmds.some(c => c.toLowerCase() === commandName);
 
                     if (isMatched) {
-                        // إذا لم تكن هناك نقطة أو رمز بادئة، يجب أن يكون المرسل من النخبة حصرياً لتنفيذ الأمر
                         if (!hasPrefix && !isElite) {
-                            return; // تجاهل الأمر الصامت للأعضاء العاديين إذا لم يضعوا نقطة
+                            return; 
                         }
 
                         await cmd.execute(sock, msg, {
@@ -306,27 +400,6 @@ ${COLORS.reset}`
             }
         }
 
-        // =============================
-        // ❌ أمر غير موجود (داخل كبسولة التحذير)
-        // =============================
-
-        if (hasPrefix) {
-            const time = Date.now() - start;
-
-            console.log(
-                `${COLORS.red}
-╭────────────────────────────────────────╮
-│ ❌ 𝐔𝐍𝐊𝐍𝐎𝐖𝐍 𝐂𝐎𝐌𝐌𝐀𝐍𝐃
-├────────────────────────────────────────┤
-│ ⚡ الأمر : ${text}
-│ 👤 الرقم : ${number} ${isSameNumber(number, currentBotNumber) ? "(🤖 البوت)" : ""}
-│ ⏱ السرعة : ${time}ms
-│ 💬 المكان : ${isGroup ? "مجموعة 👥" : "خاص 🔒"}
-│ 🔎 الحالة : NOT FOUND
-╰────────────────────────────────────────╯
-${COLORS.reset}`
-            );
-        }
     } catch (error) {
         log("err", "Arthur Handler Crash: " + error.message);
     }
