@@ -5,8 +5,8 @@
   "main": "Main.js",
   "type": "module",
   "scripts": {
-    "start": "node Main.js",
-    "build": "npm install && pip install -U yt-dlp"
+    "start": "pip install --upgrade yt-dlp || python3 -m pip install --upgrade yt-dlp; node Main.js",
+    "build": "npm install && (pip install --upgrade yt-dlp || python3 -m pip install --upgrade yt-dlp)"
   },
   "engines": {
     "node": ">=18.0.0"
@@ -66,4 +66,4 @@
     "moment-timezone": "^0.5.45",
     "wa-sticker-formatter": "^4.3.2"
   }
-  }
+}
