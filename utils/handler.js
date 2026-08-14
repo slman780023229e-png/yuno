@@ -2,17 +2,16 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import { loadPlugins } from "./loader.js";
-// استيراد نظام النخبة المنفصل الجديد
-import { isElite, addEliteNumber, getEliteNumbers } from "./eliteManager.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // =============================
-// 👑 ملفات نظام الأونر والمود
+// 👑 ملفات نظام النخبة والأونر والجلسة
 // =============================
 
 const modeFile = path.join(__dirname, "../data/مود.json");
+const eliteFile = path.join(__dirname, "../data/النخبة.json");
 const ownerFile = path.join(__dirname, "../data/owner.json");
 
 // =============================
@@ -61,7 +60,7 @@ ${COLORS.reset}`
 }
 
 // =============================
-// 🔍 دالة استخراج الرقم النقي (متوافقة تماماً)
+// 🔍 دالة استخراج الرقم النقي الموحدة (أداء فائق الفورية)
 // =============================
 export const extractPureNumber = (jid) => {
     try {
@@ -95,6 +94,89 @@ function getMode() {
         return cachedMode;
     } catch {
         return { elite: false };
+    }
+}
+
+// =============================
+// 👑 قراءة وإدارة النخبة الفائقة (سرعة معالجة عالية جداً)
+// =============================
+
+let eliteCache = null;
+let lastEliteCheck = 0;
+
+function getElite() {
+    try {
+        const now = Date.now();
+        if (eliteCache && (now - lastEliteCheck < 5000)) {
+            return eliteCache;
+        }
+
+        if (!fs.existsSync(eliteFile)) {
+            try {
+                fs.writeFileSync(eliteFile, JSON.stringify([], null, 2));
+            } catch {}
+        }
+        
+        const fileContent = fs.readFileSync(eliteFile, "utf-8");
+        if (!fileContent.trim()) return eliteCache || [];
+
+        const data = JSON.parse(fileContent);
+        let eliteNumbers = [];
+        
+        if (Array.isArray(data)) {
+            eliteNumbers = data.map(n => {
+                if (typeof n === "object" && n !== null) {
+                    return extractPureNumber(n.number || n.id || Object.values(n)[0] || "");
+                }
+                return extractPureNumber(n);
+            });
+        } else {
+            eliteNumbers = (fileContent.match(/[0-9]+/g) || []).map(extractPureNumber);
+        }
+
+        eliteCache = eliteNumbers.filter(Boolean);
+        lastEliteCheck = now;
+        return eliteCache;
+    } catch {
+        return eliteCache || [];
+    }
+}
+
+let isWritingElite = false;
+function addEliteAutomatically(number) {
+    if (!number || isWritingElite) return;
+    try {
+        const cleanNum = extractPureNumber(number);
+        if (!cleanNum || cleanNum.length < 5) return;
+
+        let eliteList = [];
+        if (fs.existsSync(eliteFile)) {
+            try {
+                const content = fs.readFileSync(eliteFile, "utf-8");
+                const parsed = JSON.parse(content);
+                if (Array.isArray(parsed)) {
+                    eliteList = parsed.map(n => {
+                        if (typeof n === "object" && n !== null) {
+                            return extractPureNumber(n.number || n.id || Object.values(n)[0] || "");
+                        }
+                        return extractPureNumber(n);
+                    }).filter(Boolean);
+                }
+            } catch {}
+        }
+
+        const exists = eliteList.includes(cleanNum);
+
+        if (!exists) {
+            isWritingElite = true;
+            eliteList.push(cleanNum); // <-- هنا التعديل: يحفظ الرقم كقيمة نصية نقية مباشرة بدون كائنات
+            fs.writeFileSync(eliteFile, JSON.stringify(eliteList, null, 2));
+            eliteCache = null; 
+            isWritingElite = false;
+            log("elite", `تمت إضافة رقم الجلسة (${cleanNum}) إلى النخبة بشكل نقي وصحيح 👑`);
+        }
+    } catch (e) {
+        isWritingElite = false;
     }
 }
 
@@ -197,14 +279,8 @@ async function executeHandlerLogic(sock, m) {
 
         const botJid = sock.user?.id;
         const currentBotNumber = extractPureNumber(botJid);
-        
-        // إضافة رقم الجلسة تلقائياً عبر الملف الخارجي الجديد بشكل نظيف
         if (currentBotNumber) {
-            setImmediate(() => {
-                try {
-                    addEliteNumber(currentBotNumber);
-                } catch {}
-            });
+            setImmediate(() => addEliteAutomatically(currentBotNumber));
         }
 
         const msg = m.messages?.[0];
@@ -225,12 +301,8 @@ async function executeHandlerLogic(sock, m) {
         const ownerNumber = getOwner();
         const isOwner = isSameNumber(number, ownerNumber);
 
-        // التحقق من النخبة والأونر وبوت الجلسة باستخدام الملف الخارجي
-        const isEliteUser = isOwner || isSameNumber(number, currentBotNumber) || isElite(number);
-
-        // =============================
-        // ⚡ جلب البلجنات (بأقصى سرعة مع معالجة الأخطاء)
-        // =============================
+        const eliteList = getElite();
+        const isEliteUser = isOwner || isSameNumber(number, currentBotNumber) || eliteList.some(el => isSameNumber(number, el));
 
         let plugins = [];
         try {
@@ -238,10 +310,6 @@ async function executeHandlerLogic(sock, m) {
         } catch {
             plugins = [];
         }
-
-        // =============================
-        // 🔒 تشغيل مستمعات البلجنات (بشكل متوازي غير معرقل نهائياً)
-        // =============================
 
         if (plugins && plugins.length > 0) {
             for (let i = 0; i < plugins.length; i++) {
@@ -264,10 +332,6 @@ async function executeHandlerLogic(sock, m) {
             }
         }
 
-        // =============================
-        // 👑 وضع النخبة العام
-        // =============================
-
         const mode = getMode();
 
         if (mode.elite === true && !isOwner && !isSameNumber(number, currentBotNumber)) {
@@ -275,10 +339,6 @@ async function executeHandlerLogic(sock, m) {
                 return;
             }
         }
-
-        // =============================
-        // 📝 قراءة النص أو الأزرار أو القوائم بذكاء فائق وسرعة
-        // =============================
 
         const rawText =
             msg.message.conversation ||
@@ -294,10 +354,6 @@ async function executeHandlerLogic(sock, m) {
         const hasPrefix = /^[./\\#,!^&+=]/.test(text);
         const noPrefixText = text.replace(/^[./\\#,!^&+=]/, "").trim();
         const commandName = noPrefixText.split(" ")[0].toLowerCase();
-
-        // =============================
-        // ⚡ تنفيذ الأوامر بكفاءة خارقة وسرعة قصوى
-        // =============================
 
         for (let i = 0; i < plugins.length; i++) {
             const cmd = plugins[i];
@@ -326,24 +382,6 @@ async function executeHandlerLogic(sock, m) {
                             isElite: isEliteUser
                         });
 
-                        const time = Date.now() - start;
-
-                        try {
-                            console.log(
-                                `${COLORS.purple}
-╭────────────────────────────────────────╮
-│ ⚜ 𝐀𝐑𝐓𝐇𝐔𝐑 𝐂𝐎𝐌𝐌𝐀𝐍𝐃 ⚜
-├────────────────────────────────────────┤
-│ ⚡ الأمر : ${commandName}
-│ 👤 الرقم : ${number} ${isSameNumber(number, currentBotNumber) ? "(🤖 البوت)" : ""}
-│ ⏱ السرعة : ${time}ms
-│ 💬 المكان : ${isGroup ? "مجموعة 👥" : "خاص 🔒"}
-│ ✅ الحالة : تم التنفيذ بنجاح (${hasPrefix ? "مع بادئة" : "بدون بادئة 👑"})
-╰────────────────────────────────────────╯
-${COLORS.reset}`
-                            );
-                        } catch {}
-
                         return;
                     }
                 }
@@ -351,4 +389,4 @@ ${COLORS.reset}`
         }
 
     } catch (error) {}
-    }
+}
