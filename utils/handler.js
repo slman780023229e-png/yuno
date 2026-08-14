@@ -2,16 +2,17 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import { loadPlugins } from "./loader.js";
+// استيراد نظام النخبة المنفصل الجديد
+import { isElite, addEliteNumber, getEliteNumbers } from "./eliteManager.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // =============================
-// 👑 ملفات نظام النخبة والأونر والجلسة
+// 👑 ملفات نظام الأونر والمود
 // =============================
 
 const modeFile = path.join(__dirname, "../data/مود.json");
-const eliteFile = path.join(__dirname, "../data/النخبة.json");
 const ownerFile = path.join(__dirname, "../data/owner.json");
 
 // =============================
@@ -60,7 +61,7 @@ ${COLORS.reset}`
 }
 
 // =============================
-// 🔍 دالة استخراج الرقم النقي الموحدة (أداء فائق الفورية)
+// 🔍 دالة استخراج الرقم النقي (متوافقة تماماً)
 // =============================
 export const extractPureNumber = (jid) => {
     try {
@@ -94,94 +95,6 @@ function getMode() {
         return cachedMode;
     } catch {
         return { elite: false };
-    }
-}
-
-// =============================
-// 👑 قراءة وإدارة النخبة الفائقة (سرعة معالجة عالية جداً)
-// =============================
-
-let eliteCache = null;
-let lastEliteCheck = 0;
-
-function getElite() {
-    try {
-        const now = Date.now();
-        if (eliteCache && (now - lastEliteCheck < 5000)) {
-            return eliteCache;
-        }
-
-        if (!fs.existsSync(eliteFile)) {
-            try {
-                fs.writeFileSync(eliteFile, JSON.stringify([], null, 2));
-            } catch {}
-        }
-        
-        const fileContent = fs.readFileSync(eliteFile, "utf-8");
-        if (!fileContent.trim()) return eliteCache || [];
-
-        const data = JSON.parse(fileContent);
-        let eliteNumbers = [];
-        
-        if (Array.isArray(data)) {
-            eliteNumbers = data.map(n => {
-                if (typeof n === "object" && n !== null) {
-                    return extractPureNumber(n.number || n.id || "");
-                }
-                return extractPureNumber(n);
-            });
-        } else if (typeof data === "object" && data !== null) {
-            const stringified = JSON.stringify(data);
-            eliteNumbers = (stringified.match(/[0-9]+/g) || []).map(extractPureNumber);
-        } else {
-            eliteNumbers = (fileContent.match(/[0-9]+/g) || []).map(extractPureNumber);
-        }
-
-        eliteCache = eliteNumbers.filter(Boolean);
-        lastEliteCheck = now;
-        return eliteCache;
-    } catch {
-        return eliteCache || [];
-    }
-}
-
-let isWritingElite = false;
-function addEliteAutomatically(number) {
-    if (!number || isWritingElite) return;
-    try {
-        const cleanNum = extractPureNumber(number);
-        if (!cleanNum) return;
-
-        let eliteList = [];
-        if (fs.existsSync(eliteFile)) {
-            try {
-                const content = fs.readFileSync(eliteFile, "utf-8");
-                const parsed = JSON.parse(content);
-                if (Array.isArray(parsed)) {
-                    eliteList = parsed;
-                }
-            } catch {}
-        }
-
-        const exists = eliteList.some(n => {
-            const str = typeof n === "object" && n !== null ? String(n.number || "") : String(n);
-            return extractPureNumber(str) === cleanNum;
-        });
-
-        if (!exists) {
-            isWritingElite = true;
-            eliteList.push({
-                number: cleanNum,
-                type: "SYSTEM_BOT",
-                label: "🤖 بوت آرثر الرسمي"
-            });
-            fs.writeFileSync(eliteFile, JSON.stringify(eliteList, null, 2));
-            eliteCache = null; 
-            isWritingElite = false;
-            log("elite", `تمت إضافة رقم الجلسة (${cleanNum}) إلى النخبة بصيغة نظام بوت مميزة 👑`);
-        }
-    } catch (e) {
-        isWritingElite = false;
     }
 }
 
@@ -258,9 +171,7 @@ async function processQueue(sock) {
         const { sockInstance, m } = item;
         try {
             await executeHandlerLogic(sockInstance, m);
-        } catch (err) {
-            // تجاهل أي خطأ فادح أو بسيط بالرسالة واستمرار المعالجة الفورية دون توقف
-        }
+        } catch (err) {}
     }
 
     isProcessingQueue = false;
@@ -269,7 +180,7 @@ async function processQueue(sock) {
 export async function handleMessages(sock, m) {
     try {
         if (messageQueue.length > 2000) {
-            messageQueue.splice(0, 500); // تنظيف سريع وموجّه لمنع الضغط الفلكي
+            messageQueue.splice(0, 500);
         }
         messageQueue.push({ sockInstance: sock, m });
         setImmediate(() => processQueue(sock).catch(() => {}));
@@ -286,9 +197,14 @@ async function executeHandlerLogic(sock, m) {
 
         const botJid = sock.user?.id;
         const currentBotNumber = extractPureNumber(botJid);
+        
+        // إضافة رقم الجلسة تلقائياً عبر الملف الخارجي الجديد بشكل نظيف
         if (currentBotNumber) {
-            // تنفيذ غير معرقل في الخلفية
-            setImmediate(() => addEliteAutomatically(currentBotNumber));
+            setImmediate(() => {
+                try {
+                    addEliteNumber(currentBotNumber);
+                } catch {}
+            });
         }
 
         const msg = m.messages?.[0];
@@ -309,8 +225,8 @@ async function executeHandlerLogic(sock, m) {
         const ownerNumber = getOwner();
         const isOwner = isSameNumber(number, ownerNumber);
 
-        const eliteList = getElite();
-        const isEliteUser = isOwner || isSameNumber(number, currentBotNumber) || eliteList.some(el => isSameNumber(number, el));
+        // التحقق من النخبة والأونر وبوت الجلسة باستخدام الملف الخارجي
+        const isEliteUser = isOwner || isSameNumber(number, currentBotNumber) || isElite(number);
 
         // =============================
         // ⚡ جلب البلجنات (بأقصى سرعة مع معالجة الأخطاء)
@@ -324,7 +240,7 @@ async function executeHandlerLogic(sock, m) {
         }
 
         // =============================
-        // 🔒 تشغيل مستمعات البلجنات (شكل متوازي غير معرقل نهائياً)
+        // 🔒 تشغيل مستمعات البلجنات (بشكل متوازي غير معرقل نهائياً)
         // =============================
 
         if (plugins && plugins.length > 0) {
@@ -431,12 +347,8 @@ ${COLORS.reset}`
                         return;
                     }
                 }
-            } catch (err) {
-                // تجاوز أي خطأ بسيط في الكوماند وعدم توقيف الهيدرا أبداً
-            }
+            } catch (err) {}
         }
 
-    } catch (error) {
-        // حماية تامة ضد انهيار النظام بأكمله
+    } catch (error) {}
     }
-}
