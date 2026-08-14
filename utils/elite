@@ -1,0 +1,84 @@
+import fs from 'fs';
+import path from 'path';
+
+// تحديد مسار ملف النخبة داخل مجلد data
+const eliteFilePath = path.join(process.cwd(), 'data', 'النخبة.json');
+
+// التأكد من أن مجلد data وملف النخبة موجودان لمنع أي أخطاء
+const ensureEliteFile = () => {
+  try {
+    const dir = path.dirname(eliteFilePath);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    if (!fs.existsSync(eliteFilePath)) {
+      fs.writeFileSync(eliteFilePath, JSON.stringify([], null, 2));
+    }
+  } catch {}
+};
+
+// جلب الأرقام من الملف
+export const getEliteNumbers = () => {
+  try {
+    ensureEliteFile();
+    const content = fs.readFileSync(eliteFilePath, 'utf-8');
+    if (!content.trim()) return [];
+    const parsed = JSON.parse(content);
+    if (Array.isArray(parsed)) {
+      return parsed.map(num => String(num).replace(/[@:].*/g, "").replace(/\D/g, "")).filter(Boolean);
+    }
+    return [];
+  } catch {
+    return [];
+  }
+};
+
+export const extractPureNumber = (jid) => {
+  if (!jid) return '';
+  return jid.toString().replace(/[@:].*/g, '').replace(/\D/g, '');
+};
+
+export const isElite = (number) => {
+  if (!number) return false;
+  const pureNumber = extractPureNumber(number);
+  const eliteNumbers = getEliteNumbers();
+  const isMatch = eliteNumbers.includes(pureNumber);
+  console.log(`Elite check: ${number} -> ${pureNumber} -> ${isMatch}`);
+  return isMatch;
+};
+
+export const updateEliteNumbers = (eliteNumbers) => {
+  try {
+    ensureEliteFile();
+    const cleanList = [...new Set(eliteNumbers.map(num => extractPureNumber(num)).filter(Boolean))];
+    fs.writeFileSync(eliteFilePath, JSON.stringify(cleanList, null, 2));
+    console.log('تم تحديث قائمة النخبة تلقائيًا في ملف data.');
+  } catch (e) {
+    console.log('فشل تحديث ملف النخبة: ' + e.message);
+  }
+};
+
+export const addEliteNumber = (number) => {
+  try {
+    const pureNum = extractPureNumber(number);
+    if (!pureNum || pureNum.length < 5) return;
+    
+    let eliteNumbers = getEliteNumbers();
+    if (!eliteNumbers.includes(pureNum)) {
+      eliteNumbers.push(pureNum);
+      updateEliteNumbers(eliteNumbers);
+    }
+  } catch {}
+};
+
+export const removeEliteNumber = (number) => {
+  try {
+    const pureNum = extractPureNumber(number);
+    let eliteNumbers = getEliteNumbers();
+    const index = eliteNumbers.indexOf(pureNum);
+    if (index > -1) {
+      eliteNumbers.splice(index, 1);
+      updateEliteNumbers(eliteNumbers);
+    }
+  } catch {}
+};
