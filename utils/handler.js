@@ -60,7 +60,7 @@ ${COLORS.reset}`
 }
 
 // =============================
-// 🔍 دالة استخراج الرقم النقي الموحدة (أداء فائق الفورية)
+// 🔍 دالة استخراج الرقم النقي الموحدة
 // =============================
 export const extractPureNumber = (jid) => {
     try {
@@ -72,7 +72,7 @@ export const extractPureNumber = (jid) => {
 };
 
 // =============================
-// قراءة وضع النخبة (مع التخزين المؤقت الذكي)
+// قراءة وضع النخبة (تخزين مؤقت سريع)
 // =============================
 
 let cachedMode = null;
@@ -98,7 +98,7 @@ function getMode() {
 }
 
 // =============================
-// 👑 قراءة وإدارة النخبة الفائقة (سرعة معالجة عالية جداً)
+// 👑 قراءة وإدارة النخبة الفائقة
 // =============================
 
 let eliteCache = null;
@@ -130,8 +130,6 @@ function getElite() {
                 }
                 return extractPureNumber(n);
             });
-        } else {
-            eliteNumbers = (fileContent.match(/[0-9]+/g) || []).map(extractPureNumber);
         }
 
         eliteCache = eliteNumbers.filter(Boolean);
@@ -149,27 +147,12 @@ function addEliteAutomatically(number) {
         const cleanNum = extractPureNumber(number);
         if (!cleanNum || cleanNum.length < 5) return;
 
-        let eliteList = [];
-        if (fs.existsSync(eliteFile)) {
-            try {
-                const content = fs.readFileSync(eliteFile, "utf-8");
-                const parsed = JSON.parse(content);
-                if (Array.isArray(parsed)) {
-                    eliteList = parsed.map(n => {
-                        if (typeof n === "object" && n !== null) {
-                            return extractPureNumber(n.number || n.id || Object.values(n)[0] || "");
-                        }
-                        return extractPureNumber(n);
-                    }).filter(Boolean);
-                }
-            } catch {}
-        }
-
+        let eliteList = getElite();
         const exists = eliteList.includes(cleanNum);
 
         if (!exists) {
             isWritingElite = true;
-            eliteList.push(cleanNum); // <-- هنا التعديل: يحفظ الرقم كقيمة نصية نقية مباشرة بدون كائنات
+            eliteList.push(cleanNum);
             fs.writeFileSync(eliteFile, JSON.stringify(eliteList, null, 2));
             eliteCache = null; 
             isWritingElite = false;
@@ -181,7 +164,7 @@ function addEliteAutomatically(number) {
 }
 
 // =============================
-// 🛡️ قراءة الأونر (تخزين مؤقت للسرعة)
+// 🛡️ قراءة الأونر
 // =============================
 
 let cachedOwner = null;
@@ -211,7 +194,7 @@ function getOwner() {
 }
 
 // =============================
-// 🔍 نظام مطابقة الأرقام الخارق (فائق السرعة)
+// 🔍 نظام مطابقة الأرقام الخارق
 // =============================
 function isSameNumber(num1, num2) {
     try {
@@ -220,10 +203,6 @@ function isSameNumber(num1, num2) {
         const clean2 = extractPureNumber(num2);
         if (!clean1 || !clean2) return false;
         
-        if (clean1.length < 3 || clean2.length < 3) {
-            return clean1 === clean2;
-        }
-
         return (
             clean1 === clean2 || 
             clean1.endsWith(clean2) || 
@@ -237,7 +216,27 @@ function isSameNumber(num1, num2) {
 }
 
 // =============================
-// 🚀 نظام طابور العمليات المتزامنة (Queue Handler فائق السرعة - منع تعليق تام)
+// 🚀 نظام التخزين المؤقت الآمن للبلجنات (منع التحميل المتكرر مع الرسائل)
+// =============================
+
+let loadedPluginsCache = null;
+
+async function getLoadedPlugins(sock) {
+    if (loadedPluginsCache) return loadedPluginsCache;
+    try {
+        loadedPluginsCache = await loadPlugins(sock);
+    } catch {
+        loadedPluginsCache = [];
+    }
+    return loadedPluginsCache;
+}
+
+export function clearPluginsCache() {
+    loadedPluginsCache = null;
+}
+
+// =============================
+// 🚀 نظام طابور العمليات المتزامنة (Queue Handler)
 // =============================
 
 const messageQueue = [];
@@ -275,8 +274,6 @@ export async function handleMessages(sock, m) {
 
 async function executeHandlerLogic(sock, m) {
     try {
-        const start = Date.now();
-
         const botJid = sock.user?.id;
         const currentBotNumber = extractPureNumber(botJid);
         if (currentBotNumber) {
@@ -304,12 +301,8 @@ async function executeHandlerLogic(sock, m) {
         const eliteList = getElite();
         const isEliteUser = isOwner || isSameNumber(number, currentBotNumber) || eliteList.some(el => isSameNumber(number, el));
 
-        let plugins = [];
-        try {
-            plugins = await loadPlugins(sock);
-        } catch {
-            plugins = [];
-        }
+        // تحميل البلجنات من الكاش المحمي لمنع استهلاك الرام
+        let plugins = await getLoadedPlugins(sock);
 
         if (plugins && plugins.length > 0) {
             for (let i = 0; i < plugins.length; i++) {
