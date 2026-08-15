@@ -16,7 +16,7 @@ import { fileURLToPath } from "url";
 import http from "http";
 
 // ================================
-// 🌐 KEEP ALIVE SERVER (لابقاء المنصة شغالة)
+// 🌐 KEEP ALIVE SERVER (لابقاء المنصة شغالة 24 ساعة)
 // ================================
 const PORT = process.env.PORT || 3000;
 http.createServer((req, res) => {
@@ -87,6 +87,9 @@ async function startBot() {
 
     sock.ev.on("creds.update", saveCreds);  
 
+    // تخزين مؤقت آمن للبلجنات لتجنب الثقل واستهلاك الرام
+    let activePlugins = [];
+
     // ==========================================
     // 🔘 دالة الأزرار الحقيقية والمتخطية للقيود (Binary Nodes)
     // ==========================================
@@ -130,7 +133,6 @@ async function startBot() {
         });
     };
 
-    // ربط السوكيت عالمياً لضمان عمل أوامر التحديث الطيري دون إعادة تشغيل الجلسة
     global.sock = sock;
 
     if (!state.creds.registered) {
@@ -196,7 +198,7 @@ ${chalk.cyan("━━━━━━━━━━━━━━━━━━━━━━
             }
 
             try {
-                await loadPlugins(sock);
+                activePlugins = await loadPlugins(sock);
                 console.log(chalk.green("✅ تم تحميل البلجنات بنجاح"));
             } catch (err) {  
                 console.log(chalk.red("❌ خطأ تحميل البلجنات: " + err.message));  
@@ -232,47 +234,35 @@ ${chalk.cyan("━━━━━━━━━━━━━━━━━━━━━━
     // 👥 GROUP EVENTS FOR ALL PLUGINS
     // ===============================
 
-    sock.ev.on(
-        "group-participants.update",
-        async (update) => {
-            try {
-                const plugins = await loadPlugins(sock);
+    sock.ev.on("group-participants.update", async (update) => {
+        try {
+            if (activePlugins.length === 0) activePlugins = await loadPlugins(sock);
 
-                for (const plugin of plugins) {
-                    if (plugin.onGroupParticipantsUpdate) {
-                        await plugin.onGroupParticipantsUpdate(
-                            sock,
-                            update
-                        );
-                    }
+            for (const plugin of activePlugins) {
+                if (plugin.onGroupParticipantsUpdate) {
+                    await plugin.onGroupParticipantsUpdate(sock, update);
                 }
-            } catch (e) {
-                console.log(
-                    "Group Participants Update Error:",
-                    e.message
-                );
             }
+        } catch (e) {
+            console.log("Group Participants Update Error:", e.message);
         }
-    );
+    });
 
     // ===============================
-    // 🔗 GROUP JOIN REQUESTS EVENT (لضمان عمل نظام الطلبات بلا توقف)
+    // 🔗 GROUP JOIN REQUESTS EVENT
     // ===============================
 
     sock.ev.on("group.join-request", async (update) => {
         try {
-            const plugins = await loadPlugins(sock);
+            if (activePlugins.length === 0) activePlugins = await loadPlugins(sock);
 
-            for (const plugin of plugins) {
+            for (const plugin of activePlugins) {
                 if (typeof plugin.onGroupJoinRequest === "function") {
                     await plugin.onGroupJoinRequest(sock, update);
                 }
             }
         } catch (e) {
-            console.log(
-                "Group Join Request Error:",
-                e.message
-            );
+            console.log("Group Join Request Error:", e.message);
         }
     });
 }
