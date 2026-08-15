@@ -7,7 +7,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // =============================
-// 👑 ملفات نظام النخبة والأونر والجلسة
+// 👑 الملفات
 // =============================
 
 const modeFile = path.join(__dirname, "../data/مود.json");
@@ -15,7 +15,7 @@ const eliteFile = path.join(__dirname, "../data/النخبة.json");
 const ownerFile = path.join(__dirname, "../data/owner.json");
 
 // =============================
-// 🎨 𝐀𝐑𝐓𝐇𝐔𝐑 COLORS (ألوان آرثر الفاخرة)
+// 🎨 ARTHUR COLORS
 // =============================
 
 const COLORS = {
@@ -60,19 +60,23 @@ ${COLORS.reset}`
 }
 
 // =============================
-// 🔍 دالة استخراج الرقم النقي الموحدة
+// 🔍 استخراج الرقم
 // =============================
+
 export const extractPureNumber = (jid) => {
     try {
         if (!jid) return "";
-        return jid.toString().replace(/[@:].*/g, "").replace(/\D/g, "");
+
+        return String(jid)
+            .replace(/[@:].*/g, "")
+            .replace(/\D/g, "");
     } catch {
         return "";
     }
 };
 
 // =============================
-// قراءة وضع النخبة (تخزين مؤقت سريع)
+// ⚙️ قراءة الوضع
 // =============================
 
 let cachedMode = null;
@@ -81,24 +85,58 @@ let lastModeCheck = 0;
 function getMode() {
     try {
         const now = Date.now();
-        if (cachedMode && (now - lastModeCheck < 5000)) {
+
+        if (
+            cachedMode &&
+            now - lastModeCheck < 3000
+        ) {
             return cachedMode;
         }
+
         if (!fs.existsSync(modeFile)) {
-            try {
-                fs.writeFileSync(modeFile, JSON.stringify({ elite: false }, null, 2));
-            } catch {}
+            fs.mkdirSync(
+                path.dirname(modeFile),
+                { recursive: true }
+            );
+
+            fs.writeFileSync(
+                modeFile,
+                JSON.stringify(
+                    { elite: false },
+                    null,
+                    2
+                )
+            );
         }
-        cachedMode = JSON.parse(fs.readFileSync(modeFile, "utf-8"));
+
+        const content =
+            fs.readFileSync(
+                modeFile,
+                "utf8"
+            );
+
+        const parsed =
+            JSON.parse(content || "{}");
+
+        cachedMode =
+            parsed &&
+            typeof parsed === "object"
+                ? parsed
+                : { elite: false };
+
         lastModeCheck = now;
+
         return cachedMode;
+
     } catch {
-        return { elite: false };
+        return cachedMode || {
+            elite: false
+        };
     }
 }
 
 // =============================
-// 👑 قراءة وإدارة النخبة الفائقة
+// 👑 نظام النخبة
 // =============================
 
 let eliteCache = null;
@@ -107,128 +145,331 @@ let lastEliteCheck = 0;
 function getElite() {
     try {
         const now = Date.now();
-        if (eliteCache && (now - lastEliteCheck < 5000)) {
+
+        if (
+            Array.isArray(eliteCache) &&
+            now - lastEliteCheck < 5000
+        ) {
             return eliteCache;
         }
 
         if (!fs.existsSync(eliteFile)) {
-            try {
-                fs.writeFileSync(eliteFile, JSON.stringify([], null, 2));
-            } catch {}
-        }
-        
-        const fileContent = fs.readFileSync(eliteFile, "utf-8");
-        if (!fileContent.trim()) return eliteCache || [];
+            fs.mkdirSync(
+                path.dirname(eliteFile),
+                { recursive: true }
+            );
 
-        const data = JSON.parse(fileContent);
-        let eliteNumbers = [];
-        
-        if (Array.isArray(data)) {
-            eliteNumbers = data.map(n => {
-                if (typeof n === "object" && n !== null) {
-                    return extractPureNumber(n.number || n.id || Object.values(n)[0] || "");
-                }
-                return extractPureNumber(n);
-            });
+            fs.writeFileSync(
+                eliteFile,
+                "[]"
+            );
+
+            eliteCache = [];
+            lastEliteCheck = now;
+
+            return eliteCache;
         }
 
-        eliteCache = eliteNumbers.filter(Boolean);
+        const content =
+            fs.readFileSync(
+                eliteFile,
+                "utf8"
+            );
+
+        if (!content.trim()) {
+            eliteCache = [];
+            lastEliteCheck = now;
+            return eliteCache;
+        }
+
+        const data =
+            JSON.parse(content);
+
+        const list =
+            Array.isArray(data)
+                ? data
+                : [];
+
+        eliteCache =
+            list
+                .map(item => {
+
+                    if (
+                        typeof item ===
+                        "object" &&
+                        item !== null
+                    ) {
+                        return extractPureNumber(
+                            item.number ||
+                            item.id ||
+                            Object.values(item)[0]
+                        );
+                    }
+
+                    return extractPureNumber(
+                        item
+                    );
+                })
+                .filter(
+                    number =>
+                        number &&
+                        number.length >= 5
+                );
+
         lastEliteCheck = now;
+
         return eliteCache;
+
     } catch {
-        return eliteCache || [];
-    }
-}
-
-let isWritingElite = false;
-function addEliteAutomatically(number) {
-    if (!number || isWritingElite) return;
-    try {
-        const cleanNum = extractPureNumber(number);
-        if (!cleanNum || cleanNum.length < 5) return;
-
-        let eliteList = getElite();
-        const exists = eliteList.includes(cleanNum);
-
-        if (!exists) {
-            isWritingElite = true;
-            eliteList.push(cleanNum);
-            fs.writeFileSync(eliteFile, JSON.stringify(eliteList, null, 2));
-            eliteCache = null; 
-            isWritingElite = false;
-            log("elite", `تمت إضافة رقم الجلسة (${cleanNum}) إلى النخبة بشكل نقي وصحيح 👑`);
-        }
-    } catch (e) {
-        isWritingElite = false;
+        return Array.isArray(eliteCache)
+            ? eliteCache
+            : [];
     }
 }
 
 // =============================
-// 🛡️ قراءة الأونر
+// 👑 إضافة رقم الجلسة للنخبة
+// =============================
+
+let eliteWritePromise = Promise.resolve();
+let sessionEliteNumber = null;
+
+function addEliteAutomatically(number) {
+
+    const cleanNum =
+        extractPureNumber(number);
+
+    if (
+        !cleanNum ||
+        cleanNum.length < 5
+    ) {
+        return;
+    }
+
+    // منع إعادة معالجة نفس الرقم
+    if (
+        sessionEliteNumber === cleanNum
+    ) {
+        return;
+    }
+
+    sessionEliteNumber = cleanNum;
+
+    eliteWritePromise =
+        eliteWritePromise
+            .then(async () => {
+
+                try {
+
+                    let list = getElite();
+
+                    if (
+                        list.includes(cleanNum)
+                    ) {
+                        return;
+                    }
+
+                    list = [
+                        ...new Set([
+                            ...list,
+                            cleanNum
+                        ])
+                    ];
+
+                    // كتابة ذرية
+                    const tempFile =
+                        `${eliteFile}.tmp`;
+
+                    await fs.promises.mkdir(
+                        path.dirname(eliteFile),
+                        { recursive: true }
+                    );
+
+                    await fs.promises.writeFile(
+                        tempFile,
+                        JSON.stringify(
+                            list,
+                            null,
+                            2
+                        ),
+                        "utf8"
+                    );
+
+                    await fs.promises.rename(
+                        tempFile,
+                        eliteFile
+                    );
+
+                    eliteCache = list;
+                    lastEliteCheck =
+                        Date.now();
+
+                    log(
+                        "elite",
+                        `تم حفظ رقم الجلسة ${cleanNum} في النخبة 👑`
+                    );
+
+                } catch (error) {
+
+                    console.error(
+                        "Elite Write Error:",
+                        error?.message ||
+                        error
+                    );
+                }
+            })
+            .catch(() => {});
+
+}
+
+// =============================
+// 🛡️ الأونر
 // =============================
 
 let cachedOwner = null;
+
 function getOwner() {
     try {
-        if (cachedOwner) return cachedOwner;
 
-        if (fs.existsSync(ownerFile)) {
-            try {
-                const data = JSON.parse(fs.readFileSync(ownerFile, "utf-8"));
-                if (data.owner) {
-                    cachedOwner = extractPureNumber(data.owner);
-                    return cachedOwner;
-                }
-            } catch {}
-        }
-        
-        if (process.env.OWNER_NUMBER) {
-            cachedOwner = extractPureNumber(process.env.OWNER_NUMBER);
+        if (cachedOwner) {
             return cachedOwner;
         }
 
-        return "967000000000"; 
+        if (
+            fs.existsSync(ownerFile)
+        ) {
+
+            try {
+
+                const data =
+                    JSON.parse(
+                        fs.readFileSync(
+                            ownerFile,
+                            "utf8"
+                        )
+                    );
+
+                if (data?.owner) {
+
+                    cachedOwner =
+                        extractPureNumber(
+                            data.owner
+                        );
+
+                    return cachedOwner;
+                }
+
+            } catch {}
+        }
+
+        if (process.env.OWNER_NUMBER) {
+
+            cachedOwner =
+                extractPureNumber(
+                    process.env.OWNER_NUMBER
+                );
+
+            return cachedOwner;
+        }
+
+        return "967000000000";
+
     } catch {
         return "967000000000";
     }
 }
 
 // =============================
-// 🔍 نظام مطابقة الأرقام الخارق
+// 🔍 مطابقة الأرقام
 // =============================
-function isSameNumber(num1, num2) {
+
+function isSameNumber(
+    num1,
+    num2
+) {
     try {
-        if (!num1 || !num2) return false;
-        const clean1 = extractPureNumber(num1);
-        const clean2 = extractPureNumber(num2);
-        if (!clean1 || !clean2) return false;
-        
+
+        if (!num1 || !num2) {
+            return false;
+        }
+
+        const clean1 =
+            extractPureNumber(num1);
+
+        const clean2 =
+            extractPureNumber(num2);
+
+        if (!clean1 || !clean2) {
+            return false;
+        }
+
         return (
-            clean1 === clean2 || 
-            clean1.endsWith(clean2) || 
-            clean2.endsWith(clean1) ||
-            clean1.includes(clean2) ||
-            clean2.includes(clean1)
+            clean1 === clean2 ||
+            clean1.endsWith(clean2) ||
+            clean2.endsWith(clean1)
         );
+
     } catch {
         return false;
     }
 }
 
 // =============================
-// 🚀 نظام التخزين المؤقت الآمن للبلجنات (منع التحميل المتكرر مع الرسائل)
+// 🚀 تحميل البلجنات مرة واحدة
 // =============================
 
 let loadedPluginsCache = null;
+let pluginsLoadingPromise = null;
 
 async function getLoadedPlugins(sock) {
-    if (loadedPluginsCache) return loadedPluginsCache;
-    try {
-        loadedPluginsCache = await loadPlugins(sock);
-    } catch {
-        loadedPluginsCache = [];
+
+    if (
+        Array.isArray(
+            loadedPluginsCache
+        )
+    ) {
+        return loadedPluginsCache;
     }
-    return loadedPluginsCache;
+
+    if (pluginsLoadingPromise) {
+        return pluginsLoadingPromise;
+    }
+
+    pluginsLoadingPromise =
+        (async () => {
+
+            try {
+
+                const plugins =
+                    await loadPlugins(sock);
+
+                loadedPluginsCache =
+                    Array.isArray(plugins)
+                        ? plugins
+                        : [];
+
+                return loadedPluginsCache;
+
+            } catch (error) {
+
+                console.error(
+                    "Plugin Loader Error:",
+                    error?.message ||
+                    error
+                );
+
+                loadedPluginsCache = [];
+
+                return [];
+            } finally {
+
+                pluginsLoadingPromise =
+                    null;
+            }
+
+        })();
+
+    return pluginsLoadingPromise;
 }
 
 export function clearPluginsCache() {
@@ -236,102 +477,323 @@ export function clearPluginsCache() {
 }
 
 // =============================
-// 🚀 نظام طابور العمليات المتزامنة (Queue Handler)
+// 🛡️ منع معالجة الرسالة مرتين
 // =============================
 
-const messageQueue = [];
-let isProcessingQueue = false;
+const processedMessages =
+    new Map();
 
-async function processQueue(sock) {
-    if (isProcessingQueue) return;
-    isProcessingQueue = true;
+const MESSAGE_CACHE_TIME =
+    30 * 1000;
 
-    while (messageQueue.length > 0) {
-        const item = messageQueue.shift();
-        if (!item) continue;
-        const { sockInstance, m } = item;
-        try {
-            await executeHandlerLogic(sockInstance, m);
-        } catch (err) {}
+function wasProcessed(id) {
+
+    if (!id) {
+        return false;
     }
 
-    isProcessingQueue = false;
-}
+    const now = Date.now();
 
-export async function handleMessages(sock, m) {
-    try {
-        if (messageQueue.length > 2000) {
-            messageQueue.splice(0, 500);
-        }
-        messageQueue.push({ sockInstance: sock, m });
-        setImmediate(() => processQueue(sock).catch(() => {}));
-    } catch {}
-}
+    const old =
+        processedMessages.get(id);
 
-// =============================
-// ⚡ المنطق الأساسي للـ Handler المعالج للرسائل والأوامر
-// =============================
+    if (
+        old &&
+        now - old <
+        MESSAGE_CACHE_TIME
+    ) {
+        return true;
+    }
 
-async function executeHandlerLogic(sock, m) {
-    try {
-        const botJid = sock.user?.id;
-        const currentBotNumber = extractPureNumber(botJid);
-        if (currentBotNumber) {
-            setImmediate(() => addEliteAutomatically(currentBotNumber));
-        }
+    processedMessages.set(
+        id,
+        now
+    );
 
-        const msg = m.messages?.[0];
-        if (!msg || !msg.message) return;
+    // تنظيف قديم
+    if (
+        processedMessages.size >
+        5000
+    ) {
 
-        const jid = msg.key.remoteJid;
-        if (!jid) return;
+        for (
+            const [key, time]
+            of processedMessages
+        ) {
 
-        const isGroup = jid.endsWith("@g.us");
-        const isPrivate = jid.endsWith("@s.whatsapp.net");
-
-        const sender = msg.key.fromMe 
-            ? (currentBotNumber ? currentBotNumber + "@s.whatsapp.net" : (msg.key.participant || jid))
-            : (isGroup ? (msg.key.participant || jid) : jid);
-
-        const number = extractPureNumber(sender);
-
-        const ownerNumber = getOwner();
-        const isOwner = isSameNumber(number, ownerNumber);
-
-        const eliteList = getElite();
-        const isEliteUser = isOwner || isSameNumber(number, currentBotNumber) || eliteList.some(el => isSameNumber(number, el));
-
-        // تحميل البلجنات من الكاش المحمي لمنع استهلاك الرام
-        let plugins = await getLoadedPlugins(sock);
-
-        if (plugins && plugins.length > 0) {
-            for (let i = 0; i < plugins.length; i++) {
-                const cmd = plugins[i];
-                try {
-                    if (cmd?.onMessage) {
-                        Promise.resolve(cmd.onMessage(sock, msg, {
-                            jid,
-                            sender,
-                            number,
-                            isOwner,
-                            ownerNumber,
-                            isGroup,
-                            isPrivate,
-                            message: msg,
-                            isElite: isEliteUser
-                        })).catch(() => {});
-                    }
-                } catch {}
+            if (
+                now - time >
+                MESSAGE_CACHE_TIME
+            ) {
+                processedMessages.delete(
+                    key
+                );
             }
         }
+    }
 
-        const mode = getMode();
+    return false;
+}
 
-        if (mode.elite === true && !isOwner && !isSameNumber(number, currentBotNumber)) {
+// =============================
+// 🚀 معالجة مستقلة لكل رسالة
+// =============================
+
+export async function handleMessages(
+    sock,
+    m
+) {
+
+    try {
+
+        const message =
+            m?.messages?.[0];
+
+        const messageId =
+            message?.key?.id;
+
+        if (
+            messageId &&
+            wasProcessed(messageId)
+        ) {
+            return;
+        }
+
+        /*
+         * مهم جدًا:
+         * لا يوجد Queue عام هنا.
+         *
+         * كل رسالة لها Promise مستقلة.
+         * إذا .تيك تأخر، بقية الأوامر تعمل.
+         */
+
+        Promise.resolve()
+            .then(() =>
+                executeHandlerLogic(
+                    sock,
+                    m
+                )
+            )
+            .catch(error => {
+
+                console.error(
+                    "Handler Error:",
+                    error?.message ||
+                    error
+                );
+
+            });
+
+    } catch (error) {
+
+        console.error(
+            "handleMessages Error:",
+            error?.message ||
+            error
+        );
+    }
+}
+
+// =============================
+// ⚡ المنطق الأساسي
+// =============================
+
+async function executeHandlerLogic(
+    sock,
+    m
+) {
+
+    try {
+
+        const botJid =
+            sock.user?.id;
+
+        const currentBotNumber =
+            extractPureNumber(
+                botJid
+            );
+
+        // إضافة رقم الجلسة مرة واحدة فقط
+        if (
+            currentBotNumber
+        ) {
+            addEliteAutomatically(
+                currentBotNumber
+            );
+        }
+
+        const msg =
+            m?.messages?.[0];
+
+        if (
+            !msg ||
+            !msg.message
+        ) {
+            return;
+        }
+
+        const jid =
+            msg.key?.remoteJid;
+
+        if (!jid) {
+            return;
+        }
+
+        const isGroup =
+            jid.endsWith("@g.us");
+
+        const isPrivate =
+            jid.endsWith(
+                "@s.whatsapp.net"
+            );
+
+        const sender =
+            msg.key?.fromMe
+                ? (
+                    currentBotNumber
+                        ? `${currentBotNumber}@s.whatsapp.net`
+                        : (
+                            msg.key?.participant ||
+                            jid
+                        )
+                )
+                : (
+                    isGroup
+                        ? (
+                            msg.key?.participant ||
+                            jid
+                        )
+                        : jid
+                );
+
+        const number =
+            extractPureNumber(
+                sender
+            );
+
+        const ownerNumber =
+            getOwner();
+
+        const isOwner =
+            isSameNumber(
+                number,
+                ownerNumber
+            );
+
+        const eliteList =
+            getElite();
+
+        const isEliteUser =
+            isOwner ||
+            isSameNumber(
+                number,
+                currentBotNumber
+            ) ||
+            eliteList.some(
+                elite =>
+                    isSameNumber(
+                        number,
+                        elite
+                    )
+            );
+
+        // =============================
+        // 📦 البلجنات
+        // =============================
+
+        const plugins =
+            await getLoadedPlugins(
+                sock
+            );
+
+        if (
+            !Array.isArray(
+                plugins
+            )
+        ) {
+            return;
+        }
+
+        // =============================
+        // 🔔 onMessage
+        // =============================
+
+        for (
+            const cmd
+            of plugins
+        ) {
+
+            try {
+
+                if (
+                    typeof cmd?.onMessage !==
+                    "function"
+                ) {
+                    continue;
+                }
+
+                /*
+                 * onMessage مستقل.
+                 * لا نخلي بلجن مراقبة واحد
+                 * يوقف بقية النظام.
+                 */
+
+                Promise.resolve()
+                    .then(() =>
+                        cmd.onMessage(
+                            sock,
+                            msg,
+                            {
+                                jid,
+                                sender,
+                                number,
+                                isOwner,
+                                ownerNumber,
+                                isGroup,
+                                isPrivate,
+                                message: msg,
+                                isElite:
+                                    isEliteUser
+                            }
+                        )
+                    )
+                    .catch(error => {
+
+                        console.error(
+                            "Plugin onMessage Error:",
+                            error?.message ||
+                            error
+                        );
+
+                    });
+
+            } catch {}
+        }
+
+        // =============================
+        // 🔐 وضع النخبة
+        // =============================
+
+        const mode =
+            getMode();
+
+        if (
+            mode?.elite === true &&
+            !isOwner &&
+            !isSameNumber(
+                number,
+                currentBotNumber
+            )
+        ) {
+
             if (!isEliteUser) {
                 return;
             }
         }
+
+        // =============================
+        // 📝 استخراج النص
+        // =============================
 
         const rawText =
             msg.message.conversation ||
@@ -341,26 +803,99 @@ async function executeHandlerLogic(sock, m) {
             msg.message.templateButtonReplyMessage?.selectedId ||
             "";
 
-        if (!rawText) return;
+        if (!rawText) {
+            return;
+        }
 
-        const text = String(rawText).trim();
-        const hasPrefix = /^[./\\#,!^&+=]/.test(text);
-        const noPrefixText = text.replace(/^[./\\#,!^&+=]/, "").trim();
-        const commandName = noPrefixText.split(" ")[0].toLowerCase();
+        const text =
+            String(rawText).trim();
 
-        for (let i = 0; i < plugins.length; i++) {
-            const cmd = plugins[i];
+        const hasPrefix =
+            /^[./\\#,!^&+=]/.test(
+                text
+            );
+
+        const noPrefixText =
+            text
+                .replace(
+                    /^[./\\#,!^&+=]/,
+                    ""
+                )
+                .trim();
+
+        if (!noPrefixText) {
+            return;
+        }
+
+        const commandName =
+            noPrefixText
+                .split(/\s+/)[0]
+                .toLowerCase();
+
+        // =============================
+        // ⚡ البحث عن الأمر
+        // =============================
+
+        for (
+            const cmd
+            of plugins
+        ) {
+
             try {
-                if (cmd && cmd.command) {
-                    const validCmds = Array.isArray(cmd.command) ? cmd.command : [cmd.command];
-                    const isMatched = validCmds.some(c => c && c.toLowerCase() === commandName);
 
-                    if (isMatched) {
-                        if (!hasPrefix && !isEliteUser) {
-                            return; 
-                        }
+                if (
+                    !cmd?.command
+                ) {
+                    continue;
+                }
 
-                        await cmd.execute(sock, msg, {
+                const validCmds =
+                    Array.isArray(
+                        cmd.command
+                    )
+                        ? cmd.command
+                        : [
+                            cmd.command
+                        ];
+
+                const isMatched =
+                    validCmds.some(
+                        c =>
+                            c &&
+                            String(c)
+                                .toLowerCase() ===
+                            commandName
+                    );
+
+                if (!isMatched) {
+                    continue;
+                }
+
+                // الأوامر بدون بادئة
+                if (
+                    !hasPrefix &&
+                    !isEliteUser
+                ) {
+                    return;
+                }
+
+                log(
+                    "cmd",
+                    `${commandName} ← ${jid}`
+                );
+
+                /*
+                 * هنا الأمر يُنفذ بشكل مستقل.
+                 *
+                 * إذا كان تيك يحتاج 60 ثانية،
+                 * لا توجد Queue تمنع مجموعة ثانية.
+                 */
+
+                await Promise.resolve(
+                    cmd.execute(
+                        sock,
+                        msg,
+                        {
                             text,
                             noPrefixText,
                             commandName,
@@ -372,14 +907,37 @@ async function executeHandlerLogic(sock, m) {
                             isGroup,
                             isPrivate,
                             hasPrefix,
-                            isElite: isEliteUser
-                        });
+                            isElite:
+                                isEliteUser
+                        }
+                    )
+                );
 
-                        return;
-                    }
-                }
-            } catch (err) {}
+                return;
+
+            } catch (error) {
+
+                console.error(
+                    `Command Error [${commandName}]:`,
+                    error?.message ||
+                    error
+                );
+
+                /*
+                 * الخطأ في أمر واحد لا يوقف
+                 * استقبال الرسائل التالية.
+                 */
+
+                return;
+            }
         }
 
-    } catch (error) {}
-}
+    } catch (error) {
+
+        console.error(
+            "executeHandlerLogic Error:",
+            error?.message ||
+            error
+        );
+    }
+            }
