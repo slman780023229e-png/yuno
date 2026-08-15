@@ -1,4 +1,3 @@
-
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -8,7 +7,6 @@ const __dirname = path.dirname(__filename);
 
 const dbPath = path.join(__dirname, "../data");
 
-// التأكد من وجود مجلد البيانات الأساسي
 if (!fs.existsSync(dbPath)) {
     fs.mkdirSync(dbPath, { recursive: true });
 }
@@ -16,14 +14,16 @@ if (!fs.existsSync(dbPath)) {
 class Database {
     constructor() {
         this.cache = new Map();
-        this.locks = new Map();
+        this.cacheTimestamps = new Map();
+        this.CACHE_DURATION = 60 * 1000; // صلاحية الكاش دقيقة واحدة فقط لتفريغ الرام باستمرار
     }
 
-    // قراءة ملف JSON بأمان تام مع التخزين المؤقت (Cache) للسرعة
     read(filename, defaultData = []) {
         const filePath = path.join(dbPath, filename);
-        
-        if (this.cache.has(filename)) {
+        const now = Date.now();
+
+        // التحقق من وجود الكاش وصلاحيته (لم تتجاوز الدقيقة)
+        if (this.cache.has(filename) && (now - this.cacheTimestamps.get(filename) < this.CACHE_DURATION)) {
             return this.cache.get(filename);
         }
 
@@ -40,7 +40,11 @@ class Database {
             }
 
             const parsed = JSON.parse(data);
+            
+            // تحديث الكاش والوقت الحالي
             this.cache.set(filename, parsed);
+            this.cacheTimestamps.set(filename, now);
+            
             return parsed;
         } catch (error) {
             console.error(`❌ [Database Error] Failed to read ${filename}:`, error.message);
@@ -48,14 +52,13 @@ class Database {
         }
     }
 
-    // كتابة البيانات إلى الملف بأسلوب آمن يمنع التلف عند الضغط العالي
     write(filename, data) {
         const filePath = path.join(dbPath, filename);
         
         try {
             this.cache.set(filename, data);
+            this.cacheTimestamps.set(filename, Date.now());
             
-            // كتابة مؤقتة ثم استبدال لضمان عدم تلف الملف إن انقطع الاتصال
             const tempPath = `${filePath}.tmp`;
             fs.writeFileSync(tempPath, JSON.stringify(data, null, 2), "utf-8");
             fs.renameSync(tempPath, filePath);
@@ -67,7 +70,6 @@ class Database {
         }
     }
 
-    // تحديث جزئي أو إضافة بيانات بداخل ملف معين
     update(filename, updaterFunc, defaultData = []) {
         let currentData = this.read(filename, defaultData);
         if (typeof updaterFunc === "function") {
@@ -76,9 +78,9 @@ class Database {
         return this.write(filename, currentData);
     }
 
-    // مسح الكاش لإجبار قاعدة البيانات على إعادة قراءة الملفات من القرص الصلب
     clearCache() {
         this.cache.clear();
+        this.cacheTimestamps.clear();
     }
 }
 
