@@ -72,7 +72,6 @@ export default {
         const input = data.text ? data.text.trim() : "";
         const args = input.replace(/^\.اوامر/, "").trim().split(/\s+/);
         const subCommand = args[0] ? args[0].toLowerCase() : "";
-        const pageArg = args[1] ? parseInt(args[1]) : 1;
 
         const now = new Date();
         const date = now.toLocaleDateString("ar-SA");
@@ -159,12 +158,26 @@ export default {
             return "📂";
         };
 
+        // إعدادات القناة المطلوبة
+        const newsletterConfig = {
+            forwardingScore: 999,
+            isForwarded: true,
+            forwardedNewsletterMessageInfo: {
+                newsletterJid: '120363410672713016@newsletter',
+                newsletterName: '𝐍𝐎𝐓𝐄  𝐁𝐎𝐓',
+                serverMessageId: -1
+            }
+        };
+
         const sendResponse = async (textMessage, buttonsArray) => {
             const imagePath = getRandomImage();
 
             if (imagePath && fs.existsSync(imagePath)) {
                 try {
-                    await sock.sendMessage(data.jid, { image: { url: imagePath } });
+                    await sock.sendMessage(data.jid, { 
+                        image: { url: imagePath },
+                        ...newsletterConfig 
+                    });
                 } catch (e) {}
             }
 
@@ -179,7 +192,7 @@ export default {
                 } catch (e) {}
             }
 
-            return await sock.sendMessage(data.jid, { text: textMessage });
+            return await sock.sendMessage(data.jid, { text: textMessage, ...newsletterConfig });
         };
 
         // حساب السرعة النهائية بدقة بالمللي ثانية (ms)
@@ -220,7 +233,7 @@ export default {
                 { displayText: "📂 قائمة الأقسام", id: ".اوامر الاقسام" },
                 { displayText: "🌟 كل الأقسام", id: ".اوامر كل_الاقسام" },
                 { displayText: "📊 معلومات النظام", id: ".اوامر" },
-                { displayText: "📢 قناة البوت", id: "https://whatsapp.com/channel/YOUR_CHANNEL_ID" }
+                { displayText: "📢 قناة البوت", id: "https://whatsapp.com/channel/120363410672713016" }
             ];
 
             return await sendResponse(menu, buttonsArray);
@@ -251,7 +264,7 @@ export default {
             allText += `\n\n*━━━━━━━━━━━━━*\n*💡 جميع أقسام البوت المتاحة.*`;
 
             const buttonsArray = [
-                { displayText: "📂 صفحة الأقسام", id: ".اوامر الاقسام" },
+                { displayText: "📂 قائمة الأقسام", id: ".اوامر الاقسام" },
                 { displayText: "📜 الرئيسية", id: ".اوامر" }
             ];
 
@@ -259,26 +272,19 @@ export default {
         }
 
         // ==========================================
-        // 2. عرض جميع الأقسام بنظام الصفحات (.اوامر الاقسام)
+        // 2. عرض جميع الأقسام كأزرار مباشرة (.اوامر الاقسام)
         // ==========================================
         if (subCommand === "الاقسام" || subCommand === "الأقسام") {
             react("📁");
-
-            const itemsPerPage = 3;
-            const totalPages = Math.ceil(order.length / itemsPerPage);
-            const currentPage = isNaN(pageArg) || pageArg < 1 ? 1 : (pageArg > totalPages ? totalPages : pageArg);
-
-            const startIndex = (currentPage - 1) * itemsPerPage;
-            const currentCategories = order.slice(startIndex, startIndex + itemsPerPage);
 
             let listText = 
 `*╔═══════════╗*
   *✨ 📂 أقسام البوت ✨*
 *╚═══════════╝*\n`;
 
-            for (let i = 0; i < currentCategories.length; i++) {
-                const cat = currentCategories[i];
-                const absoluteIndex = startIndex + i + 1;
+            for (let i = 0; i < order.length; i++) {
+                const cat = order[i];
+                const absoluteIndex = i + 1;
                 const cmdCount = categories[cat].length;
                 listText += 
 `
@@ -288,24 +294,22 @@ export default {
 *╰───────────╯*`;
             }
 
-            listText += `\n\n*━━━━━━━━━━━━━*\n*💡 صفحة ${currentPage} من ${totalPages} | اضغط رقم القسم أو الزر.*`;
+            listText += `\n\n*━━━━━━━━━━━━━*\n*💡 اختر القسم المطلوب من الأزرار بالأسفل.*`;
 
-            let buttonsArray = currentCategories.map((cat, index) => {
-                const absoluteIndex = startIndex + index + 1;
+            // توليد الأزرار تلقائياً بناءً على عدد الأقسام الموجودة تماماً
+            let buttonsArray = order.map((cat, index) => {
+                const absoluteIndex = index + 1;
                 return {
                     displayText: `${getIcon(cat)} ${cat.length > 15 ? cat.substring(0, 12) + ".." : cat}`,
                     id: `.اوامر ${absoluteIndex}`
                 };
             });
 
-            if (currentPage < totalPages) {
-                buttonsArray.push({ displayText: `➡️ التالي (${currentPage + 1})`, id: ".اوامر الاقسام " + (currentPage + 1) });
-            }
-            if (currentPage > 1) {
-                buttonsArray.push({ displayText: `⬅️ السابق (${currentPage - 1})`, id: ".اوامر الاقسام " + (currentPage - 1) });
-            }
-
-            buttonsArray.push({ displayText: "🌟 كل الأقسام", id: ".اوامر كل_الاقسام" }, { displayText: "📜 الرئيسية", id: ".اوامر" });
+            // إضافة الأزرار الثابتة (كل الأقسام والرئيسية) في النهاية
+            buttonsArray.push(
+                { displayText: "🌟 كل الأقسام", id: ".اوامر كل_الاقسام" },
+                { displayText: "📜 الرئيسية", id: ".اوامر" }
+            );
 
             return await sendResponse(listText, buttonsArray);
         }
@@ -317,7 +321,8 @@ export default {
 
         if (isNaN(index) || index < 0 || index >= order.length) {
             return sock.sendMessage(data.jid, {
-                text: `*╭━━〔 ❌ خطأ 〕━━╮*\n*┤ القسم غير موجود*\n*┤ استخدم .اوامر للقائمة الرئيسية*\n*╰━━━━━━━━━━━━╯*`
+                text: `*╭━━〔 ❌ خطأ 〕━━╮*\n*┤ القسم غير موجود*\n*┤ استخدم .اوامر للقائمة الرئيسية*\n*╰━━━━━━━━━━━━╯*`,
+                ...newsletterConfig
             });
         }
 
@@ -342,8 +347,7 @@ export default {
 *📌 عدد الأوامر : ${cmdList.length}*`;
 
         const categoryButtons = [
-            { displayText: "📂 قائمة الأقسام", id: ".اوامر الاقسام" },
-            { displayText: "🌟 كل الأقسام", id: ".اوامر كل_الاقسام" },
+            { displayText: "📂 قائمة الأقسام", id: ".اوامر الاقسام" }, 
             { displayText: "📜 الرئيسية", id: ".اوامر" }
         ];
 
