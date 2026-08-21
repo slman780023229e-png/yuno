@@ -13,9 +13,15 @@ export default {
     description: "عرض واجهة القائمة والأقسام",
 
     execute: async(sock, msg, data) => {
-        // بداية قياس السرعة الحقيقية للأمر
-        const speedStart = process.hrtime();
+        // التحقق مما إذا كان المستخدم ضغط على زر القناة الخاص بإرسال الرابط
+        const input = data.text ? data.text.trim() : "";
+        if (input === ".رابط_القناة" || input.includes("رابط القناة")) {
+            return await sock.sendMessage(data.jid, { 
+                text: `📢 *قناة المطور Salman الرسمية:*\nhttps://whatsapp.com/channel/0029Vb8ejXH7oQhXeLW2Kd1H` 
+            });
+        }
 
+        const speedStart = process.hrtime();
         const pluginsPath = path.join(__dirname, "../plugins");
 
         let files = [];
@@ -69,13 +75,11 @@ export default {
             } catch {}
         }
 
-        const input = data.text ? data.text.trim() : "";
         const args = input.replace(/^\.اوامر/, "").trim().split(/\s+/);
         const subCommand = args[0] ? args[0].toLowerCase() : "";
 
         const now = new Date();
         const date = now.toLocaleDateString("ar-SA");
-        const day = now.toLocaleDateString("ar-SA", { weekday: "long" });
         const time = now.toLocaleTimeString("ar-SA");
 
         const uptimeSeconds = Math.floor((Date.now() - startTime) / 1000);
@@ -86,7 +90,6 @@ export default {
 
         const memoryUsage = (process.memoryUsage().heapUsed / 1024 / 1024).toFixed(1) + "MB";
 
-        // فحص حالة البوت من مجلد data/مود
         let botMode = "عام";
         try {
             const possibleModePaths = [
@@ -158,7 +161,6 @@ export default {
             return "📂";
         };
 
-        // إعدادات القناة المطلوبة
         const newsletterConfig = {
             forwardingScore: 999,
             isForwarded: true,
@@ -186,7 +188,7 @@ export default {
                     return await sock.sendRealButtons(
                         data.jid,
                         textMessage,
-                        "ARTHUR BOT SYSTEM 2026",
+                        "𝐀𝐑𝐓𝐇𝐔𝐑 ✦ 𝐁𝐎𝐓 𝟐𝟎𝟐𝟔",
                         buttonsArray
                     );
                 } catch (e) {}
@@ -195,7 +197,6 @@ export default {
             return await sock.sendMessage(data.jid, { text: textMessage, ...newsletterConfig });
         };
 
-        // حساب السرعة النهائية بدقة بالمللي ثانية (ms)
         const endTime = process.hrtime(speedStart);
         const pingSpeed = (endTime[0] * 1000 + endTime[1] / 1000000).toFixed(2) + "ms";
 
@@ -206,109 +207,48 @@ export default {
             react("👑");
 
             let menu =
-`*╔═══════════╗*
-  *👑 𝐀𝐑𝐓𝐇𝐔𝐑 👑*
-*╚═══════════╝*
-
-*╭━━━━━━━━━━━╮*
-*┃ 🤖 البوت : Arthur*
-*┃ 👑 المطور : Arthur*
+`*╭━━━〔 𝐀𝐑𝐓𝐇𝐔𝐑 ✦ 𝐁𝐎𝐓 〕━━━╮*
+*┃ 🤖 البوت : 𝐀𝐑𝐓𝐇𝐔𝐑*
+*┃ 👑 المطور : Salman*
 *┃ ⚡ الحالة : ${botMode}*
-*┃ 📦 الإصدار : 2.0.0*
 *┃ ⏳ التشغيل : ${uptimeFormatted}*
-*┃ 💾 الذاكرة : ${memoryUsage}*
 *┃ 🚀 السرعة : ${pingSpeed}*
-*┃ 📂 الأقسام : ${order.length} أقسام*
-*┃ 📜 الأوامر : ${totalCommandsCount} أمر*
-*┃ 📅 التاريخ : ${date}*
-*┃ 📆 اليوم : ${day}*
-*┃ 🕒 الوقت : ${time}*
-*╰━━━━━━━━━━━╯*
-
-*╭━━━━━━━━━━━╮*
-*┃ اضغط أحد الأزرار 👇*
-*╰━━━━━━━━━━━╯*`;
+*┃ 📂 الأقسام : ${order.length} | 📜 الأوامر : ${totalCommandsCount}*
+*╰━━━━━━━━━━━━━╯*`;
 
             const buttonsArray = [
-                { displayText: "📂 قائمة الأقسام", id: ".اوامر الاقسام" },
-                { displayText: "🌟 كل الأقسام", id: ".اوامر كل_الاقسام" },
-                { displayText: "📊 معلومات النظام", id: ".اوامر" },
-                { displayText: "📢 قناة البوت", id: "https://whatsapp.com/channel/120363410672713016" }
+                { displayText: "📂 أقسام البوت", id: ".اوامر الاقسام" },
+                { displayText: "📢 قناة Salman", id: ".رابط_القناة" }
             ];
 
             return await sendResponse(menu, buttonsArray);
         }
 
         // ==========================================
-        // 1.5. عرض كل الأقسام دفعة واحدة (.اوامر كل_الاقسام)
-        // ==========================================
-        if (subCommand === "كل_الاقسام" || subCommand === "كل") {
-            react("📚");
-
-            let allText = 
-`*╔═══════════╗*
-   *✨ 📚 كل الأقسام ✨*
-*╚═══════════╝*\n`;
-
-            for (let i = 0; i < order.length; i++) {
-                const cat = order[i];
-                const cmdCount = categories[cat].length;
-                allText += 
-`
-*╭──〔 ${i + 1} 〕──╮*
-*┃ ${getIcon(cat)} ${cat}*
-*┃ 📌 ${cmdCount} أمر*
-*╰─────────╯*`;
-            }
-
-            allText += `\n\n*━━━━━━━━━━━━━*\n*💡 جميع أقسام البوت المتاحة.*`;
-
-            const buttonsArray = [
-                { displayText: "📂 قائمة الأقسام", id: ".اوامر الاقسام" },
-                { displayText: "📜 الرئيسية", id: ".اوامر" }
-            ];
-
-            return await sendResponse(allText, buttonsArray);
-        }
-
-        // ==========================================
-        // 2. عرض جميع الأقسام كأزرار مباشرة (.اوامر الاقسام)
+        // 2. عرض جميع الأقسام كإطارات منفصلة مرتبة (.اوامر الاقسام)
         // ==========================================
         if (subCommand === "الاقسام" || subCommand === "الأقسام") {
             react("📁");
 
-            let listText = 
-`*╔═══════════╗*
-  *✨ 📂 أقسام البوت ✨*
-*╚═══════════╝*\n`;
+            let listText = `*╭━━━〔 جـمـيـع الأقـسـام 〕━━━╮*`;
 
             for (let i = 0; i < order.length; i++) {
                 const cat = order[i];
-                const absoluteIndex = i + 1;
                 const cmdCount = categories[cat].length;
-                listText += 
-`
-*╭───〔 ${absoluteIndex} 〕───╮*
-*┃ ${getIcon(cat)} ${cat}*
-*┃ 📌 ${cmdCount} أمر*
-*╰───────────╯*`;
+                listText += `\n*┃ ${getIcon(cat)} ${cat} ⟸ (${cmdCount} أمر)*\n*╰━━━━━━━━━━━━━╯*`;
             }
 
-            listText += `\n\n*━━━━━━━━━━━━━*\n*💡 اختر القسم المطلوب من الأزرار بالأسفل.*`;
-
-            // توليد الأزرار تلقائياً بناءً على عدد الأقسام الموجودة تماماً
             let buttonsArray = order.map((cat, index) => {
                 const absoluteIndex = index + 1;
                 return {
-                    displayText: `${getIcon(cat)} ${cat.length > 15 ? cat.substring(0, 12) + ".." : cat}`,
+                    displayText: `${getIcon(cat)} ${cat.length > 13 ? cat.substring(0, 10) + ".." : cat}`,
                     id: `.اوامر ${absoluteIndex}`
                 };
             });
 
-            // إضافة الأزرار الثابتة (كل الأقسام والرئيسية) في النهاية
             buttonsArray.push(
-                { displayText: "🌟 كل الأقسام", id: ".اوامر كل_الاقسام" },
-                { displayText: "📜 الرئيسية", id: ".اوامر" }
+                { displayText: "📜 الرئيسية", id: ".اوامر" },
+                { displayText: "📢 قناة Salman", id: ".رابط_القناة" }
             );
 
             return await sendResponse(listText, buttonsArray);
@@ -321,7 +261,7 @@ export default {
 
         if (isNaN(index) || index < 0 || index >= order.length) {
             return sock.sendMessage(data.jid, {
-                text: `*╭━━〔 ❌ خطأ 〕━━╮*\n*┤ القسم غير موجود*\n*┤ استخدم .اوامر للقائمة الرئيسية*\n*╰━━━━━━━━━━━━╯*`,
+                text: `*❌ القسم غير موجود! استخدم .اوامر للعودة.*`,
                 ...newsletterConfig
             });
         }
@@ -330,25 +270,21 @@ export default {
         react(getIcon(category));
 
         let text =
-`*╔═══════════╗*
-  *✨ ${getIcon(category)} ${category} ✨*
-*╚═══════════╝*
-
-*┏━━━━━━━━━━┓*\n`;
+`*╭━━━〔 ${getIcon(category)} ${category} 〕━━━╮*`;
 
         const cmdList = categories[category];
         for (let i = 0; i < cmdList.length; i++) {
-            text += `*┃ ⭐ .${cmdList[i].command}*\n`;
+            text += `\n*┃ ⚜️ .${cmdList[i].command}*`;
         }
 
         text += 
-`*┗━━━━━━━━━━┛*
-
-*📌 عدد الأوامر : ${cmdList.length}*`;
+`\n*╰━━━━━━━━━━━━━╯*
+*📌 الإجمالي : ${cmdList.length} أمر*`;
 
         const categoryButtons = [
-            { displayText: "📂 قائمة الأقسام", id: ".اوامر الاقسام" }, 
-            { displayText: "📜 الرئيسية", id: ".اوامر" }
+            { displayText: "📂 الأقسام", id: ".اوامر الاقسام" },
+            { displayText: "📜 الرئيسية", id: ".اوامر" },
+            { displayText: "📢 قناة Salman", id: ".رابط_القناة" }
         ];
 
         return await sendResponse(text, categoryButtons);
