@@ -16,10 +16,15 @@ import { fileURLToPath } from "url";
 import http from "http";
 
 // ================================
-// 🌐 KEEP ALIVE SERVER (لابقاء المنصة شغالة 24 ساعة)
+// 🌐 KEEP ALIVE SERVER (معدل لمنع خمول المعالج)
 // ================================
 const PORT = process.env.PORT || 3000;
 http.createServer((req, res) => {
+    // قراءة خفيفة لتنشيط الـ CPU والـ Disk لمنع خمول المنصة المجانية
+    try {
+        fs.existsSync("./package.json");
+    } catch {}
+
     res.writeHead(200, { "Content-Type": "text/plain" });
     res.end("ARTHUR BOT IS RUNNING 🟢\n");
 }).listen(PORT, () => {
@@ -87,8 +92,21 @@ async function startBot() {
 
     sock.ev.on("creds.update", saveCreds);  
 
-    // تخزين مؤقت آمن للبلجنات لتجنب الثقل واستهلاك الرام
+    // تخزين مؤقت آمن للبلجنات في الذاكرة لتجنب البطء
     let activePlugins = [];
+
+    // دالة آمنة لجلب البلجنات مرة واحدة وتجنب تكرار قراءة القرص البطء
+    async function getActivePlugins() {
+        if (activePlugins.length === 0) {
+            try {
+                activePlugins = await loadPlugins(sock);
+            } catch (err) {
+                console.log(chalk.red("❌ خطأ تحميل البلجنات: " + err.message));
+                activePlugins = [];
+            }
+        }
+        return activePlugins;
+    }
 
     // ==========================================
     // 🔘 دالة الأزرار الحقيقية والمتخطية للقيود (Binary Nodes)
@@ -197,12 +215,9 @@ ${chalk.cyan("━━━━━━━━━━━━━━━━━━━━━━
                 }
             }
 
-            try {
-                activePlugins = await loadPlugins(sock);
-                console.log(chalk.green("✅ تم تحميل البلجنات بنجاح"));
-            } catch (err) {  
-                console.log(chalk.red("❌ خطأ تحميل البلجنات: " + err.message));  
-            }
+            // تحميل البلجنات فور فتح الاتصال وتخزينها بالذاكرة
+            await getActivePlugins();
+            console.log(chalk.green("✅ تم تحميل البلجنات بنجاح"));
         }
 
         if (connection === "close") {
@@ -236,9 +251,9 @@ ${chalk.cyan("━━━━━━━━━━━━━━━━━━━━━━
 
     sock.ev.on("group-participants.update", async (update) => {
         try {
-            if (activePlugins.length === 0) activePlugins = await loadPlugins(sock);
+            const plugins = await getActivePlugins();
 
-            for (const plugin of activePlugins) {
+            for (const plugin of plugins) {
                 if (plugin.onGroupParticipantsUpdate) {
                     await plugin.onGroupParticipantsUpdate(sock, update);
                 }
@@ -254,9 +269,9 @@ ${chalk.cyan("━━━━━━━━━━━━━━━━━━━━━━
 
     sock.ev.on("group.join-request", async (update) => {
         try {
-            if (activePlugins.length === 0) activePlugins = await loadPlugins(sock);
+            const plugins = await getActivePlugins();
 
-            for (const plugin of activePlugins) {
+            for (const plugin of plugins) {
                 if (typeof plugin.onGroupJoinRequest === "function") {
                     await plugin.onGroupJoinRequest(sock, update);
                 }
