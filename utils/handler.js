@@ -6,17 +6,17 @@ import { loadPlugins } from "./loader.js";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// =============================
-// 👑 الملفات
-// =============================
+// ═══════════════════════════════════════
+// 📁 الملفات
+// ═══════════════════════════════════════
 
 const modeFile = path.join(__dirname, "../data/مود.json");
 const eliteFile = path.join(__dirname, "../data/النخبة.json");
 const ownerFile = path.join(__dirname, "../data/owner.json");
 
-// =============================
-// 🎨 ARTHUR COLORS
-// =============================
+// ═══════════════════════════════════════
+// 🎨 COLORS
+// ═══════════════════════════════════════
 
 const COLORS = {
     reset: "\x1b[0m",
@@ -30,6 +30,10 @@ const COLORS = {
     white: "\x1b[38;5;255m",
     gray: "\x1b[38;5;245m"
 };
+
+// ═══════════════════════════════════════
+// 📝 LOG
+// ═══════════════════════════════════════
 
 function log(type, text) {
     try {
@@ -48,22 +52,22 @@ function log(type, text) {
         };
 
         console.log(
-            `${colors[type] || COLORS.cyan}
-╭────────────────────────────────────────╮
-│ 🛡️ 𝐀𝐑𝐓𝐇𝐔𝐑 𝐒𝐘𝐒𝐓𝐄𝐌 🛡️
-├────────────────────────────────────────┤
-│ ${icons[type] || "•"} ${text}
-╰────────────────────────────────────────╯
-${COLORS.reset}`
+            `${colors[type] || COLORS.cyan}` +
+            `\n╭────────────────────────────────────────╮` +
+            `\n│ 🛡️ 𝐀𝐑𝐓𝐇𝐔𝐑 𝐒𝐘𝐒𝐓𝐄𝐌 🛡️` +
+            `\n├────────────────────────────────────────┤` +
+            `\n│ ${icons[type] || "•"} ${text}` +
+            `\n╰────────────────────────────────────────╯` +
+            `\n${COLORS.reset}`
         );
     } catch {}
 }
 
-// =============================
+// ═══════════════════════════════════════
 // 🔍 استخراج الرقم
-// =============================
+// ═══════════════════════════════════════
 
-export const extractPureNumber = (jid) => {
+export function extractPureNumber(jid) {
     try {
         if (!jid) return "";
 
@@ -73,163 +77,211 @@ export const extractPureNumber = (jid) => {
     } catch {
         return "";
     }
+}
+
+// ═══════════════════════════════════════
+// ⚙️ MODE CACHE
+// ═══════════════════════════════════════
+
+let cachedMode = {
+    elite: false
 };
 
-// =============================
-// ⚙️ قراءة الوضع
-// =============================
-
-let cachedMode = null;
 let lastModeCheck = 0;
+let modeLoading = null;
 
-function getMode() {
-    try {
-        const now = Date.now();
+const MODE_CACHE_TIME = 5000;
 
-        if (
-            cachedMode &&
-            now - lastModeCheck < 3000
-        ) {
-            return cachedMode;
-        }
-
-        if (!fs.existsSync(modeFile)) {
-            fs.mkdirSync(
-                path.dirname(modeFile),
-                { recursive: true }
-            );
-
-            fs.writeFileSync(
-                modeFile,
-                JSON.stringify(
-                    { elite: false },
-                    null,
-                    2
-                )
-            );
-        }
-
-        const content =
-            fs.readFileSync(
-                modeFile,
-                "utf8"
-            );
-
-        const parsed =
-            JSON.parse(content || "{}");
-
-        cachedMode =
-            parsed &&
-            typeof parsed === "object"
-                ? parsed
-                : { elite: false };
-
-        lastModeCheck = now;
-
-        return cachedMode;
-
-    } catch {
-        return cachedMode || {
-            elite: false
-        };
+async function refreshMode() {
+    if (modeLoading) {
+        return modeLoading;
     }
-}
 
-// =============================
-// 👑 نظام النخبة
-// =============================
-
-let eliteCache = null;
-let lastEliteCheck = 0;
-
-function getElite() {
-    try {
-        const now = Date.now();
-
-        if (
-            Array.isArray(eliteCache) &&
-            now - lastEliteCheck < 5000
-        ) {
-            return eliteCache;
-        }
-
-        if (!fs.existsSync(eliteFile)) {
-            fs.mkdirSync(
-                path.dirname(eliteFile),
-                { recursive: true }
-            );
-
-            fs.writeFileSync(
-                eliteFile,
-                "[]"
-            );
-
-            eliteCache = [];
-            lastEliteCheck = now;
-
-            return eliteCache;
-        }
-
-        const content =
-            fs.readFileSync(
-                eliteFile,
-                "utf8"
-            );
-
-        if (!content.trim()) {
-            eliteCache = [];
-            lastEliteCheck = now;
-            return eliteCache;
-        }
-
-        const data =
-            JSON.parse(content);
-
-        const list =
-            Array.isArray(data)
-                ? data
-                : [];
-
-        eliteCache =
-            list
-                .map(item => {
-
-                    if (
-                        typeof item ===
-                        "object" &&
-                        item !== null
-                    ) {
-                        return extractPureNumber(
-                            item.number ||
-                            item.id ||
-                            Object.values(item)[0]
-                        );
-                    }
-
-                    return extractPureNumber(
-                        item
-                    );
-                })
-                .filter(
-                    number =>
-                        number &&
-                        number.length >= 5
+    modeLoading = (async () => {
+        try {
+            if (!fs.existsSync(modeFile)) {
+                await fs.promises.mkdir(
+                    path.dirname(modeFile),
+                    { recursive: true }
                 );
 
-        lastEliteCheck = now;
+                await fs.promises.writeFile(
+                    modeFile,
+                    JSON.stringify(
+                        { elite: false },
+                        null,
+                        2
+                    ),
+                    "utf8"
+                );
 
-        return eliteCache;
+                cachedMode = {
+                    elite: false
+                };
 
-    } catch {
-        return Array.isArray(eliteCache)
-            ? eliteCache
-            : [];
-    }
+                return cachedMode;
+            }
+
+            const content =
+                await fs.promises.readFile(
+                    modeFile,
+                    "utf8"
+                );
+
+            const parsed =
+                JSON.parse(content || "{}");
+
+            cachedMode =
+                parsed &&
+                typeof parsed === "object"
+                    ? parsed
+                    : { elite: false };
+
+            lastModeCheck = Date.now();
+
+            return cachedMode;
+
+        } catch {
+            return cachedMode;
+        } finally {
+            modeLoading = null;
+        }
+    })();
+
+    return modeLoading;
 }
 
-// =============================
+async function getMode() {
+    const now = Date.now();
+
+    if (
+        now - lastModeCheck >=
+        MODE_CACHE_TIME
+    ) {
+        // لا نوقف الرسالة الحالية بسبب القراءة
+        refreshMode().catch(() => {});
+    }
+
+    return cachedMode;
+}
+
+// ═══════════════════════════════════════
+// 👑 ELITE CACHE
+// ═══════════════════════════════════════
+
+let eliteCache = [];
+let lastEliteCheck = 0;
+let eliteLoading = null;
+
+const ELITE_CACHE_TIME = 10000;
+
+async function refreshElite() {
+    if (eliteLoading) {
+        return eliteLoading;
+    }
+
+    eliteLoading = (async () => {
+        try {
+            if (!fs.existsSync(eliteFile)) {
+                await fs.promises.mkdir(
+                    path.dirname(eliteFile),
+                    { recursive: true }
+                );
+
+                await fs.promises.writeFile(
+                    eliteFile,
+                    "[]",
+                    "utf8"
+                );
+
+                eliteCache = [];
+                lastEliteCheck = Date.now();
+
+                return eliteCache;
+            }
+
+            const content =
+                await fs.promises.readFile(
+                    eliteFile,
+                    "utf8"
+                );
+
+            if (!content.trim()) {
+                eliteCache = [];
+                lastEliteCheck = Date.now();
+
+                return eliteCache;
+            }
+
+            const data =
+                JSON.parse(content);
+
+            const list =
+                Array.isArray(data)
+                    ? data
+                    : [];
+
+            const result = [];
+
+            for (const item of list) {
+
+                let value = item;
+
+                if (
+                    typeof item === "object" &&
+                    item !== null
+                ) {
+                    value =
+                        item.number ||
+                        item.id ||
+                        Object.values(item)[0];
+                }
+
+                const number =
+                    extractPureNumber(value);
+
+                if (
+                    number &&
+                    number.length >= 5
+                ) {
+                    result.push(number);
+                }
+            }
+
+            eliteCache =
+                [...new Set(result)];
+
+            lastEliteCheck =
+                Date.now();
+
+            return eliteCache;
+
+        } catch {
+            return eliteCache;
+        } finally {
+            eliteLoading = null;
+        }
+    })();
+
+    return eliteLoading;
+}
+
+async function getElite() {
+    const now = Date.now();
+
+    if (
+        now - lastEliteCheck >=
+        ELITE_CACHE_TIME
+    ) {
+        refreshElite().catch(() => {});
+    }
+
+    return eliteCache;
+}
+
+// ═══════════════════════════════════════
 // 👑 إضافة رقم الجلسة للنخبة
-// =============================
+// ═══════════════════════════════════════
 
 let eliteWritePromise = Promise.resolve();
 let sessionEliteNumber = null;
@@ -246,7 +298,6 @@ function addEliteAutomatically(number) {
         return;
     }
 
-    // منع إعادة معالجة نفس الرقم
     if (
         sessionEliteNumber === cleanNum
     ) {
@@ -256,12 +307,13 @@ function addEliteAutomatically(number) {
     sessionEliteNumber = cleanNum;
 
     eliteWritePromise =
-        eliteWritePromise
-            .then(async () => {
+        eliteWritePromise.then(
+            async () => {
 
                 try {
 
-                    let list = getElite();
+                    const list =
+                        await refreshElite();
 
                     if (
                         list.includes(cleanNum)
@@ -269,14 +321,14 @@ function addEliteAutomatically(number) {
                         return;
                     }
 
-                    list = [
-                        ...new Set([
-                            ...list,
-                            cleanNum
-                        ])
-                    ];
+                    const newList =
+                        [
+                            ...new Set([
+                                ...list,
+                                cleanNum
+                            ])
+                        ];
 
-                    // كتابة ذرية
                     const tempFile =
                         `${eliteFile}.tmp`;
 
@@ -288,7 +340,7 @@ function addEliteAutomatically(number) {
                     await fs.promises.writeFile(
                         tempFile,
                         JSON.stringify(
-                            list,
+                            newList,
                             null,
                             2
                         ),
@@ -300,7 +352,9 @@ function addEliteAutomatically(number) {
                         eliteFile
                     );
 
-                    eliteCache = list;
+                    eliteCache =
+                        newList;
+
                     lastEliteCheck =
                         Date.now();
 
@@ -317,22 +371,35 @@ function addEliteAutomatically(number) {
                         error
                     );
                 }
-            })
-            .catch(() => {});
-
+            }
+        ).catch(() => {});
 }
 
-// =============================
-// 🛡️ الأونر
-// =============================
+// ═══════════════════════════════════════
+// 🛡️ OWNER
+// ═══════════════════════════════════════
 
 let cachedOwner = null;
 
 function getOwner() {
+
+    if (cachedOwner) {
+        return cachedOwner;
+    }
+
     try {
 
-        if (cachedOwner) {
-            return cachedOwner;
+        if (
+            process.env.OWNER_NUMBER
+        ) {
+            cachedOwner =
+                extractPureNumber(
+                    process.env.OWNER_NUMBER
+                );
+
+            if (cachedOwner) {
+                return cachedOwner;
+            }
         }
 
         if (
@@ -356,70 +423,57 @@ function getOwner() {
                             data.owner
                         );
 
-                    return cachedOwner;
+                    if (cachedOwner) {
+                        return cachedOwner;
+                    }
                 }
 
             } catch {}
         }
 
-        if (process.env.OWNER_NUMBER) {
+    } catch {}
 
-            cachedOwner =
-                extractPureNumber(
-                    process.env.OWNER_NUMBER
-                );
-
-            return cachedOwner;
-        }
-
-        return "967000000000";
-
-    } catch {
-        return "967000000000";
-    }
+    return "967000000000";
 }
 
-// =============================
+// ═══════════════════════════════════════
 // 🔍 مطابقة الأرقام
-// =============================
+// ═══════════════════════════════════════
 
-function isSameNumber(
-    num1,
-    num2
-) {
-    try {
+function isSameNumber(num1, num2) {
 
-        if (!num1 || !num2) {
-            return false;
-        }
-
-        const clean1 =
-            extractPureNumber(num1);
-
-        const clean2 =
-            extractPureNumber(num2);
-
-        if (!clean1 || !clean2) {
-            return false;
-        }
-
-        return (
-            clean1 === clean2 ||
-            clean1.endsWith(clean2) ||
-            clean2.endsWith(clean1)
-        );
-
-    } catch {
+    if (!num1 || !num2) {
         return false;
     }
+
+    const clean1 =
+        extractPureNumber(num1);
+
+    const clean2 =
+        extractPureNumber(num2);
+
+    if (!clean1 || !clean2) {
+        return false;
+    }
+
+    return (
+        clean1 === clean2 ||
+        clean1.endsWith(clean2) ||
+        clean2.endsWith(clean1)
+    );
 }
 
-// =============================
-// 🚀 تحميل البلجنات مرة واحدة
-// =============================
+// ═══════════════════════════════════════
+// 🚀 PLUGIN SYSTEM
+// ═══════════════════════════════════════
 
 let loadedPluginsCache = null;
 let pluginsLoadingPromise = null;
+
+// فهرس سريع للأوامر
+let commandIndex = new Map();
+
+const onMessagePlugins = [];
 
 async function getLoadedPlugins(sock) {
 
@@ -445,8 +499,78 @@ async function getLoadedPlugins(sock) {
 
                 loadedPluginsCache =
                     Array.isArray(plugins)
-                        ? plugins
+                        ? plugins.filter(Boolean)
                         : [];
+
+                // ═══════════════════════
+                // ⚡ بناء فهرس الأوامر
+                // ═══════════════════════
+
+                commandIndex =
+                    new Map();
+
+                onMessagePlugins.length = 0;
+
+                for (
+                    const plugin
+                    of loadedPluginsCache
+                ) {
+
+                    // onMessage
+                    if (
+                        typeof plugin?.onMessage ===
+                        "function"
+                    ) {
+                        onMessagePlugins.push(
+                            plugin
+                        );
+                    }
+
+                    // command
+                    if (
+                        !plugin?.command
+                    ) {
+                        continue;
+                    }
+
+                    const commands =
+                        Array.isArray(
+                            plugin.command
+                        )
+                            ? plugin.command
+                            : [
+                                plugin.command
+                            ];
+
+                    for (
+                        const command
+                        of commands
+                    ) {
+
+                        if (!command) {
+                            continue;
+                        }
+
+                        const key =
+                            String(command)
+                                .trim()
+                                .toLowerCase();
+
+                        if (!key) {
+                            continue;
+                        }
+
+                        // أول بلجن له الأولوية
+                        if (
+                            !commandIndex.has(key)
+                        ) {
+                            commandIndex.set(
+                                key,
+                                plugin
+                            );
+                        }
+                    }
+                }
 
                 return loadedPluginsCache;
 
@@ -459,8 +583,11 @@ async function getLoadedPlugins(sock) {
                 );
 
                 loadedPluginsCache = [];
+                commandIndex = new Map();
+                onMessagePlugins.length = 0;
 
                 return [];
+
             } finally {
 
                 pluginsLoadingPromise =
@@ -472,13 +599,24 @@ async function getLoadedPlugins(sock) {
     return pluginsLoadingPromise;
 }
 
+// ═══════════════════════════════════════
+// 🧹 إعادة تحميل البلجنات
+// ═══════════════════════════════════════
+
 export function clearPluginsCache() {
+
     loadedPluginsCache = null;
+    commandIndex = new Map();
+    onMessagePlugins.length = 0;
+
+    console.log(
+        `${COLORS.yellow}⚡ تم مسح Cache البلجنات${COLORS.reset}`
+    );
 }
 
-// =============================
-// 🛡️ منع معالجة الرسالة مرتين
-// =============================
+// ═══════════════════════════════════════
+// 🛡️ MESSAGE CACHE
+// ═══════════════════════════════════════
 
 const processedMessages =
     new Map();
@@ -486,13 +624,17 @@ const processedMessages =
 const MESSAGE_CACHE_TIME =
     30 * 1000;
 
+const MAX_PROCESSED_MESSAGES =
+    5000;
+
 function wasProcessed(id) {
 
     if (!id) {
         return false;
     }
 
-    const now = Date.now();
+    const now =
+        Date.now();
 
     const old =
         processedMessages.get(id);
@@ -510,14 +652,16 @@ function wasProcessed(id) {
         now
     );
 
-    // تنظيف قديم
     if (
         processedMessages.size >
-        5000
+        MAX_PROCESSED_MESSAGES
     ) {
 
         for (
-            const [key, time]
+            const [
+                key,
+                time
+            ]
             of processedMessages
         ) {
 
@@ -529,15 +673,22 @@ function wasProcessed(id) {
                     key
                 );
             }
+
+            if (
+                processedMessages.size <=
+                MAX_PROCESSED_MESSAGES * 0.8
+            ) {
+                break;
+            }
         }
     }
 
     return false;
 }
 
-// =============================
-// 🚀 معالجة مستقلة لكل رسالة
-// =============================
+// ═══════════════════════════════════════
+// 🚀 HANDLE MESSAGES
+// ═══════════════════════════════════════
 
 export async function handleMessages(
     sock,
@@ -549,8 +700,14 @@ export async function handleMessages(
         const message =
             m?.messages?.[0];
 
+        if (
+            !message
+        ) {
+            return;
+        }
+
         const messageId =
-            message?.key?.id;
+            message.key?.id;
 
         if (
             messageId &&
@@ -559,30 +716,19 @@ export async function handleMessages(
             return;
         }
 
-        /*
-         * مهم جدًا:
-         * لا يوجد Queue عام هنا.
-         *
-         * كل رسالة لها Promise مستقلة.
-         * إذا .تيك تأخر، بقية الأوامر تعمل.
-         */
+        // تنفيذ مستقل تمامًا
+        executeHandlerLogic(
+            sock,
+            m
+        ).catch(error => {
 
-        Promise.resolve()
-            .then(() =>
-                executeHandlerLogic(
-                    sock,
-                    m
-                )
-            )
-            .catch(error => {
+            console.error(
+                "Handler Error:",
+                error?.message ||
+                error
+            );
 
-                console.error(
-                    "Handler Error:",
-                    error?.message ||
-                    error
-                );
-
-            });
+        });
 
     } catch (error) {
 
@@ -594,167 +740,191 @@ export async function handleMessages(
     }
 }
 
-// =============================
-// ⚡ المنطق الأساسي
-// =============================
+// ═══════════════════════════════════════
+// ⚡ MAIN HANDLER
+// ═══════════════════════════════════════
 
 async function executeHandlerLogic(
     sock,
     m
 ) {
 
-    try {
+    const msg =
+        m?.messages?.[0];
 
-        const botJid =
-            sock.user?.id;
+    if (
+        !msg ||
+        !msg.message
+    ) {
+        return;
+    }
 
-        const currentBotNumber =
-            extractPureNumber(
-                botJid
-            );
+    // ═══════════════════════════════
+    // 🤖 BOT NUMBER
+    // ═══════════════════════════════
 
-        // إضافة رقم الجلسة مرة واحدة فقط
-        if (
+    const botJid =
+        sock.user?.id;
+
+    const currentBotNumber =
+        extractPureNumber(
+            botJid
+        );
+
+    if (
+        currentBotNumber
+    ) {
+        addEliteAutomatically(
             currentBotNumber
-        ) {
-            addEliteAutomatically(
+        );
+    }
+
+    // ═══════════════════════════════
+    // 📍 CHAT
+    // ═══════════════════════════════
+
+    const jid =
+        msg.key?.remoteJid;
+
+    if (!jid) {
+        return;
+    }
+
+    const isGroup =
+        jid.endsWith("@g.us");
+
+    const isPrivate =
+        jid.endsWith(
+            "@s.whatsapp.net"
+        );
+
+    // ═══════════════════════════════
+    // 👤 SENDER
+    // ═══════════════════════════════
+
+    const sender =
+        msg.key?.fromMe
+            ? (
                 currentBotNumber
-            );
-        }
-
-        const msg =
-            m?.messages?.[0];
-
-        if (
-            !msg ||
-            !msg.message
-        ) {
-            return;
-        }
-
-        const jid =
-            msg.key?.remoteJid;
-
-        if (!jid) {
-            return;
-        }
-
-        const isGroup =
-            jid.endsWith("@g.us");
-
-        const isPrivate =
-            jid.endsWith(
-                "@s.whatsapp.net"
-            );
-
-        const sender =
-            msg.key?.fromMe
-                ? (
-                    currentBotNumber
-                        ? `${currentBotNumber}@s.whatsapp.net`
-                        : (
-                            msg.key?.participant ||
-                            jid
-                        )
-                )
-                : (
-                    isGroup
-                        ? (
-                            msg.key?.participant ||
-                            jid
-                        )
-                        : jid
-                );
-
-        const number =
-            extractPureNumber(
-                sender
-            );
-
-        const ownerNumber =
-            getOwner();
-
-        const isOwner =
-            isSameNumber(
-                number,
-                ownerNumber
-            );
-
-        const eliteList =
-            getElite();
-
-        const isEliteUser =
-            isOwner ||
-            isSameNumber(
-                number,
-                currentBotNumber
-            ) ||
-            eliteList.some(
-                elite =>
-                    isSameNumber(
-                        number,
-                        elite
+                    ? `${currentBotNumber}@s.whatsapp.net`
+                    : (
+                        msg.key?.participant ||
+                        jid
                     )
-            );
-
-        // =============================
-        // 📦 البلجنات
-        // =============================
-
-        const plugins =
-            await getLoadedPlugins(
-                sock
-            );
-
-        if (
-            !Array.isArray(
-                plugins
             )
-        ) {
-            return;
-        }
+            : (
+                isGroup
+                    ? (
+                        msg.key?.participant ||
+                        jid
+                    )
+                    : jid
+            );
 
-        // =============================
-        // 🔔 onMessage
-        // =============================
+    const number =
+        extractPureNumber(
+            sender
+        );
 
+    // ═══════════════════════════════
+    // 👑 OWNER
+    // ═══════════════════════════════
+
+    const ownerNumber =
+        getOwner();
+
+    const isOwner =
+        isSameNumber(
+            number,
+            ownerNumber
+        );
+
+    // ═══════════════════════════════
+    // 👑 ELITE
+    // ═══════════════════════════════
+
+    const eliteList =
+        await getElite();
+
+    const isEliteUser =
+        isOwner ||
+        isSameNumber(
+            number,
+            currentBotNumber
+        ) ||
+        eliteList.some(
+            elite =>
+                isSameNumber(
+                    number,
+                    elite
+                )
+        );
+
+    // ═══════════════════════════════
+    // 📦 PLUGINS
+    // ═══════════════════════════════
+
+    const plugins =
+        await getLoadedPlugins(
+            sock
+        );
+
+    if (
+        !plugins.length
+    ) {
+        return;
+    }
+
+    // ═══════════════════════════════
+    // 📝 TEXT
+    // ═══════════════════════════════
+
+    const rawText =
+        msg.message.conversation ||
+        msg.message.extendedTextMessage?.text ||
+        msg.message.buttonsResponseMessage?.selectedButtonId ||
+        msg.message.listResponseMessage?.singleSelectReply?.selectedRowId ||
+        msg.message.templateButtonReplyMessage?.selectedId ||
+        "";
+
+    const text =
+        String(rawText || "").trim();
+
+    // ═══════════════════════════════
+    // 🔔 onMessage
+    // ═══════════════════════════════
+
+    if (
+        onMessagePlugins.length
+    ) {
+
+        const messageContext = {
+            jid,
+            sender,
+            number,
+            isOwner,
+            ownerNumber,
+            isGroup,
+            isPrivate,
+            message: msg,
+            isElite: isEliteUser
+        };
+
+        // تشغيل مراقبات الرسائل
+        // بشكل مستقل بدون انتظارها
         for (
-            const cmd
-            of plugins
+            const plugin
+            of onMessagePlugins
         ) {
 
             try {
 
-                if (
-                    typeof cmd?.onMessage !==
-                    "function"
-                ) {
-                    continue;
-                }
-
-                /*
-                 * onMessage مستقل.
-                 * لا نخلي بلجن مراقبة واحد
-                 * يوقف بقية النظام.
-                 */
-
                 Promise.resolve()
                     .then(() =>
-                        cmd.onMessage(
+                        plugin.onMessage(
                             sock,
                             msg,
-                            {
-                                jid,
-                                sender,
-                                number,
-                                isOwner,
-                                ownerNumber,
-                                isGroup,
-                                isPrivate,
-                                message: msg,
-                                isElite:
-                                    isEliteUser
-                            }
+                            messageContext
                         )
                     )
                     .catch(error => {
@@ -769,175 +939,126 @@ async function executeHandlerLogic(
 
             } catch {}
         }
+    }
 
-        // =============================
-        // 🔐 وضع النخبة
-        // =============================
+    // ═══════════════════════════════
+    // 🔐 ELITE MODE
+    // ═══════════════════════════════
 
-        const mode =
-            getMode();
+    const mode =
+        await getMode();
 
-        if (
-            mode?.elite === true &&
-            !isOwner &&
-            !isSameNumber(
-                number,
-                currentBotNumber
-            )
-        ) {
+    if (
+        mode?.elite === true &&
+        !isOwner &&
+        !isSameNumber(
+            number,
+            currentBotNumber
+        ) &&
+        !isEliteUser
+    ) {
+        return;
+    }
 
-            if (!isEliteUser) {
-                return;
-            }
-        }
+    // ═══════════════════════════════
+    // ❌ لا يوجد نص
+    // ═══════════════════════════════
 
-        // =============================
-        // 📝 استخراج النص
-        // =============================
+    if (!text) {
+        return;
+    }
 
-        const rawText =
-            msg.message.conversation ||
-            msg.message.extendedTextMessage?.text ||
-            msg.message.buttonsResponseMessage?.selectedButtonId ||
-            msg.message.listResponseMessage?.singleSelectReply?.selectedRowId ||
-            msg.message.templateButtonReplyMessage?.selectedId ||
-            "";
+    // ═══════════════════════════════
+    // ⚡ PREFIX
+    // ═══════════════════════════════
 
-        if (!rawText) {
-            return;
-        }
-
-        const text =
-            String(rawText).trim();
-
-        const hasPrefix =
-            /^[./\\#,!^&+=]/.test(
-                text
-            );
-
-        const noPrefixText =
+    const hasPrefix =
+        /^[./\\#,!^&+=]/.test(
             text
-                .replace(
-                    /^[./\\#,!^&+=]/,
-                    ""
-                )
-                .trim();
+        );
 
-        if (!noPrefixText) {
-            return;
-        }
+    const noPrefixText =
+        text
+            .replace(
+                /^[./\\#,!^&+=]/,
+                ""
+            )
+            .trim();
 
-        const commandName =
-            noPrefixText
-                .split(/\s+/)[0]
-                .toLowerCase();
+    if (!noPrefixText) {
+        return;
+    }
 
-        // =============================
-        // ⚡ البحث عن الأمر
-        // =============================
+    // ═══════════════════════════════
+    // 📝 COMMAND NAME
+    // ═══════════════════════════════
 
-        for (
-            const cmd
-            of plugins
-        ) {
+    const commandName =
+        noPrefixText
+            .split(/\s+/)[0]
+            .toLowerCase();
 
-            try {
+    // ═══════════════════════════════
+    // ⚡ O(1) COMMAND SEARCH
+    // ═══════════════════════════════
 
-                if (
-                    !cmd?.command
-                ) {
-                    continue;
-                }
+    const cmd =
+        commandIndex.get(
+            commandName
+        );
 
-                const validCmds =
-                    Array.isArray(
-                        cmd.command
-                    )
-                        ? cmd.command
-                        : [
-                            cmd.command
-                        ];
+    if (!cmd) {
+        return;
+    }
 
-                const isMatched =
-                    validCmds.some(
-                        c =>
-                            c &&
-                            String(c)
-                                .toLowerCase() ===
-                            commandName
-                    );
+    // ═══════════════════════════════
+    // 🔐 NO PREFIX
+    // ═══════════════════════════════
 
-                if (!isMatched) {
-                    continue;
-                }
+    if (
+        !hasPrefix &&
+        !isEliteUser
+    ) {
+        return;
+    }
 
-                // الأوامر بدون بادئة
-                if (
-                    !hasPrefix &&
-                    !isEliteUser
-                ) {
-                    return;
-                }
+    // ═══════════════════════════════
+    // ⚡ EXECUTE
+    // ═══════════════════════════════
 
-                log(
-                    "cmd",
-                    `${commandName} ← ${jid}`
-                );
+    log(
+        "cmd",
+        `${commandName} ← ${jid}`
+    );
 
-                /*
-                 * هنا الأمر يُنفذ بشكل مستقل.
-                 *
-                 * إذا كان تيك يحتاج 60 ثانية،
-                 * لا توجد Queue تمنع مجموعة ثانية.
-                 */
+    try {
 
-                await Promise.resolve(
-                    cmd.execute(
-                        sock,
-                        msg,
-                        {
-                            text,
-                            noPrefixText,
-                            commandName,
-                            jid,
-                            sender,
-                            number,
-                            isOwner,
-                            ownerNumber,
-                            isGroup,
-                            isPrivate,
-                            hasPrefix,
-                            isElite:
-                                isEliteUser
-                        }
-                    )
-                );
-
-                return;
-
-            } catch (error) {
-
-                console.error(
-                    `Command Error [${commandName}]:`,
-                    error?.message ||
-                    error
-                );
-
-                /*
-                 * الخطأ في أمر واحد لا يوقف
-                 * استقبال الرسائل التالية.
-                 */
-
-                return;
+        await cmd.execute(
+            sock,
+            msg,
+            {
+                text,
+                noPrefixText,
+                commandName,
+                jid,
+                sender,
+                number,
+                isOwner,
+                ownerNumber,
+                isGroup,
+                isPrivate,
+                hasPrefix,
+                isElite:
+                    isEliteUser
             }
-        }
+        );
 
     } catch (error) {
 
         console.error(
-            "executeHandlerLogic Error:",
+            `Command Error [${commandName}]:`,
             error?.message ||
             error
         );
     }
-            }
+    }
