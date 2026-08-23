@@ -16,15 +16,13 @@ const modeFile =
 const eliteFile =
     path.join(__dirname, "../data/النخبة.json");
 
-const ownerFile =
-    path.join(__dirname, "../data/owner.json");
-
 // ═══════════════════════════════════════
 // ⚙️ SETTINGS
 // ═══════════════════════════════════════
 
 const MODE_CACHE_TIME = 5000;
 const ELITE_CACHE_TIME = 10000;
+
 const MESSAGE_CACHE_TIME = 30000;
 const MAX_PROCESSED_MESSAGES = 5000;
 
@@ -74,37 +72,20 @@ function log(type, text) {
 }
 
 // ═══════════════════════════════════════
-// 🔢 NUMBER
+// 🔍 NUMBER
 // ═══════════════════════════════════════
 
 export function extractPureNumber(jid) {
 
     try {
 
-        if (
-            jid === undefined ||
-            jid === null
-        ) {
+        if (!jid) {
             return "";
         }
 
-        let value =
-            String(jid).trim();
-
-        if (!value) {
-            return "";
-        }
-
-        value =
-            value.split("@")[0];
-
-        value =
-            value.split(":")[0];
-
-        value =
-            value.replace(/\D/g, "");
-
-        return value;
+        return String(jid)
+            .replace(/[@:].*/g, "")
+            .replace(/\D/g, "");
 
     } catch {
 
@@ -113,31 +94,14 @@ export function extractPureNumber(jid) {
 }
 
 // ═══════════════════════════════════════
-// 📱 SESSION NUMBER
-// ═══════════════════════════════════════
-
-function extractSessionNumber(sock) {
-
-    try {
-
-        const id =
-            sock?.user?.id ||
-            sock?.user?.jid ||
-            "";
-
-        return extractPureNumber(id);
-
-    } catch {
-
-        return "";
-    }
-}
-
-// ═══════════════════════════════════════
-// 🔢 COMPARE
+// 🔢 SAME NUMBER
 // ═══════════════════════════════════════
 
 function isSameNumber(a, b) {
+
+    if (!a || !b) {
+        return false;
+    }
 
     const x =
         extractPureNumber(a);
@@ -149,7 +113,57 @@ function isSameNumber(a, b) {
         return false;
     }
 
-    return x === y;
+    return (
+        x === y ||
+        x.endsWith(y) ||
+        y.endsWith(x)
+    );
+}
+
+// ═══════════════════════════════════════
+// 👑 MAIN BOT
+// ═══════════════════════════════════════
+
+let cachedMainBotNumber = "";
+
+function getMainBotNumber(sock) {
+
+    try {
+
+        if (cachedMainBotNumber) {
+            return cachedMainBotNumber;
+        }
+
+        const possibleNumber =
+            sock?.mainBotNumber ||
+            sock?.__mainBotNumber ||
+            process.env.MAIN_BOT_NUMBER ||
+            "";
+
+        const clean =
+            extractPureNumber(
+                possibleNumber
+            );
+
+        if (
+            clean &&
+            clean.length >= 5
+        ) {
+
+            cachedMainBotNumber =
+                clean;
+
+            log(
+                "elite",
+                `👑 Main Bot: ${clean}`
+            );
+
+            return clean;
+        }
+
+    } catch {}
+
+    return "";
 }
 
 // ═══════════════════════════════════════
@@ -174,32 +188,26 @@ async function refreshMode() {
 
             try {
 
-                await fs.promises.mkdir(
-                    path.dirname(modeFile),
-                    {
-                        recursive: true
-                    }
-                );
-
                 if (
                     !fs.existsSync(modeFile)
                 ) {
+
+                    await fs.promises.mkdir(
+                        path.dirname(modeFile),
+                        {
+                            recursive: true
+                        }
+                    );
 
                     await fs.promises.writeFile(
                         modeFile,
                         JSON.stringify(
                             {
                                 elite: false
-                            },
-                            null,
-                            2
+                            }
                         ),
                         "utf8"
                     );
-
-                    modeCache = {
-                        elite: false
-                    };
 
                 } else {
 
@@ -231,12 +239,7 @@ async function refreshMode() {
 
                 return modeCache;
 
-            } catch (error) {
-
-                console.error(
-                    "Mode Load Error:",
-                    error?.message || error
-                );
+            } catch {
 
                 return modeCache;
 
@@ -267,7 +270,7 @@ function getModeFast() {
 }
 
 // ═══════════════════════════════════════
-// 👑 ELITE CACHE
+// 👑 ELITE
 // ═══════════════════════════════════════
 
 let eliteCache = [];
@@ -287,16 +290,20 @@ async function refreshElite() {
 
             try {
 
-                await fs.promises.mkdir(
-                    path.dirname(eliteFile),
-                    {
-                        recursive: true
-                    }
-                );
-
                 if (
-                    !fs.existsSync(eliteFile)
+                    !fs.existsSync(
+                        eliteFile
+                    )
                 ) {
+
+                    await fs.promises.mkdir(
+                        path.dirname(
+                            eliteFile
+                        ),
+                        {
+                            recursive: true
+                        }
+                    );
 
                     await fs.promises.writeFile(
                         eliteFile,
@@ -305,7 +312,7 @@ async function refreshElite() {
                     );
 
                     eliteCache = [];
-                    eliteSet = new Set();
+                    eliteSet.clear();
 
                 } else {
 
@@ -315,19 +322,10 @@ async function refreshElite() {
                             "utf8"
                         );
 
-                    let data = [];
-
-                    try {
-
-                        data =
-                            JSON.parse(
-                                content || "[]"
-                            );
-
-                    } catch {
-
-                        data = [];
-                    }
+                    const data =
+                        JSON.parse(
+                            content || "[]"
+                        );
 
                     const result = [];
                     const set = new Set();
@@ -337,24 +335,31 @@ async function refreshElite() {
                     ) {
 
                         for (
-                            const item of data
+                            const item
+                            of data
                         ) {
 
-                            let value = item;
+                            let value =
+                                item;
 
                             if (
-                                typeof item === "object" &&
+                                typeof item ===
+                                    "object" &&
                                 item !== null
                             ) {
 
                                 value =
-                                    item.number ??
-                                    item.id ??
-                                    Object.values(item)[0];
+                                    item.number ||
+                                    item.id ||
+                                    Object.values(
+                                        item
+                                    )[0];
                             }
 
                             const number =
-                                extractPureNumber(value);
+                                extractPureNumber(
+                                    value
+                                );
 
                             if (
                                 number &&
@@ -363,13 +368,19 @@ async function refreshElite() {
                             ) {
 
                                 set.add(number);
-                                result.push(number);
+
+                                result.push(
+                                    number
+                                );
                             }
                         }
                     }
 
-                    eliteCache = result;
-                    eliteSet = set;
+                    eliteCache =
+                        result;
+
+                    eliteSet =
+                        set;
                 }
 
                 lastEliteCheck =
@@ -377,12 +388,7 @@ async function refreshElite() {
 
                 return eliteCache;
 
-            } catch (error) {
-
-                console.error(
-                    "Elite Load Error:",
-                    error?.message || error
-                );
+            } catch {
 
                 return eliteCache;
 
@@ -413,70 +419,6 @@ function getEliteFast() {
 }
 
 // ═══════════════════════════════════════
-// 🛡️ OWNER
-// ═══════════════════════════════════════
-
-let cachedOwner = null;
-
-function getOwner() {
-
-    if (cachedOwner) {
-        return cachedOwner;
-    }
-
-    try {
-
-        if (
-            process.env.OWNER_NUMBER
-        ) {
-
-            const owner =
-                extractPureNumber(
-                    process.env.OWNER_NUMBER
-                );
-
-            if (owner) {
-
-                cachedOwner = owner;
-
-                return cachedOwner;
-            }
-        }
-
-        if (
-            fs.existsSync(ownerFile)
-        ) {
-
-            const data =
-                JSON.parse(
-                    fs.readFileSync(
-                        ownerFile,
-                        "utf8"
-                    )
-                );
-
-            if (data?.owner) {
-
-                const owner =
-                    extractPureNumber(
-                        data.owner
-                    );
-
-                if (owner) {
-
-                    cachedOwner = owner;
-
-                    return cachedOwner;
-                }
-            }
-        }
-
-    } catch {}
-
-    return "967000000000";
-}
-
-// ═══════════════════════════════════════
 // 🚀 PLUGINS
 // ═══════════════════════════════════════
 
@@ -485,10 +427,6 @@ let pluginsLoadingPromise = null;
 
 let commandIndex = new Map();
 let onMessagePlugins = [];
-
-// ═══════════════════════════════════════
-// 📦 LOAD PLUGINS
-// ═══════════════════════════════════════
 
 async function getLoadedPlugins(sock) {
 
@@ -518,12 +456,14 @@ async function getLoadedPlugins(sock) {
                         ? plugins.filter(Boolean)
                         : [];
 
-                commandIndex = new Map();
+                commandIndex =
+                    new Map();
 
                 const listeners = [];
 
                 for (
-                    const plugin of loadedPluginsCache
+                    const plugin
+                    of loadedPluginsCache
                 ) {
 
                     if (
@@ -531,31 +471,46 @@ async function getLoadedPlugins(sock) {
                         "function"
                     ) {
 
-                        listeners.push(plugin);
+                        listeners.push(
+                            plugin
+                        );
                     }
 
-                    if (!plugin?.command) {
+                    if (
+                        !plugin?.command
+                    ) {
+
                         continue;
                     }
 
                     const commands =
-                        Array.isArray(plugin.command)
+                        Array.isArray(
+                            plugin.command
+                        )
                             ? plugin.command
-                            : [plugin.command];
+                            : [
+                                plugin.command
+                            ];
 
                     for (
-                        const command of commands
+                        const command
+                        of commands
                     ) {
 
                         if (
-                            command === undefined ||
-                            command === null
+                            command ===
+                                undefined ||
+                            command ===
+                                null
                         ) {
+
                             continue;
                         }
 
                         const key =
-                            String(command)
+                            String(
+                                command
+                            )
                                 .trim()
                                 .toLowerCase();
 
@@ -564,7 +519,9 @@ async function getLoadedPlugins(sock) {
                         }
 
                         if (
-                            !commandIndex.has(key)
+                            !commandIndex.has(
+                                key
+                            )
                         ) {
 
                             commandIndex.set(
@@ -589,7 +546,8 @@ async function getLoadedPlugins(sock) {
 
                 console.error(
                     "Plugin Loader Error:",
-                    error?.message || error
+                    error?.message ||
+                    error
                 );
 
                 loadedPluginsCache = [];
@@ -609,13 +567,16 @@ async function getLoadedPlugins(sock) {
 }
 
 // ═══════════════════════════════════════
-// 🧹 CLEAR CACHE
+// 🧹 CLEAR PLUGINS
 // ═══════════════════════════════════════
 
 export function clearPluginsCache() {
 
     loadedPluginsCache = null;
-    commandIndex = new Map();
+
+    commandIndex =
+        new Map();
+
     onMessagePlugins = [];
 
     console.log(
@@ -624,28 +585,41 @@ export function clearPluginsCache() {
 }
 
 // ═══════════════════════════════════════
-// 🛡️ MESSAGE CACHE
+// 🛡️ MESSAGE CACHE — PER SESSION
 // ═══════════════════════════════════════
 
-const processedMessages = new Map();
+const processedMessages =
+    new Map();
 
-function wasProcessed(id, sock) {
+function wasProcessed(
+    id,
+    sock
+) {
 
     if (!id) {
         return false;
     }
 
-    const now = Date.now();
+    const now =
+        Date.now();
 
-    const sessionNumber =
-        extractSessionNumber(sock) ||
+    const botNumber =
+        extractPureNumber(
+            sock?.user?.id
+        );
+
+    const sessionKey =
+        botNumber ||
+        sock?.user?.id ||
         "unknown-session";
 
     const cacheKey =
-        `${sessionNumber}:${id}`;
+        `${sessionKey}:${id}`;
 
     const old =
-        processedMessages.get(cacheKey);
+        processedMessages.get(
+            cacheKey
+        );
 
     if (
         old &&
@@ -669,7 +643,10 @@ function wasProcessed(id, sock) {
         let removed = 0;
 
         for (
-            const [key, time]
+            const [
+                key,
+                time
+            ]
             of processedMessages
         ) {
 
@@ -678,11 +655,17 @@ function wasProcessed(id, sock) {
                 MESSAGE_CACHE_TIME
             ) {
 
-                processedMessages.delete(key);
+                processedMessages.delete(
+                    key
+                );
+
                 removed++;
             }
 
-            if (removed >= 1000) {
+            if (
+                removed >= 500
+            ) {
+
                 break;
             }
         }
@@ -692,7 +675,7 @@ function wasProcessed(id, sock) {
 }
 
 // ═══════════════════════════════════════
-// 🧹 CLEANER
+// 🧹 CACHE CLEANER
 // ═══════════════════════════════════════
 
 const cleaner =
@@ -701,10 +684,14 @@ const cleaner =
 
             try {
 
-                const now = Date.now();
+                const now =
+                    Date.now();
 
                 for (
-                    const [key, time]
+                    const [
+                        key,
+                        time
+                    ]
                     of processedMessages
                 ) {
 
@@ -713,7 +700,9 @@ const cleaner =
                         MESSAGE_CACHE_TIME
                     ) {
 
-                        processedMessages.delete(key);
+                        processedMessages.delete(
+                            key
+                        );
                     }
                 }
 
@@ -729,6 +718,306 @@ if (
 ) {
 
     cleaner.unref();
+}
+
+// ═══════════════════════════════════════
+// 📋 INTERACTIVE / DROPDOWN RESPONSE
+// ═══════════════════════════════════════
+//
+// يدعم:
+// • listResponseMessage
+// • buttonsResponseMessage
+// • templateButtonReplyMessage
+// • interactiveResponseMessage
+// • nativeFlowResponseMessage
+// • single_select
+// • quick_reply
+//
+// ═══════════════════════════════════════
+
+function extractInteractiveResponseId(msg) {
+
+    try {
+
+        const message =
+            msg?.message;
+
+        if (!message) {
+            return "";
+        }
+
+        // ═══════════════════════════════
+        // 📋 النظام القديم للقائمة
+        // ═══════════════════════════════
+
+        const oldListId =
+            message
+                ?.listResponseMessage
+                ?.singleSelectReply
+                ?.selectedRowId;
+
+        if (oldListId) {
+            return String(oldListId).trim();
+        }
+
+        // ═══════════════════════════════
+        // 🔘 الأزرار القديمة
+        // ═══════════════════════════════
+
+        const buttonId =
+            message
+                ?.buttonsResponseMessage
+                ?.selectedButtonId;
+
+        if (buttonId) {
+            return String(buttonId).trim();
+        }
+
+        // ═══════════════════════════════
+        // 🔘 TEMPLATE BUTTON
+        // ═══════════════════════════════
+
+        const templateId =
+            message
+                ?.templateButtonReplyMessage
+                ?.selectedId;
+
+        if (templateId) {
+            return String(templateId).trim();
+        }
+
+        // ═══════════════════════════════
+        // ⚡ INTERACTIVE RESPONSE
+        // ═══════════════════════════════
+
+        const interactive =
+            message
+                ?.interactiveResponseMessage;
+
+        if (interactive) {
+
+            const nativeFlow =
+                interactive
+                    ?.nativeFlowResponseMessage;
+
+            if (nativeFlow) {
+
+                const params =
+                    nativeFlow?.paramsJson;
+
+                if (params) {
+
+                    try {
+
+                        const parsed =
+                            typeof params === "string"
+                                ? JSON.parse(params)
+                                : params;
+
+                        if (
+                            parsed &&
+                            typeof parsed === "object"
+                        ) {
+
+                            // single_select
+                            if (
+                                parsed.id
+                            ) {
+
+                                return String(
+                                    parsed.id
+                                ).trim();
+                            }
+
+                            // selected row
+                            if (
+                                parsed.selectedRowId
+                            ) {
+
+                                return String(
+                                    parsed.selectedRowId
+                                ).trim();
+                            }
+
+                            // selected id
+                            if (
+                                parsed.selectedId
+                            ) {
+
+                                return String(
+                                    parsed.selectedId
+                                ).trim();
+                            }
+
+                            // command
+                            if (
+                                parsed.command
+                            ) {
+
+                                return String(
+                                    parsed.command
+                                ).trim();
+                            }
+                        }
+
+                    } catch {
+
+                        // أحيانًا تصل البيانات
+                        // كسلسلة غير قابلة للتحليل.
+                    }
+
+                    // محاولة استخراج id مباشرة
+                    const match =
+                        String(params).match(
+                            /"(?:id|selectedRowId|selectedId|command)"\s*:\s*"([^"]+)"/
+                        );
+
+                    if (match?.[1]) {
+
+                        return String(
+                            match[1]
+                        ).trim();
+                    }
+                }
+            }
+        }
+
+        // ═══════════════════════════════
+        // 🧩 دعم nativeFlow مباشرة
+        // ═══════════════════════════════
+
+        const nativeFlowDirect =
+            message
+                ?.nativeFlowResponseMessage;
+
+        if (nativeFlowDirect) {
+
+            const params =
+                nativeFlowDirect?.paramsJson;
+
+            if (params) {
+
+                try {
+
+                    const parsed =
+                        typeof params === "string"
+                            ? JSON.parse(params)
+                            : params;
+
+                    if (
+                        parsed?.id
+                    ) {
+
+                        return String(
+                            parsed.id
+                        ).trim();
+                    }
+
+                    if (
+                        parsed?.selectedRowId
+                    ) {
+
+                        return String(
+                            parsed.selectedRowId
+                        ).trim();
+                    }
+
+                    if (
+                        parsed?.selectedId
+                    ) {
+
+                        return String(
+                            parsed.selectedId
+                        ).trim();
+                    }
+
+                } catch {
+
+                    const match =
+                        String(params).match(
+                            /"(?:id|selectedRowId|selectedId)"\s*:\s*"([^"]+)"/
+                        );
+
+                    if (match?.[1]) {
+
+                        return String(
+                            match[1]
+                        ).trim();
+                    }
+                }
+            }
+        }
+
+    } catch (error) {
+
+        console.error(
+            "Interactive Response Parse Error:",
+            error?.message ||
+            error
+        );
+    }
+
+    return "";
+}
+
+// ═══════════════════════════════════════
+// 🧹 NORMALIZE MENU ID
+// ═══════════════════════════════════════
+//
+// يسمح لك باستخدام:
+//
+// id: "اوامر"
+// id: "cmd:اوامر"
+// id: "command:اوامر"
+// id: ".اوامر"
+// id: "/اوامر"
+//
+// بدون تغيير البلجنات.
+// ═══════════════════════════════════════
+
+function normalizeMenuCommand(id) {
+
+    if (!id) {
+        return "";
+    }
+
+    let value =
+        String(id).trim();
+
+    if (!value) {
+        return "";
+    }
+
+    // cmd:اوامر
+    if (
+        value
+            .toLowerCase()
+            .startsWith("cmd:")
+    ) {
+
+        value =
+            value.slice(4).trim();
+    }
+
+    // command:اوامر
+    else if (
+        value
+            .toLowerCase()
+            .startsWith("command:")
+    ) {
+
+        value =
+            value.slice(8).trim();
+    }
+
+    // إزالة البادئة إذا كانت موجودة
+    value =
+        value.replace(
+            /^[./\\#,!^&+=]+/,
+            ""
+        ).trim();
+
+    return value;
 }
 
 // ═══════════════════════════════════════
@@ -774,7 +1063,8 @@ export async function handleMessages(
 
             console.error(
                 "Handler Error:",
-                error?.message || error
+                error?.message ||
+                error
             );
 
         });
@@ -783,7 +1073,8 @@ export async function handleMessages(
 
         console.error(
             "handleMessages Error:",
-            error?.message || error
+            error?.message ||
+            error
         );
     }
 }
@@ -798,11 +1089,29 @@ async function executeHandlerLogic(
 ) {
 
     // ═══════════════════════════════
-    // 🤖 BOT NUMBER
+    // 🤖 BOT
     // ═══════════════════════════════
 
     const botNumber =
-        extractSessionNumber(sock);
+        extractPureNumber(
+            sock?.user?.id
+        );
+
+    // ═══════════════════════════════
+    // 👑 MAIN BOT
+    // ═══════════════════════════════
+
+    const mainNumber =
+        getMainBotNumber(sock);
+
+    const isMainBot =
+        !!(
+            mainNumber &&
+            isSameNumber(
+                botNumber,
+                mainNumber
+            )
+        );
 
     // ═══════════════════════════════
     // 📍 CHAT
@@ -845,61 +1154,52 @@ async function executeHandlerLogic(
             );
 
     const number =
-        extractPureNumber(sender);
-
-    // ═══════════════════════════════
-    // 👑 OWNER
-    // ═══════════════════════════════
-
-    const ownerNumber =
-        getOwner();
-
-    const isOwner =
-        isSameNumber(
-            number,
-            ownerNumber
+        extractPureNumber(
+            sender
         );
 
     // ═══════════════════════════════
-    // 👑 BOT MAIN
+    // 👑 ELITE
     // ═══════════════════════════════
 
-    /*
-     * البوت الرئيسي هو رقم المالك.
-     *
-     * مهم:
-     * لا نضيف رقم البوت الفرعي للنخبة.
-     */
-
-    const isMainBot =
-        isSameNumber(
-            botNumber,
-            ownerNumber
-        );
-
-    // ═══════════════════════════════
-    // 👑 ELITE USER
-    // ═══════════════════════════════
-
-    /*
-     * المستخدم يعتبر نخبة إذا:
-     *
-     * 1- المالك
-     * 2- رقم البوت الرئيسي
-     * 3- موجود في النخبة.json
-     */
+    const eliteList =
+        getEliteFast();
 
     let isEliteUser =
-        isOwner ||
-        isMainBot;
+        false;
 
-    if (
-        !isEliteUser &&
-        number
-    ) {
+    if (isMainBot) {
 
-        isEliteUser =
-            eliteSet.has(number);
+        isEliteUser = true;
+
+    } else if (number) {
+
+        if (
+            eliteSet.has(number)
+        ) {
+
+            isEliteUser = true;
+
+        } else {
+
+            for (
+                const elite
+                of eliteList
+            ) {
+
+                if (
+                    isSameNumber(
+                        number,
+                        elite
+                    )
+                ) {
+
+                    isEliteUser = true;
+
+                    break;
+                }
+            }
+        }
     }
 
     // ═══════════════════════════════
@@ -907,7 +1207,9 @@ async function executeHandlerLogic(
     // ═══════════════════════════════
 
     const plugins =
-        await getLoadedPlugins(sock);
+        await getLoadedPlugins(
+            sock
+        );
 
     if (!plugins.length) {
         return;
@@ -917,48 +1219,44 @@ async function executeHandlerLogic(
     // 📝 TEXT
     // ═══════════════════════════════
 
-    const rawText =
+    const normalText =
         msg.message.conversation ||
         msg.message.extendedTextMessage?.text ||
-        msg.message.buttonsResponseMessage?.selectedButtonId ||
-        msg.message.listResponseMessage?.singleSelectReply?.selectedRowId ||
-        msg.message.templateButtonReplyMessage?.selectedId ||
         "";
 
+    // ═══════════════════════════════
+    // 📋 INTERACTIVE ID
+    // ═══════════════════════════════
+
+    const interactiveId =
+        extractInteractiveResponseId(
+            msg
+        );
+
+    // ═══════════════════════════════
+    // 🧠 TEXT SOURCE
+    // ═══════════════════════════════
+    //
+    // الأولوية:
+    //
+    // 1. القائمة المنسدلة
+    // 2. الأزرار
+    // 3. الرسالة العادية
+    //
+    // ═══════════════════════════════
+
+    let rawText =
+        interactiveId ||
+        normalText ||
+        "";
+
+    let fromInteractive =
+        !!interactiveId;
+
     const text =
-        String(rawText || "").trim();
-
-    // ═══════════════════════════════
-    // 🧠 CONTEXT
-    // ═══════════════════════════════
-
-    const context = {
-
-        jid,
-
-        sender,
-
-        number,
-
-        isOwner,
-
-        ownerNumber,
-
-        isGroup,
-
-        isPrivate,
-
-        message: msg,
-
-        isElite:
-
-            isEliteUser,
-
-        botNumber,
-
-        isMainBot
-
-    };
+        String(
+            rawText || ""
+        ).trim();
 
     // ═══════════════════════════════
     // 🔔 TURBO LISTENERS
@@ -967,6 +1265,46 @@ async function executeHandlerLogic(
     if (
         onMessagePlugins.length
     ) {
+
+        const context = {
+
+            jid,
+
+            sender,
+
+            number,
+
+            isGroup,
+
+            isPrivate,
+
+            message: msg,
+
+            isElite:
+                isEliteUser,
+
+            botNumber,
+
+            mainBotNumber:
+                mainNumber,
+
+            isMainBot,
+
+            isInteractive:
+                fromInteractive,
+
+            interactiveId:
+                interactiveId || null,
+
+            isListResponse:
+                !!interactiveId,
+
+            isAdmin: false,
+
+            isSuperAdmin: false,
+
+            adminMode: false
+        };
 
         for (
             const plugin
@@ -985,7 +1323,8 @@ async function executeHandlerLogic(
 
                     console.error(
                         "onMessage Error:",
-                        error?.message || error
+                        error?.message ||
+                        error
                     );
 
                 });
@@ -994,15 +1333,28 @@ async function executeHandlerLogic(
 
                 console.error(
                     "onMessage Sync Error:",
-                    error?.message || error
+                    error?.message ||
+                    error
                 );
             }
         }
     }
 
     // ═══════════════════════════════
-    // 📝 EMPTY
+    // 🔐 ELITE MODE
     // ═══════════════════════════════
+
+    const mode =
+        getModeFast();
+
+    if (
+        mode?.elite === true &&
+        !isMainBot &&
+        !isEliteUser
+    ) {
+
+        return;
+    }
 
     if (!text) {
         return;
@@ -1012,13 +1364,44 @@ async function executeHandlerLogic(
     // ⚡ PREFIX
     // ═══════════════════════════════
 
-    const hasPrefix =
-        /^[./\\#,!^&+=]/.test(text);
+    /*
+     * القائمة لا تحتاج Prefix.
+     *
+     * مثال:
+     *
+     * id: "اوامر"
+     *
+     * سيعامل كأنه:
+     *
+     * اوامر
+     *
+     * أما الرسائل العادية فتبقى
+     * على نظام Prefix القديم.
+     */
 
-    const noPrefixText =
+    const hasPrefix =
+        fromInteractive
+            ? false
+            : /^[./\\#,!^&+=]/.test(
+                text
+            );
+
+    let noPrefixText =
         hasPrefix
             ? text.slice(1).trim()
             : text;
+
+    // ═══════════════════════════════
+    // 📋 MENU COMMAND NORMALIZATION
+    // ═══════════════════════════════
+
+    if (fromInteractive) {
+
+        noPrefixText =
+            normalizeMenuCommand(
+                noPrefixText
+            );
+    }
 
     if (!noPrefixText) {
         return;
@@ -1029,7 +1412,9 @@ async function executeHandlerLogic(
     // ═══════════════════════════════
 
     const space =
-        noPrefixText.search(/\s/);
+        noPrefixText.search(
+            /\s/
+        );
 
     const commandName =
         (
@@ -1056,52 +1441,37 @@ async function executeHandlerLogic(
         );
 
     if (!cmd) {
-        return;
-    }
 
-    // ═══════════════════════════════
-    // 🔐 PREFIX
-    // ═══════════════════════════════
-
-    if (
-        !hasPrefix &&
-        !isEliteUser
-    ) {
+        /*
+         * القائمة قد تحتوي ID
+         * لا يمثل أمرًا.
+         *
+         * لا نرسل أي رد تلقائي
+         * حتى لا نخرب البلجنات.
+         */
 
         return;
     }
 
     // ═══════════════════════════════
-    // 👑 COMMAND ELITE CHECK
+    // 🔐 NO PREFIX
     // ═══════════════════════════════
 
     /*
-     * 🔥 هنا الإصلاح الأساسي:
+     * اختيار القائمة يعتبر تفاعلًا
+     * مقصودًا من المستخدم.
      *
-     * الأمر العادي:
-     * يعمل للجميع.
+     * لذلك لا يحتاج Prefix.
      *
-     * أمر النخبة:
-     * يعمل فقط:
-     * - الرئيسي
-     * - المالك
-     * - الأرقام الموجودة في النخبة.json
+     * الأوامر المكتوبة يدويًا
+     * تبقى على النظام القديم.
      */
 
-    const commandIsElite =
-        cmd?.elite === true ||
-        cmd?.eliteOnly === true ||
-        cmd?.category === "النخبة";
-
     if (
-        commandIsElite &&
-        !isEliteUser
+        !hasPrefix &&
+        !isEliteUser &&
+        !fromInteractive
     ) {
-
-        log(
-            "elite",
-            `🚫 Elite Command Blocked | ${commandName} | ${number || "unknown"}`
-        );
 
         return;
     }
@@ -1112,7 +1482,15 @@ async function executeHandlerLogic(
 
     log(
         "cmd",
-        `${commandName} ← ${jid} ← ${botNumber || "unknown"}`
+        `${commandName} ← ${jid} ← ${
+            fromInteractive
+                ? "MENU"
+                : (
+                    isMainBot
+                        ? "MAIN"
+                        : botNumber || "UNKNOWN"
+                )
+        }`
     );
 
     try {
@@ -1134,10 +1512,6 @@ async function executeHandlerLogic(
 
                 number,
 
-                isOwner,
-
-                ownerNumber,
-
                 isGroup,
 
                 isPrivate,
@@ -1149,8 +1523,33 @@ async function executeHandlerLogic(
 
                 botNumber,
 
-                isMainBot
+                mainBotNumber:
+                    mainNumber,
 
+                isMainBot,
+
+                // ═══════════════════════
+                // 📋 MENU DATA
+                // ═══════════════════════
+
+                isInteractive:
+                    fromInteractive,
+
+                interactiveId:
+                    interactiveId || null,
+
+                isListResponse:
+                    !!interactiveId,
+
+                // ═══════════════════════
+                // 🛡️ ADMIN READY
+                // ═══════════════════════
+
+                isAdmin: false,
+
+                isSuperAdmin: false,
+
+                adminMode: false
             }
         );
 
@@ -1158,7 +1557,8 @@ async function executeHandlerLogic(
 
         console.error(
             `Command Error [${commandName}]:`,
-            error?.message || error
+            error?.message ||
+            error
         );
     }
 }
@@ -1179,20 +1579,11 @@ export async function warmupHandler(
             getLoadedPlugins(sock)
         ]);
 
-        /*
-         * ❌ مهم جدًا:
-         *
-         * لم نعد نستخدم:
-         *
-         * addEliteAutomatically(sock)
-         *
-         * لأن ذلك كان يجعل كل SubBot
-         * يدخل النخبة تلقائيًا.
-         */
+        getMainBotNumber(sock);
 
         log(
             "ok",
-            "Handler Warmup Completed"
+            "⚡ Handler Warmup Completed"
         );
 
         return true;
@@ -1201,9 +1592,10 @@ export async function warmupHandler(
 
         console.error(
             "Handler Warmup Error:",
-            error?.message || error
+            error?.message ||
+            error
         );
 
         return false;
     }
-    }
+}
