@@ -10,9 +10,14 @@ const __dirname = path.dirname(__filename);
 // 📁 FILES
 // ═══════════════════════════════════════
 
-const modeFile = path.join(__dirname, "../data/مود.json");
-const eliteFile = path.join(__dirname, "../data/النخبة.json");
-const ownerFile = path.join(__dirname, "../data/owner.json");
+const modeFile =
+    path.join(__dirname, "../data/مود.json");
+
+const eliteFile =
+    path.join(__dirname, "../data/النخبة.json");
+
+const ownerFile =
+    path.join(__dirname, "../data/owner.json");
 
 // ═══════════════════════════════════════
 // ⚙️ SETTINGS
@@ -20,11 +25,8 @@ const ownerFile = path.join(__dirname, "../data/owner.json");
 
 const MODE_CACHE_TIME = 5000;
 const ELITE_CACHE_TIME = 10000;
-
 const MESSAGE_CACHE_TIME = 30000;
 const MAX_PROCESSED_MESSAGES = 5000;
-
-const DEFAULT_COUNTRY_CODE = "967";
 
 // ═══════════════════════════════════════
 // 🎨 COLORS
@@ -45,7 +47,9 @@ const COLORS = {
 // ═══════════════════════════════════════
 
 function log(type, text) {
+
     try {
+
         const colors = {
             ok: COLORS.green,
             cmd: COLORS.cyan,
@@ -70,27 +74,8 @@ function log(type, text) {
 }
 
 // ═══════════════════════════════════════
-// 🔢 NUMBER NORMALIZATION
+// 🔢 NUMBER
 // ═══════════════════════════════════════
-
-/*
- * مهم جدًا:
- *
- * Baileys قد يعيد:
- *
- * 967xxxxxxxxx@s.whatsapp.net
- *
- * أو:
- *
- * 967xxxxxxxxx:12@s.whatsapp.net
- *
- * أو صيغ أخرى تحتوي على device.
- *
- * هنا نستخرج الرقم الحقيقي فقط.
- *
- * ❗ لا نضيف 967 تلقائيًا للأرقام.
- * لأن الرقم يجب أن يبقى كما جاء من WhatsApp.
- */
 
 export function extractPureNumber(jid) {
 
@@ -103,22 +88,21 @@ export function extractPureNumber(jid) {
             return "";
         }
 
-        let value = String(jid).trim();
+        let value =
+            String(jid).trim();
 
         if (!value) {
             return "";
         }
 
-        // إزالة @lid / @s.whatsapp.net / @g.us وغيرها
-        value = value.split("@")[0];
+        value =
+            value.split("@")[0];
 
-        // إزالة device id
-        // مثال:
-        // 967777777777:12
-        value = value.split(":")[0];
+        value =
+            value.split(":")[0];
 
-        // إزالة أي رموز غير رقمية
-        value = value.replace(/\D/g, "");
+        value =
+            value.replace(/\D/g, "");
 
         return value;
 
@@ -129,7 +113,7 @@ export function extractPureNumber(jid) {
 }
 
 // ═══════════════════════════════════════
-// 🔢 SESSION NUMBER
+// 📱 SESSION NUMBER
 // ═══════════════════════════════════════
 
 function extractSessionNumber(sock) {
@@ -141,18 +125,7 @@ function extractSessionNumber(sock) {
             sock?.user?.jid ||
             "";
 
-        if (!id) {
-            return "";
-        }
-
-        const number =
-            extractPureNumber(id);
-
-        if (!number) {
-            return "";
-        }
-
-        return number;
+        return extractPureNumber(id);
 
     } catch {
 
@@ -161,7 +134,7 @@ function extractSessionNumber(sock) {
 }
 
 // ═══════════════════════════════════════
-// 🔢 COMPARE NUMBERS
+// 🔢 COMPARE
 // ═══════════════════════════════════════
 
 function isSameNumber(a, b) {
@@ -196,79 +169,83 @@ async function refreshMode() {
         return modeLoading;
     }
 
-    modeLoading = (async () => {
+    modeLoading =
+        (async () => {
 
-        try {
+            try {
 
-            await fs.promises.mkdir(
-                path.dirname(modeFile),
-                {
-                    recursive: true
-                }
-            );
-
-            if (!fs.existsSync(modeFile)) {
-
-                const initial = {
-                    elite: false
-                };
-
-                await fs.promises.writeFile(
-                    modeFile,
-                    JSON.stringify(
-                        initial,
-                        null,
-                        2
-                    ),
-                    "utf8"
+                await fs.promises.mkdir(
+                    path.dirname(modeFile),
+                    {
+                        recursive: true
+                    }
                 );
 
-                modeCache = initial;
+                if (
+                    !fs.existsSync(modeFile)
+                ) {
 
-            } else {
-
-                const content =
-                    await fs.promises.readFile(
+                    await fs.promises.writeFile(
                         modeFile,
+                        JSON.stringify(
+                            {
+                                elite: false
+                            },
+                            null,
+                            2
+                        ),
                         "utf8"
                     );
 
-                const parsed =
-                    JSON.parse(
-                        content || "{}"
-                    );
-
-                if (
-                    parsed &&
-                    typeof parsed === "object"
-                ) {
-
                     modeCache = {
-                        ...modeCache,
-                        ...parsed
+                        elite: false
                     };
+
+                } else {
+
+                    const content =
+                        await fs.promises.readFile(
+                            modeFile,
+                            "utf8"
+                        );
+
+                    const parsed =
+                        JSON.parse(
+                            content || "{}"
+                        );
+
+                    if (
+                        parsed &&
+                        typeof parsed === "object"
+                    ) {
+
+                        modeCache = {
+                            ...modeCache,
+                            ...parsed
+                        };
+                    }
                 }
+
+                lastModeCheck =
+                    Date.now();
+
+                return modeCache;
+
+            } catch (error) {
+
+                console.error(
+                    "Mode Load Error:",
+                    error?.message || error
+                );
+
+                return modeCache;
+
+            } finally {
+
+                modeLoading = null;
             }
 
-            lastModeCheck = Date.now();
-
-            return modeCache;
-
-        } catch (error) {
-
-            console.error(
-                "Mode Load Error:",
-                error?.message || error
-            );
-
-            return modeCache;
-
-        } finally {
-
-            modeLoading = null;
-        }
-
-    })();
+        })();
 
     return modeLoading;
 }
@@ -305,114 +282,116 @@ async function refreshElite() {
         return eliteLoading;
     }
 
-    eliteLoading = (async () => {
+    eliteLoading =
+        (async () => {
 
-        try {
+            try {
 
-            await fs.promises.mkdir(
-                path.dirname(eliteFile),
-                {
-                    recursive: true
-                }
-            );
-
-            if (!fs.existsSync(eliteFile)) {
-
-                await fs.promises.writeFile(
-                    eliteFile,
-                    "[]",
-                    "utf8"
+                await fs.promises.mkdir(
+                    path.dirname(eliteFile),
+                    {
+                        recursive: true
+                    }
                 );
 
-                eliteCache = [];
-                eliteSet = new Set();
+                if (
+                    !fs.existsSync(eliteFile)
+                ) {
 
-            } else {
-
-                const content =
-                    await fs.promises.readFile(
+                    await fs.promises.writeFile(
                         eliteFile,
+                        "[]",
                         "utf8"
                     );
 
-                let data = [];
+                    eliteCache = [];
+                    eliteSet = new Set();
 
-                try {
+                } else {
 
-                    data =
-                        JSON.parse(
-                            content || "[]"
+                    const content =
+                        await fs.promises.readFile(
+                            eliteFile,
+                            "utf8"
                         );
 
-                } catch {
+                    let data = [];
 
-                    data = [];
-                }
+                    try {
 
-                const result = [];
-                const set = new Set();
-
-                if (Array.isArray(data)) {
-
-                    for (
-                        const item
-                        of data
-                    ) {
-
-                        let value = item;
-
-                        if (
-                            typeof item === "object" &&
-                            item !== null
-                        ) {
-
-                            value =
-                                item.number ??
-                                item.id ??
-                                Object.values(item)[0];
-                        }
-
-                        const number =
-                            extractPureNumber(
-                                value
+                        data =
+                            JSON.parse(
+                                content || "[]"
                             );
 
-                        if (
-                            number &&
-                            number.length >= 5 &&
-                            !set.has(number)
+                    } catch {
+
+                        data = [];
+                    }
+
+                    const result = [];
+                    const set = new Set();
+
+                    if (
+                        Array.isArray(data)
+                    ) {
+
+                        for (
+                            const item of data
                         ) {
 
-                            set.add(number);
-                            result.push(number);
+                            let value = item;
+
+                            if (
+                                typeof item === "object" &&
+                                item !== null
+                            ) {
+
+                                value =
+                                    item.number ??
+                                    item.id ??
+                                    Object.values(item)[0];
+                            }
+
+                            const number =
+                                extractPureNumber(value);
+
+                            if (
+                                number &&
+                                number.length >= 5 &&
+                                !set.has(number)
+                            ) {
+
+                                set.add(number);
+                                result.push(number);
+                            }
                         }
                     }
+
+                    eliteCache = result;
+                    eliteSet = set;
                 }
 
-                eliteCache = result;
-                eliteSet = set;
+                lastEliteCheck =
+                    Date.now();
+
+                return eliteCache;
+
+            } catch (error) {
+
+                console.error(
+                    "Elite Load Error:",
+                    error?.message || error
+                );
+
+                return eliteCache;
+
+            } finally {
+
+                eliteLoading = null;
             }
 
-            lastEliteCheck =
-                Date.now();
-
-            return eliteCache;
-
-        } catch (error) {
-
-            console.error(
-                "Elite Load Error:",
-                error?.message || error
-            );
-
-            return eliteCache;
-
-        } finally {
-
-            eliteLoading = null;
-        }
-
-    })();
+        })();
 
     return eliteLoading;
 }
@@ -431,153 +410,6 @@ function getEliteFast() {
     }
 
     return eliteCache;
-}
-
-// ═══════════════════════════════════════
-// 👑 SESSION ELITE
-// ═══════════════════════════════════════
-
-let sessionEliteNumber = "";
-
-let eliteWritePromise =
-    Promise.resolve();
-
-async function addEliteAutomatically(
-    sock
-) {
-
-    try {
-
-        const clean =
-            extractSessionNumber(sock);
-
-        if (
-            !clean ||
-            clean.length < 5
-        ) {
-            return false;
-        }
-
-        /*
-         * إذا كان نفس رقم الجلسة
-         * فلا نعيد العملية.
-         */
-        if (
-            sessionEliteNumber === clean &&
-            eliteSet.has(clean)
-        ) {
-            return true;
-        }
-
-        sessionEliteNumber =
-            clean;
-
-        eliteWritePromise =
-            eliteWritePromise.then(
-                async () => {
-
-                    try {
-
-                        /*
-                         * تأكد أن آخر نسخة
-                         * من النخبة موجودة.
-                         */
-                        if (
-                            Date.now() -
-                            lastEliteCheck >=
-                            ELITE_CACHE_TIME
-                        ) {
-
-                            await refreshElite();
-                        }
-
-                        /*
-                         * الرقم موجود بالفعل.
-                         */
-                        if (
-                            eliteSet.has(clean)
-                        ) {
-
-                            log(
-                                "elite",
-                                `رقم الجلسة موجود في النخبة: ${clean}`
-                            );
-
-                            return;
-                        }
-
-                        const unique =
-                            Array.from(
-                                new Set([
-                                    ...eliteCache,
-                                    clean
-                                ])
-                            );
-
-                        const tempFile =
-                            `${eliteFile}.tmp`;
-
-                        await fs.promises.mkdir(
-                            path.dirname(eliteFile),
-                            {
-                                recursive: true
-                            }
-                        );
-
-                        await fs.promises.writeFile(
-                            tempFile,
-                            JSON.stringify(
-                                unique,
-                                null,
-                                2
-                            ),
-                            "utf8"
-                        );
-
-                        await fs.promises.rename(
-                            tempFile,
-                            eliteFile
-                        );
-
-                        eliteCache =
-                            unique;
-
-                        eliteSet =
-                            new Set(unique);
-
-                        lastEliteCheck =
-                            Date.now();
-
-                        log(
-                            "elite",
-                            `تمت إضافة رقم الجلسة إلى النخبة: ${clean}`
-                        );
-
-                    } catch (error) {
-
-                        console.error(
-                            "Elite Write Error:",
-                            error?.message ||
-                            error
-                        );
-                    }
-                }
-            );
-
-        await eliteWritePromise;
-
-        return true;
-
-    } catch (error) {
-
-        console.error(
-            "Session Elite Error:",
-            error?.message ||
-            error
-        );
-
-        return false;
-    }
 }
 
 // ═══════════════════════════════════════
@@ -605,8 +437,7 @@ function getOwner() {
 
             if (owner) {
 
-                cachedOwner =
-                    owner;
+                cachedOwner = owner;
 
                 return cachedOwner;
             }
@@ -633,8 +464,7 @@ function getOwner() {
 
                 if (owner) {
 
-                    cachedOwner =
-                        owner;
+                    cachedOwner = owner;
 
                     return cachedOwner;
                 }
@@ -643,11 +473,6 @@ function getOwner() {
 
     } catch {}
 
-    /*
-     * احتياط فقط.
-     * الأفضل وضع OWNER_NUMBER
-     * في environment.
-     */
     return "967000000000";
 }
 
@@ -658,9 +483,7 @@ function getOwner() {
 let loadedPluginsCache = null;
 let pluginsLoadingPromise = null;
 
-let commandIndex =
-    new Map();
-
+let commandIndex = new Map();
 let onMessagePlugins = [];
 
 // ═══════════════════════════════════════
@@ -695,14 +518,12 @@ async function getLoadedPlugins(sock) {
                         ? plugins.filter(Boolean)
                         : [];
 
-                commandIndex =
-                    new Map();
+                commandIndex = new Map();
 
                 const listeners = [];
 
                 for (
-                    const plugin
-                    of loadedPluginsCache
+                    const plugin of loadedPluginsCache
                 ) {
 
                     if (
@@ -710,44 +531,31 @@ async function getLoadedPlugins(sock) {
                         "function"
                     ) {
 
-                        listeners.push(
-                            plugin
-                        );
+                        listeners.push(plugin);
                     }
 
-                    if (
-                        !plugin?.command
-                    ) {
+                    if (!plugin?.command) {
                         continue;
                     }
 
                     const commands =
-                        Array.isArray(
-                            plugin.command
-                        )
+                        Array.isArray(plugin.command)
                             ? plugin.command
-                            : [
-                                plugin.command
-                            ];
+                            : [plugin.command];
 
                     for (
-                        const command
-                        of commands
+                        const command of commands
                     ) {
 
                         if (
-                            command ===
-                            undefined ||
-                            command ===
-                            null
+                            command === undefined ||
+                            command === null
                         ) {
                             continue;
                         }
 
                         const key =
-                            String(
-                                command
-                            )
+                            String(command)
                                 .trim()
                                 .toLowerCase();
 
@@ -755,13 +563,8 @@ async function getLoadedPlugins(sock) {
                             continue;
                         }
 
-                        /*
-                         * أول Plugin يأخذ الأمر.
-                         */
                         if (
-                            !commandIndex.has(
-                                key
-                            )
+                            !commandIndex.has(key)
                         ) {
 
                             commandIndex.set(
@@ -777,7 +580,7 @@ async function getLoadedPlugins(sock) {
 
                 log(
                     "ok",
-                    `Loaded ${loadedPluginsCache.length} plugins | ${commandIndex.size} commands | ${onMessagePlugins.length} listeners`
+                    `Loaded ${loadedPluginsCache.length} plugins | ${commandIndex.size} commands`
                 );
 
                 return loadedPluginsCache;
@@ -786,25 +589,18 @@ async function getLoadedPlugins(sock) {
 
                 console.error(
                     "Plugin Loader Error:",
-                    error?.message ||
-                    error
+                    error?.message || error
                 );
 
-                loadedPluginsCache =
-                    [];
-
-                commandIndex =
-                    new Map();
-
-                onMessagePlugins =
-                    [];
+                loadedPluginsCache = [];
+                commandIndex = new Map();
+                onMessagePlugins = [];
 
                 return [];
 
             } finally {
 
-                pluginsLoadingPromise =
-                    null;
+                pluginsLoadingPromise = null;
             }
 
         })();
@@ -813,19 +609,14 @@ async function getLoadedPlugins(sock) {
 }
 
 // ═══════════════════════════════════════
-// 🧹 CLEAR PLUGINS CACHE
+// 🧹 CLEAR CACHE
 // ═══════════════════════════════════════
 
 export function clearPluginsCache() {
 
-    loadedPluginsCache =
-        null;
-
-    commandIndex =
-        new Map();
-
-    onMessagePlugins =
-        [];
+    loadedPluginsCache = null;
+    commandIndex = new Map();
+    onMessagePlugins = [];
 
     console.log(
         `${COLORS.yellow}⚡ Plugin Cache Cleared${COLORS.reset}`
@@ -836,20 +627,25 @@ export function clearPluginsCache() {
 // 🛡️ MESSAGE CACHE
 // ═══════════════════════════════════════
 
-const processedMessages =
-    new Map();
+const processedMessages = new Map();
 
-function wasProcessed(id) {
+function wasProcessed(id, sock) {
 
     if (!id) {
         return false;
     }
 
-    const now =
-        Date.now();
+    const now = Date.now();
+
+    const sessionNumber =
+        extractSessionNumber(sock) ||
+        "unknown-session";
+
+    const cacheKey =
+        `${sessionNumber}:${id}`;
 
     const old =
-        processedMessages.get(id);
+        processedMessages.get(cacheKey);
 
     if (
         old &&
@@ -861,22 +657,19 @@ function wasProcessed(id) {
     }
 
     processedMessages.set(
-        id,
+        cacheKey,
         now
     );
 
     if (
         processedMessages.size >
-        MAX_PROCESSED_MESSAGES
+        MAX_PROCESSED_MESSAGES * 10
     ) {
 
         let removed = 0;
 
         for (
-            const [
-                key,
-                time
-            ]
+            const [key, time]
             of processedMessages
         ) {
 
@@ -885,16 +678,11 @@ function wasProcessed(id) {
                 MESSAGE_CACHE_TIME
             ) {
 
-                processedMessages.delete(
-                    key
-                );
-
+                processedMessages.delete(key);
                 removed++;
             }
 
-            if (
-                removed >= 500
-            ) {
+            if (removed >= 1000) {
                 break;
             }
         }
@@ -904,7 +692,7 @@ function wasProcessed(id) {
 }
 
 // ═══════════════════════════════════════
-// 🧹 CACHE CLEANER
+// 🧹 CLEANER
 // ═══════════════════════════════════════
 
 const cleaner =
@@ -913,14 +701,10 @@ const cleaner =
 
             try {
 
-                const now =
-                    Date.now();
+                const now = Date.now();
 
                 for (
-                    const [
-                        key,
-                        time
-                    ]
+                    const [key, time]
                     of processedMessages
                 ) {
 
@@ -929,9 +713,7 @@ const cleaner =
                         MESSAGE_CACHE_TIME
                     ) {
 
-                        processedMessages.delete(
-                            key
-                        );
+                        processedMessages.delete(key);
                     }
                 }
 
@@ -967,6 +749,7 @@ export async function handleMessages(
             !msg ||
             !msg.message
         ) {
+
             return;
         }
 
@@ -976,19 +759,14 @@ export async function handleMessages(
         if (
             messageId &&
             wasProcessed(
-                messageId
+                messageId,
+                sock
             )
         ) {
 
             return;
         }
 
-        /*
-         * لا Queue.
-         * لا await.
-         *
-         * كل رسالة تبدأ فورًا.
-         */
         executeHandlerLogic(
             sock,
             msg
@@ -996,17 +774,16 @@ export async function handleMessages(
 
             console.error(
                 "Handler Error:",
-                error?.message ||
-                error
+                error?.message || error
             );
+
         });
 
     } catch (error) {
 
         console.error(
             "handleMessages Error:",
-            error?.message ||
-            error
+            error?.message || error
         );
     }
 }
@@ -1025,36 +802,7 @@ async function executeHandlerLogic(
     // ═══════════════════════════════
 
     const botNumber =
-        extractSessionNumber(
-            sock
-        );
-
-    /*
-     * إضافة رقم الجلسة للنخبة.
-     *
-     * لا نضيف 967 من عندنا.
-     * نأخذ الرقم الحقيقي من sock.user.id.
-     */
-    if (
-        botNumber &&
-        botNumber.length >= 5
-    ) {
-
-        /*
-         * لا تنتظر الكتابة.
-         * حتى لا تؤثر على سرعة الرسالة.
-         */
-        if (
-            sessionEliteNumber !==
-            botNumber ||
-            !eliteSet.has(botNumber)
-        ) {
-
-            addEliteAutomatically(
-                sock
-            ).catch(() => {});
-        }
-    }
+        extractSessionNumber(sock);
 
     // ═══════════════════════════════
     // 📍 CHAT
@@ -1071,9 +819,7 @@ async function executeHandlerLogic(
         jid.endsWith("@g.us");
 
     const isPrivate =
-        jid.endsWith(
-            "@s.whatsapp.net"
-        );
+        jid.endsWith("@s.whatsapp.net");
 
     // ═══════════════════════════════
     // 👤 SENDER
@@ -1099,9 +845,7 @@ async function executeHandlerLogic(
             );
 
     const number =
-        extractPureNumber(
-            sender
-        );
+        extractPureNumber(sender);
 
     // ═══════════════════════════════
     // 👑 OWNER
@@ -1117,31 +861,45 @@ async function executeHandlerLogic(
         );
 
     // ═══════════════════════════════
-    // 👑 ELITE
+    // 👑 BOT MAIN
     // ═══════════════════════════════
 
     /*
-     * رقم البوت دائمًا Elite.
+     * البوت الرئيسي هو رقم المالك.
+     *
+     * مهم:
+     * لا نضيف رقم البوت الفرعي للنخبة.
      */
-    let isEliteUser =
-        isOwner ||
+
+    const isMainBot =
         isSameNumber(
-            number,
-            botNumber
+            botNumber,
+            ownerNumber
         );
 
+    // ═══════════════════════════════
+    // 👑 ELITE USER
+    // ═══════════════════════════════
+
     /*
-     * Set = O(1)
+     * المستخدم يعتبر نخبة إذا:
+     *
+     * 1- المالك
+     * 2- رقم البوت الرئيسي
+     * 3- موجود في النخبة.json
      */
+
+    let isEliteUser =
+        isOwner ||
+        isMainBot;
+
     if (
         !isEliteUser &&
         number
     ) {
 
         isEliteUser =
-            eliteSet.has(
-                number
-            );
+            eliteSet.has(number);
     }
 
     // ═══════════════════════════════
@@ -1149,9 +907,7 @@ async function executeHandlerLogic(
     // ═══════════════════════════════
 
     const plugins =
-        await getLoadedPlugins(
-            sock
-        );
+        await getLoadedPlugins(sock);
 
     if (!plugins.length) {
         return;
@@ -1170,25 +926,38 @@ async function executeHandlerLogic(
         "";
 
     const text =
-        String(
-            rawText || ""
-        ).trim();
+        String(rawText || "").trim();
 
     // ═══════════════════════════════
     // 🧠 CONTEXT
     // ═══════════════════════════════
 
     const context = {
+
         jid,
+
         sender,
+
         number,
+
         isOwner,
+
         ownerNumber,
+
         isGroup,
+
         isPrivate,
+
         message: msg,
-        isElite: isEliteUser,
-        botNumber
+
+        isElite:
+
+            isEliteUser,
+
+        botNumber,
+
+        isMainBot
+
     };
 
     // ═══════════════════════════════
@@ -1216,8 +985,7 @@ async function executeHandlerLogic(
 
                     console.error(
                         "onMessage Error:",
-                        error?.message ||
-                        error
+                        error?.message || error
                     );
 
                 });
@@ -1226,32 +994,15 @@ async function executeHandlerLogic(
 
                 console.error(
                     "onMessage Sync Error:",
-                    error?.message ||
-                    error
+                    error?.message || error
                 );
             }
         }
     }
 
     // ═══════════════════════════════
-    // 🔐 ELITE MODE
+    // 📝 EMPTY
     // ═══════════════════════════════
-
-    const mode =
-        getModeFast();
-
-    if (
-        mode?.elite === true &&
-        !isOwner &&
-        !isSameNumber(
-            number,
-            botNumber
-        ) &&
-        !isEliteUser
-    ) {
-
-        return;
-    }
 
     if (!text) {
         return;
@@ -1262,9 +1013,7 @@ async function executeHandlerLogic(
     // ═══════════════════════════════
 
     const hasPrefix =
-        /^[./\\#,!^&+=]/.test(
-            text
-        );
+        /^[./\\#,!^&+=]/.test(text);
 
     const noPrefixText =
         hasPrefix
@@ -1280,9 +1029,7 @@ async function executeHandlerLogic(
     // ═══════════════════════════════
 
     const space =
-        noPrefixText.search(
-            /\s/
-        );
+        noPrefixText.search(/\s/);
 
     const commandName =
         (
@@ -1313,7 +1060,7 @@ async function executeHandlerLogic(
     }
 
     // ═══════════════════════════════
-    // 🔐 PREFIX CHECK
+    // 🔐 PREFIX
     // ═══════════════════════════════
 
     if (
@@ -1325,12 +1072,47 @@ async function executeHandlerLogic(
     }
 
     // ═══════════════════════════════
+    // 👑 COMMAND ELITE CHECK
+    // ═══════════════════════════════
+
+    /*
+     * 🔥 هنا الإصلاح الأساسي:
+     *
+     * الأمر العادي:
+     * يعمل للجميع.
+     *
+     * أمر النخبة:
+     * يعمل فقط:
+     * - الرئيسي
+     * - المالك
+     * - الأرقام الموجودة في النخبة.json
+     */
+
+    const commandIsElite =
+        cmd?.elite === true ||
+        cmd?.eliteOnly === true ||
+        cmd?.category === "النخبة";
+
+    if (
+        commandIsElite &&
+        !isEliteUser
+    ) {
+
+        log(
+            "elite",
+            `🚫 Elite Command Blocked | ${commandName} | ${number || "unknown"}`
+        );
+
+        return;
+    }
+
+    // ═══════════════════════════════
     // ⚡ EXECUTE
     // ═══════════════════════════════
 
     log(
         "cmd",
-        `${commandName} ← ${jid}`
+        `${commandName} ← ${jid} ← ${botNumber || "unknown"}`
     );
 
     try {
@@ -1339,20 +1121,36 @@ async function executeHandlerLogic(
             sock,
             msg,
             {
+
                 text,
+
                 noPrefixText,
+
                 commandName,
+
                 jid,
+
                 sender,
+
                 number,
+
                 isOwner,
+
                 ownerNumber,
+
                 isGroup,
+
                 isPrivate,
+
                 hasPrefix,
+
                 isElite:
                     isEliteUser,
-                botNumber
+
+                botNumber,
+
+                isMainBot
+
             }
         );
 
@@ -1360,33 +1158,14 @@ async function executeHandlerLogic(
 
         console.error(
             `Command Error [${commandName}]:`,
-            error?.message ||
-            error
+            error?.message || error
         );
     }
 }
 
 // ═══════════════════════════════════════
-// 🚀 OPTIONAL WARMUP
+// 🚀 WARMUP
 // ═══════════════════════════════════════
-
-/*
- * هذه الدالة تستطيع استدعاءها بعد
- * إنشاء sock مباشرة.
- *
- * مثال:
- *
- * await warmupHandler(sock);
- *
- * فائدتها:
- * - تحميل Plugins قبل أول رسالة
- * - تحميل المود
- * - تحميل النخبة
- * - إضافة رقم الجلسة للنخبة
- *
- * وبالتالي أول رسالة لا تتحمل
- * تكلفة التحميل.
- */
 
 export async function warmupHandler(
     sock
@@ -1401,17 +1180,15 @@ export async function warmupHandler(
         ]);
 
         /*
-         * رقم الجلسة يُضاف للنخبة
-         * بعد معرفة sock.user.id.
+         * ❌ مهم جدًا:
+         *
+         * لم نعد نستخدم:
+         *
+         * addEliteAutomatically(sock)
+         *
+         * لأن ذلك كان يجعل كل SubBot
+         * يدخل النخبة تلقائيًا.
          */
-        if (
-            sock?.user?.id
-        ) {
-
-            await addEliteAutomatically(
-                sock
-            );
-        }
 
         log(
             "ok",
@@ -1424,10 +1201,9 @@ export async function warmupHandler(
 
         console.error(
             "Handler Warmup Error:",
-            error?.message ||
-            error
+            error?.message || error
         );
 
         return false;
     }
-            }
+    }
