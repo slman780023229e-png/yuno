@@ -1486,16 +1486,23 @@ async function executeHandlerLogic(
         ]);
 
     // ═══════════════════════════════════
-    // BOT IS ELITE
+    // BOT IS ELITE (التعديل الدقيق هنا لضمان مطابقة هويات البوت تماماً)
     // ═══════════════════════════════════
 
     if (!isEliteUser) {
-        isEliteUser =
-            checkEliteIdentities([
-                botNumber,
-                participantPhone,
-                ...botIdentities
-            ]);
+        const botCandidates = [
+            botNumber,
+            participantPhone,
+            ...botIdentities
+        ];
+
+        for (const candidate of botCandidates) {
+            const normalizedBotNum = normalizeStoredNumber(candidate);
+            if (normalizedBotNum && eliteSet.has(normalizedBotNum)) {
+                isEliteUser = true;
+                break;
+            }
+        }
     }
 
     // ═══════════════════════════════════
