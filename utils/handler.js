@@ -15,7 +15,7 @@ const modeFile = path.join(dataDir, "مود.json");
 const eliteFile = path.join(dataDir, "النخبة.json");
 
 // ═══════════════════════════════════════════════════════
-// ⚡ MAX PERFORMANCE
+// ⚡ PERFORMANCE CONFIG
 // ═══════════════════════════════════════════════════════
 
 const GROUP_CACHE_TIME = 30_000;
@@ -78,17 +78,25 @@ function log(type, text) {
 
 export function extractPureNumber(value) {
     try {
-        if (value === undefined || value === null) return "";
+        if (value === undefined || value === null) {
+            return "";
+        }
 
         let v = String(value).trim();
 
         if (!v) return "";
 
         const colon = v.indexOf(":");
-        if (colon !== -1) v = v.slice(0, colon);
+
+        if (colon !== -1) {
+            v = v.slice(0, colon);
+        }
 
         const at = v.indexOf("@");
-        if (at !== -1) v = v.slice(0, at);
+
+        if (at !== -1) {
+            v = v.slice(0, at);
+        }
 
         return v.replace(/\D/g, "");
     } catch {
@@ -98,6 +106,7 @@ export function extractPureNumber(value) {
 
 function normalizeStoredNumber(value) {
     const number = extractPureNumber(value);
+
     if (!number) return "";
 
     return number.replace(/^0+(?=\d)/, "");
@@ -105,7 +114,10 @@ function normalizeStoredNumber(value) {
 
 function cleanRawId(value) {
     try {
-        if (value === undefined || value === null) return "";
+        if (value === undefined || value === null) {
+            return "";
+        }
+
         return String(value).trim().toLowerCase();
     } catch {
         return "";
@@ -128,9 +140,15 @@ function getBotIdentities(sock) {
     const seen = new Set();
 
     const add = value => {
-        if (value === undefined || value === null) return;
+        if (
+            value === undefined ||
+            value === null
+        ) {
+            return;
+        }
 
         const raw = String(value).trim();
+
         if (!raw) return;
 
         const key = raw.toLowerCase();
@@ -179,7 +197,10 @@ function getBotIdentities(sock) {
 // ═══════════════════════════════════════════════════════
 
 function findParticipant(participants, identities) {
-    if (!Array.isArray(participants) || !participants.length) {
+    if (
+        !Array.isArray(participants) ||
+        !participants.length
+    ) {
         return null;
     }
 
@@ -187,11 +208,12 @@ function findParticipant(participants, identities) {
         ? identities
         : [identities];
 
-    // المطابقة المباشرة أولًا
+    // المطابقة المباشرة
     for (const identity of ids) {
         if (!identity) continue;
 
         const raw = cleanRawId(identity);
+
         if (!raw) continue;
 
         for (const p of participants) {
@@ -211,7 +233,8 @@ function findParticipant(participants, identities) {
 
     // المطابقة بالرقم
     for (const identity of ids) {
-        const number = normalizeStoredNumber(identity);
+        const number =
+            normalizeStoredNumber(identity);
 
         if (!number) continue;
 
@@ -234,11 +257,16 @@ function findParticipant(participants, identities) {
 }
 
 function resolveBotParticipant(sock, metadata) {
-    if (!metadata?.participants) return null;
+    if (!metadata?.participants) {
+        return null;
+    }
 
-    const identities = getBotIdentities(sock);
+    const identities =
+        getBotIdentities(sock);
 
-    if (!identities.length) return null;
+    if (!identities.length) {
+        return null;
+    }
 
     return findParticipant(
         metadata.participants,
@@ -258,9 +286,12 @@ function getParticipantPhone(participant) {
     ];
 
     for (const candidate of candidates) {
-        const number = normalizeStoredNumber(candidate);
+        const number =
+            normalizeStoredNumber(candidate);
 
-        if (number) return number;
+        if (number) {
+            return number;
+        }
     }
 
     return "";
@@ -269,21 +300,31 @@ function getParticipantPhone(participant) {
 function getBotNumber(sock, metadata = null) {
     if (metadata) {
         const participant =
-            resolveBotParticipant(sock, metadata);
+            resolveBotParticipant(
+                sock,
+                metadata
+            );
 
         const number =
-            getParticipantPhone(participant);
+            getParticipantPhone(
+                participant
+            );
 
-        if (number) return number;
+        if (number) {
+            return number;
+        }
     }
 
-    const identities = getBotIdentities(sock);
+    const identities =
+        getBotIdentities(sock);
 
     for (const identity of identities) {
         const number =
             normalizeStoredNumber(identity);
 
-        if (number) return number;
+        if (number) {
+            return number;
+        }
     }
 
     return "";
@@ -299,9 +340,12 @@ function getMainBotNumber(sock) {
     if (!sock) return "";
 
     try {
-        const cached = mainBotCache.get(sock);
+        const cached =
+            mainBotCache.get(sock);
 
-        if (cached) return cached;
+        if (cached) {
+            return cached;
+        }
 
         const candidates = [
             sock?.mainBotNumber,
@@ -315,7 +359,11 @@ function getMainBotNumber(sock) {
                 normalizeStoredNumber(candidate);
 
             if (number) {
-                mainBotCache.set(sock, number);
+                mainBotCache.set(
+                    sock,
+                    number
+                );
+
                 return number;
             }
         }
@@ -325,7 +373,7 @@ function getMainBotNumber(sock) {
 }
 
 // ═══════════════════════════════════════════════════════
-// 📦 FILE CACHE
+// 📦 MODE / ELITE CACHE
 // ═══════════════════════════════════════════════════════
 
 let modeCache = {
@@ -347,23 +395,30 @@ let eliteLoading = null;
 let dataDirReady = false;
 let dataDirPromise = null;
 
+let lastFileCheck = 0;
+
 // ═══════════════════════════════════════════════════════
 // 📁 DATA DIRECTORY
 // ═══════════════════════════════════════════════════════
 
 async function ensureDataDir() {
-    if (dataDirReady) return;
+    if (dataDirReady) {
+        return;
+    }
 
     if (!dataDirPromise) {
-        dataDirPromise = fs.promises
-            .mkdir(dataDir, { recursive: true })
-            .then(() => {
-                dataDirReady = true;
-            })
-            .catch(() => {})
-            .finally(() => {
-                dataDirPromise = null;
-            });
+        dataDirPromise =
+            fs.promises
+                .mkdir(dataDir, {
+                    recursive: true
+                })
+                .then(() => {
+                    dataDirReady = true;
+                })
+                .catch(() => {})
+                .finally(() => {
+                    dataDirPromise = null;
+                });
     }
 
     await dataDirPromise;
@@ -374,66 +429,88 @@ async function ensureDataDir() {
 // ═══════════════════════════════════════════════════════
 
 async function refreshMode(force = false) {
-    if (modeLoading && !force) {
+    if (
+        modeLoading &&
+        !force
+    ) {
         return modeLoading;
     }
 
-    modeLoading = (async () => {
-        try {
-            await ensureDataDir();
-
-            let stat;
-
+    modeLoading =
+        (async () => {
             try {
-                stat = await fs.promises.stat(modeFile);
-            } catch {
-                await fs.promises.writeFile(
-                    modeFile,
-                    JSON.stringify({ elite: false }, null, 2),
-                    "utf8"
-                );
+                await ensureDataDir();
 
-                stat = await fs.promises.stat(modeFile);
-            }
+                let stat;
 
-            const mtime = stat.mtimeMs;
+                try {
+                    stat =
+                        await fs.promises.stat(
+                            modeFile
+                        );
+                } catch {
+                    await fs.promises.writeFile(
+                        modeFile,
+                        JSON.stringify(
+                            {
+                                elite: false
+                            },
+                            null,
+                            2
+                        ),
+                        "utf8"
+                    );
 
-            if (
-                !force &&
-                modeReady &&
-                mtime === modeMtime
-            ) {
-                return;
-            }
+                    stat =
+                        await fs.promises.stat(
+                            modeFile
+                        );
+                }
 
-            const content =
-                await fs.promises.readFile(
-                    modeFile,
-                    "utf8"
-                );
+                const mtime =
+                    stat.mtimeMs;
 
-            let parsed = {};
+                if (
+                    !force &&
+                    modeReady &&
+                    mtime === modeMtime
+                ) {
+                    return;
+                }
 
-            try {
-                parsed = JSON.parse(content || "{}");
-            } catch {
-                parsed = {};
-            }
+                const content =
+                    await fs.promises.readFile(
+                        modeFile,
+                        "utf8"
+                    );
 
-            if (
-                parsed &&
-                typeof parsed === "object"
-            ) {
-                modeCache = {
-                    ...modeCache,
-                    ...parsed
-                };
-            }
+                let parsed = {};
 
-            modeMtime = mtime;
-            modeReady = true;
-        } catch {}
-    })();
+                try {
+                    parsed =
+                        JSON.parse(
+                            content || "{}"
+                        );
+                } catch {
+                    parsed = {};
+                }
+
+                if (
+                    parsed &&
+                    typeof parsed ===
+                        "object"
+                ) {
+                    modeCache = {
+                        ...modeCache,
+                        ...parsed
+                    };
+                }
+
+                modeMtime = mtime;
+                modeReady = true;
+
+            } catch {}
+        })();
 
     try {
         await modeLoading;
@@ -447,100 +524,129 @@ async function refreshMode(force = false) {
 // ═══════════════════════════════════════════════════════
 
 async function refreshElite(force = false) {
-    if (eliteLoading && !force) {
+    if (
+        eliteLoading &&
+        !force
+    ) {
         return eliteLoading;
     }
 
-    eliteLoading = (async () => {
-        try {
-            await ensureDataDir();
-
-            let stat;
-
+    eliteLoading =
+        (async () => {
             try {
-                stat = await fs.promises.stat(eliteFile);
-            } catch {
-                await fs.promises.writeFile(
-                    eliteFile,
-                    "[]",
-                    "utf8"
-                );
+                await ensureDataDir();
 
-                stat = await fs.promises.stat(eliteFile);
-            }
+                let stat;
 
-            const mtime = stat.mtimeMs;
-
-            if (
-                !force &&
-                eliteReady &&
-                mtime === eliteMtime
-            ) {
-                return;
-            }
-
-            const content =
-                await fs.promises.readFile(
-                    eliteFile,
-                    "utf8"
-                );
-
-            let data = [];
-
-            try {
-                data = JSON.parse(content || "[]");
-            } catch {
-                data = [];
-            }
-
-            const result = [];
-            const set = new Set();
-
-            if (Array.isArray(data)) {
-                for (const item of data) {
-                    let values = [];
-
-                    if (
-                        typeof item === "string" ||
-                        typeof item === "number"
-                    ) {
-                        values.push(item);
-                    } else if (
-                        item &&
-                        typeof item === "object"
-                    ) {
-                        values.push(
-                            item.number,
-                            item.phone,
-                            item.phoneNumber,
-                            item.id,
-                            item.jid,
-                            item.lid
+                try {
+                    stat =
+                        await fs.promises.stat(
+                            eliteFile
                         );
-                    }
+                } catch {
+                    await fs.promises.writeFile(
+                        eliteFile,
+                        "[]",
+                        "utf8"
+                    );
 
-                    for (const value of values) {
-                        const number =
-                            normalizeStoredNumber(value);
+                    stat =
+                        await fs.promises.stat(
+                            eliteFile
+                        );
+                }
+
+                const mtime =
+                    stat.mtimeMs;
+
+                if (
+                    !force &&
+                    eliteReady &&
+                    mtime === eliteMtime
+                ) {
+                    return;
+                }
+
+                const content =
+                    await fs.promises.readFile(
+                        eliteFile,
+                        "utf8"
+                    );
+
+                let data = [];
+
+                try {
+                    data =
+                        JSON.parse(
+                            content || "[]"
+                        );
+                } catch {
+                    data = [];
+                }
+
+                const result = [];
+                const set = new Set();
+
+                if (
+                    Array.isArray(data)
+                ) {
+                    for (
+                        const item of data
+                    ) {
+                        let values = [];
 
                         if (
-                            number &&
-                            !set.has(number)
+                            typeof item ===
+                                "string" ||
+                            typeof item ===
+                                "number"
                         ) {
-                            set.add(number);
-                            result.push(number);
+                            values.push(item);
+
+                        } else if (
+                            item &&
+                            typeof item ===
+                                "object"
+                        ) {
+                            values.push(
+                                item.number,
+                                item.phone,
+                                item.phoneNumber,
+                                item.id,
+                                item.jid,
+                                item.lid
+                            );
+                        }
+
+                        for (
+                            const value of values
+                        ) {
+                            const number =
+                                normalizeStoredNumber(
+                                    value
+                                );
+
+                            if (
+                                number &&
+                                !set.has(number)
+                            ) {
+                                set.add(number);
+                                result.push(
+                                    number
+                                );
+                            }
                         }
                     }
                 }
-            }
 
-            eliteCache = result;
-            eliteSet = set;
+                eliteCache = result;
+                eliteSet = set;
 
-            eliteMtime = mtime;
-            eliteReady = true;
-        } catch {}
-    })();
+                eliteMtime = mtime;
+                eliteReady = true;
+
+            } catch {}
+        })();
 
     try {
         await eliteLoading;
@@ -550,21 +656,21 @@ async function refreshElite(force = false) {
 }
 
 // ═══════════════════════════════════════════════════════
-// ⚡ BACKGROUND FILE REFRESH
+// ⚡ BACKGROUND REFRESH
 // ═══════════════════════════════════════════════════════
-
-let lastFileCheck = 0;
 
 function scheduleFileRefresh() {
     const now = Date.now();
 
-    if (now - lastFileCheck < FILE_CHECK_TIME) {
+    if (
+        now - lastFileCheck <
+        FILE_CHECK_TIME
+    ) {
         return;
     }
 
     lastFileCheck = now;
 
-    // لا ننتظرها إطلاقًا
     void refreshMode().catch(() => {});
     void refreshElite().catch(() => {});
 }
@@ -583,7 +689,10 @@ function checkElite(value) {
     const number =
         normalizeStoredNumber(value);
 
-    return !!number && eliteSet.has(number);
+    return (
+        !!number &&
+        eliteSet.has(number)
+    );
 }
 
 function checkEliteIdentities(values) {
@@ -591,7 +700,9 @@ function checkEliteIdentities(values) {
         values = [values];
     }
 
-    for (const value of values) {
+    for (
+        const value of values
+    ) {
         if (checkElite(value)) {
             return true;
         }
@@ -607,63 +718,102 @@ function checkEliteIdentities(values) {
 const groupCache = new Map();
 const groupLoading = new Map();
 
-async function getGroupMetadata(sock, jid, force = false) {
-    if (!jid || !jid.endsWith("@g.us")) {
+async function getGroupMetadata(
+    sock,
+    jid,
+    force = false
+) {
+    if (
+        !jid ||
+        !jid.endsWith("@g.us")
+    ) {
         return null;
     }
 
     const now = Date.now();
-    const cached = groupCache.get(jid);
+    const cached =
+        groupCache.get(jid);
 
     if (
         !force &&
         cached &&
-        now - cached.time < GROUP_CACHE_TIME
+        now - cached.time <
+            GROUP_CACHE_TIME
     ) {
         return cached.data;
     }
 
-    const existing = groupLoading.get(jid);
+    const existing =
+        groupLoading.get(jid);
 
     if (existing) {
         return existing;
     }
 
-    const promise = (async () => {
-        try {
-            const metadata =
-                await sock.groupMetadata(jid);
+    const promise =
+        (async () => {
+            try {
+                const metadata =
+                    await sock.groupMetadata(
+                        jid
+                    );
 
-            if (metadata) {
-                groupCache.set(jid, {
-                    data: metadata,
-                    time: Date.now()
-                });
+                if (metadata) {
+                    groupCache.set(
+                        jid,
+                        {
+                            data: metadata,
+                            time: Date.now()
+                        }
+                    );
 
-                if (groupCache.size > MAX_GROUP_CACHE) {
-                    const first =
-                        groupCache.keys().next().value;
+                    if (
+                        groupCache.size >
+                        MAX_GROUP_CACHE
+                    ) {
+                        const first =
+                            groupCache.keys()
+                                .next()
+                                .value;
 
-                    if (first) {
-                        groupCache.delete(first);
+                        if (first) {
+                            groupCache.delete(
+                                first
+                            );
+                        }
                     }
                 }
+
+                return (
+                    metadata ||
+                    cached?.data ||
+                    null
+                );
+
+            } catch {
+                return (
+                    cached?.data ||
+                    null
+                );
+
+            } finally {
+                groupLoading.delete(
+                    jid
+                );
             }
+        })();
 
-            return metadata || cached?.data || null;
-        } catch {
-            return cached?.data || null;
-        } finally {
-            groupLoading.delete(jid);
-        }
-    })();
-
-    groupLoading.set(jid, promise);
+    groupLoading.set(
+        jid,
+        promise
+    );
 
     return promise;
 }
 
-export function clearGroupMetadataCache(jid = null) {
+export function clearGroupMetadataCache(
+    jid = null
+) {
     try {
         if (jid) {
             groupCache.delete(jid);
@@ -673,6 +823,7 @@ export function clearGroupMetadataCache(jid = null) {
 
         groupCache.clear();
         groupLoading.clear();
+
     } catch {}
 }
 
@@ -680,7 +831,8 @@ export function clearGroupMetadataCache(jid = null) {
 // 🚀 PLUGIN CACHE PER BOT
 // ═══════════════════════════════════════════════════════
 
-const pluginCaches = new WeakMap();
+const pluginCaches =
+    new WeakMap();
 
 function createPluginCache() {
     return {
@@ -692,22 +844,35 @@ function createPluginCache() {
 }
 
 function getPluginCache(sock) {
-    let cache = pluginCaches.get(sock);
+    let cache =
+        pluginCaches.get(sock);
 
     if (!cache) {
-        cache = createPluginCache();
-        pluginCaches.set(sock, cache);
+        cache =
+            createPluginCache();
+
+        pluginCaches.set(
+            sock,
+            cache
+        );
     }
 
     return cache;
 }
 
 async function getLoadedPlugins(sock) {
-    if (!sock) return [];
+    if (!sock) {
+        return [];
+    }
 
-    const cache = getPluginCache(sock);
+    const cache =
+        getPluginCache(sock);
 
-    if (Array.isArray(cache.loaded)) {
+    if (
+        Array.isArray(
+            cache.loaded
+        )
+    ) {
         return cache.loaded;
     }
 
@@ -715,81 +880,112 @@ async function getLoadedPlugins(sock) {
         return cache.loading;
     }
 
-    cache.loading = (async () => {
-        try {
-            const plugins = await loadPlugins(sock);
+    cache.loading =
+        (async () => {
+            try {
+                const plugins =
+                    await loadPlugins(
+                        sock
+                    );
 
-            cache.loaded = Array.isArray(plugins)
-                ? plugins.filter(Boolean)
-                : [];
+                cache.loaded =
+                    Array.isArray(plugins)
+                        ? plugins.filter(
+                              Boolean
+                          )
+                        : [];
 
-            cache.commandIndex.clear();
-            cache.onMessage.length = 0;
+                cache.commandIndex.clear();
+                cache.onMessage.length = 0;
 
-            for (const plugin of cache.loaded) {
-                if (
-                    typeof plugin?.onMessage ===
-                    "function"
+                for (
+                    const plugin
+                    of cache.loaded
                 ) {
-                    cache.onMessage.push(plugin);
-                }
-
-                if (!plugin?.command) continue;
-
-                const commands =
-                    Array.isArray(plugin.command)
-                        ? plugin.command
-                        : [plugin.command];
-
-                for (const command of commands) {
                     if (
-                        command === undefined ||
-                        command === null
+                        typeof plugin?.onMessage ===
+                        "function"
+                    ) {
+                        cache.onMessage.push(
+                            plugin
+                        );
+                    }
+
+                    if (
+                        !plugin?.command
                     ) {
                         continue;
                     }
 
-                    const key =
-                        String(command)
-                            .trim()
-                            .toLowerCase();
+                    const commands =
+                        Array.isArray(
+                            plugin.command
+                        )
+                            ? plugin.command
+                            : [plugin.command];
 
-                    if (
-                        key &&
-                        !cache.commandIndex.has(key)
+                    for (
+                        const command
+                        of commands
                     ) {
-                        cache.commandIndex.set(
-                            key,
-                            plugin
-                        );
+                        if (
+                            command ===
+                                undefined ||
+                            command === null
+                        ) {
+                            continue;
+                        }
+
+                        const key =
+                            String(
+                                command
+                            )
+                                .trim()
+                                .toLowerCase();
+
+                        if (
+                            key &&
+                            !cache.commandIndex.has(
+                                key
+                            )
+                        ) {
+                            cache.commandIndex.set(
+                                key,
+                                plugin
+                            );
+                        }
                     }
                 }
+
+                log(
+                    "ok",
+                    `Loaded ${cache.loaded.length} plugins | ${cache.commandIndex.size} commands`
+                );
+
+            } catch (error) {
+                cache.loaded = [];
+                cache.commandIndex.clear();
+                cache.onMessage.length = 0;
+
+                console.error(
+                    "Plugin Loader Error:",
+                    error?.message ||
+                        error
+                );
+
+            } finally {
+                cache.loading = null;
             }
 
-            log(
-                "ok",
-                `Loaded ${cache.loaded.length} plugins | ${cache.commandIndex.size} commands`
-            );
-        } catch (error) {
-            cache.loaded = [];
-            cache.commandIndex.clear();
-            cache.onMessage.length = 0;
-
-            console.error(
-                "Plugin Loader Error:",
-                error?.message || error
-            );
-        } finally {
-            cache.loading = null;
-        }
-
-        return cache.loaded;
-    })();
+            return cache.loaded;
+        })();
 
     return cache.loading;
 }
 
-export function clearPluginsCache(sock = null) {
+export function clearPluginsCache(
+    sock = null
+) {
     if (!sock) return;
 
     try {
@@ -801,35 +997,53 @@ export function clearPluginsCache(sock = null) {
 // 🛡️ MESSAGE DEDUPLICATION
 // ═══════════════════════════════════════════════════════
 
-const processedMessages = new Map();
+const processedMessages =
+    new Map();
 
 let cleanupRunning = false;
 
+function getSocketSessionId(sock) {
+    return (
+        sock?.user?.id ||
+        sock?.user?.jid ||
+        sock?.user?.lid ||
+        "unknown"
+    );
+}
+
 function wasProcessed(id, sock) {
-    if (!id) return false;
+    if (!id) {
+        return false;
+    }
 
     const session =
         String(
-            sock?.user?.id ||
-            sock?.user?.jid ||
-            sock?.user?.lid ||
-            "unknown"
+            getSocketSessionId(sock)
         );
 
-    const key = `${session}:${id}`;
-    const now = Date.now();
+    const key =
+        `${session}:${id}`;
+
+    const now =
+        Date.now();
 
     const previous =
-        processedMessages.get(key);
+        processedMessages.get(
+            key
+        );
 
     if (
         previous &&
-        now - previous < MESSAGE_CACHE_TIME
+        now - previous <
+            MESSAGE_CACHE_TIME
     ) {
         return true;
     }
 
-    processedMessages.set(key, now);
+    processedMessages.set(
+        key,
+        now
+    );
 
     if (
         processedMessages.size >
@@ -847,17 +1061,26 @@ function wasProcessed(id, sock) {
                 let count = 0;
 
                 for (
-                    const [cacheKey, time]
+                    const [
+                        cacheKey,
+                        time
+                    ]
                     of processedMessages
                 ) {
-                    if (time < cutoff) {
+                    if (
+                        time <
+                        cutoff
+                    ) {
                         processedMessages.delete(
                             cacheKey
                         );
 
                         count++;
 
-                        if (count >= 1000) {
+                        if (
+                            count >=
+                            1000
+                        ) {
                             break;
                         }
                     }
@@ -865,7 +1088,8 @@ function wasProcessed(id, sock) {
 
                 if (
                     processedMessages.size >
-                    MAX_PROCESSED_MESSAGES * 1.25
+                    MAX_PROCESSED_MESSAGES *
+                        1.25
                 ) {
                     const removeCount =
                         processedMessages.size -
@@ -877,7 +1101,10 @@ function wasProcessed(id, sock) {
                         const key
                         of processedMessages.keys()
                     ) {
-                        processedMessages.delete(key);
+                        processedMessages.delete(
+                            key
+                        );
+
                         removed++;
 
                         if (
@@ -888,6 +1115,7 @@ function wasProcessed(id, sock) {
                         }
                     }
                 }
+
             } finally {
                 cleanupRunning = false;
             }
@@ -915,11 +1143,13 @@ function resolveSender(
             sock?.user?.jid ||
             sock?.user?.lid ||
             "";
+
     } else if (isGroup) {
         rawSender =
             msg?.key?.participant ||
             msg?.participant ||
             "";
+
     } else {
         rawSender =
             msg?.key?.remoteJid ||
@@ -927,7 +1157,9 @@ function resolveSender(
     }
 
     let number =
-        normalizeStoredNumber(rawSender);
+        normalizeStoredNumber(
+            rawSender
+        );
 
     if (
         isGroup &&
@@ -964,9 +1196,12 @@ function resolveSender(
 
 function extractInteractiveResponseId(msg) {
     try {
-        const message = msg?.message;
+        const message =
+            msg?.message;
 
-        if (!message) return "";
+        if (!message) {
+            return "";
+        }
 
         const listId =
             message
@@ -975,7 +1210,9 @@ function extractInteractiveResponseId(msg) {
                 ?.selectedRowId;
 
         if (listId) {
-            return String(listId).trim();
+            return String(
+                listId
+            ).trim();
         }
 
         const buttonId =
@@ -984,7 +1221,9 @@ function extractInteractiveResponseId(msg) {
                 ?.selectedButtonId;
 
         if (buttonId) {
-            return String(buttonId).trim();
+            return String(
+                buttonId
+            ).trim();
         }
 
         const templateId =
@@ -993,7 +1232,9 @@ function extractInteractiveResponseId(msg) {
                 ?.selectedId;
 
         if (templateId) {
-            return String(templateId).trim();
+            return String(
+                templateId
+            ).trim();
         }
 
         const flow =
@@ -1007,91 +1248,135 @@ function extractInteractiveResponseId(msg) {
 
             try {
                 parsed =
-                    typeof flow.paramsJson === "string"
-                        ? JSON.parse(flow.paramsJson)
+                    typeof flow.paramsJson ===
+                        "string"
+                        ? JSON.parse(
+                              flow.paramsJson
+                          )
                         : flow.paramsJson;
             } catch {
                 parsed = null;
             }
 
             if (parsed?.id) {
-                return String(parsed.id).trim();
+                return String(
+                    parsed.id
+                ).trim();
             }
 
-            if (parsed?.selectedRowId) {
+            if (
+                parsed?.selectedRowId
+            ) {
                 return String(
                     parsed.selectedRowId
                 ).trim();
             }
 
-            if (parsed?.selectedId) {
+            if (
+                parsed?.selectedId
+            ) {
                 return String(
                     parsed.selectedId
                 ).trim();
             }
 
-            if (parsed?.command) {
+            if (
+                parsed?.command
+            ) {
                 return String(
                     parsed.command
                 ).trim();
             }
         }
+
     } catch {}
 
     return "";
 }
 
 function normalizeMenuCommand(id) {
-    if (!id) return "";
+    if (!id) {
+        return "";
+    }
 
-    let value = String(id).trim();
+    let value =
+        String(id).trim();
 
-    const lower = value.toLowerCase();
+    const lower =
+        value.toLowerCase();
 
-    if (lower.startsWith("cmd:")) {
-        value = value.slice(4).trim();
-    } else if (lower.startsWith("command:")) {
-        value = value.slice(8).trim();
+    if (
+        lower.startsWith("cmd:")
+    ) {
+        value =
+            value.slice(4).trim();
+
+    } else if (
+        lower.startsWith(
+            "command:"
+        )
+    ) {
+        value =
+            value.slice(8).trim();
     }
 
     return value
-        .replace(/^[./\\#,!^&+=]+/, "")
+        .replace(
+            /^[./\\#,!^&+=]+/,
+            ""
+        )
         .trim();
 }
 
 // ═══════════════════════════════════════════════════════
-// 🚀 ENTRY — ZERO WAIT
+// 🚀 ENTRY
 // ═══════════════════════════════════════════════════════
 
-export function handleMessages(sock, m) {
+export function handleMessages(
+    sock,
+    m
+) {
     try {
-        const msg = m?.messages?.[0];
+        const msg =
+            m?.messages?.[0];
 
-        if (!msg?.message) return;
+        if (!msg?.message) {
+            return;
+        }
 
-        const id = msg.key?.id;
+        const id =
+            msg.key?.id;
 
         if (
             id &&
-            wasProcessed(id, sock)
+            wasProcessed(
+                id,
+                sock
+            )
         ) {
             return;
         }
 
-        // لا ننتظر التنفيذ
+        /*
+         * لا ننتظر الـHandler هنا.
+         * استقبال الرسالة يبقى فوريًا.
+         */
         void executeHandlerLogic(
             sock,
             msg
         ).catch(error => {
             console.error(
                 "Handler Execution Error:",
-                error?.message || error
+                error?.message ||
+                    error
             );
         });
+
     } catch (error) {
         console.error(
             "handleMessages Error:",
-            error?.message || error
+            error?.message ||
+                error
         );
     }
 }
@@ -1100,35 +1385,73 @@ export function handleMessages(sock, m) {
 // ⚡ MAIN EXECUTION
 // ═══════════════════════════════════════════════════════
 
-async function executeHandlerLogic(sock, msg) {
-    const jid = msg.key?.remoteJid;
+async function executeHandlerLogic(
+    sock,
+    msg
+) {
+    const jid =
+        msg.key?.remoteJid;
 
-    if (!jid) return;
+    if (!jid) {
+        return;
+    }
 
     const isGroup =
         jid.endsWith("@g.us");
 
     const isPrivate =
-        jid.endsWith("@s.whatsapp.net");
+        jid.endsWith(
+            "@s.whatsapp.net"
+        );
 
-    // ═════════════════════════════
-    // ⚡ لا ننتظر الملفات
-    // ═════════════════════════════
+    /*
+     * ⚡ أهم تحسين:
+     *
+     * كل العمليات المستقلة تبدأ معًا.
+     *
+     * بدل:
+     * metadata
+     * ثم plugins
+     * ثم الملفات
+     *
+     * الآن كلها تبدأ بالتوازي.
+     */
+
+    const metadataPromise =
+        isGroup
+            ? getGroupMetadata(
+                  sock,
+                  jid
+              )
+            : Promise.resolve(null);
+
+    const pluginsPromise =
+        getLoadedPlugins(sock);
 
     getModeFast();
     getEliteFast();
 
-    // ═════════════════════════════
-    // 👤 SENDER / GROUP
-    // ═════════════════════════════
-
+    /*
+     * نحتاج metadata قبل تحديد
+     * هوية البوت وصلاحياته.
+     */
     const metadata =
-        isGroup
-            ? await getGroupMetadata(
-                  sock,
-                  jid
-              )
-            : null;
+        await metadataPromise;
+
+    /*
+     * في نفس الوقت البلجنات تكون
+     * غالبًا بدأت بالتحميل مسبقًا.
+     */
+    const plugins =
+        await pluginsPromise;
+
+    if (!plugins.length) {
+        return;
+    }
+
+    // ═════════════════════════════
+    // 🤖 BOT IDENTITY
+    // ═════════════════════════════
 
     const botIdentities =
         getBotIdentities(sock);
@@ -1177,6 +1500,10 @@ async function executeHandlerLogic(sock, msg) {
             )
         );
 
+    // ═════════════════════════════
+    // 👤 SENDER
+    // ═════════════════════════════
+
     const resolved =
         resolveSender(
             sock,
@@ -1202,19 +1529,16 @@ async function executeHandlerLogic(sock, msg) {
         ]);
 
     if (!isEliteUser) {
-        for (const candidate of [
-            botNumber,
-            participantPhone,
-            ...botIdentities
-        ]) {
-            const normalized =
-                normalizeStoredNumber(
-                    candidate
-                );
-
+        for (
+            const candidate
+            of [
+                botNumber,
+                participantPhone,
+                ...botIdentities
+            ]
+        ) {
             if (
-                normalized &&
-                eliteSet.has(normalized)
+                checkElite(candidate)
             ) {
                 isEliteUser = true;
                 break;
@@ -1222,7 +1546,15 @@ async function executeHandlerLogic(sock, msg) {
         }
     }
 
-    if (!isEliteUser && isMainBot) {
+    /*
+     * البوت الرئيسي يعتبر Elite
+     * حتى لو لم يكن رقمه موجودًا
+     * داخل ملف النخبة.
+     */
+    if (
+        !isEliteUser &&
+        isMainBot
+    ) {
         isEliteUser = true;
     }
 
@@ -1233,7 +1565,8 @@ async function executeHandlerLogic(sock, msg) {
     let botAdminData = {
         isAdmin: false,
         isSuperAdmin: false,
-        participant: botParticipant,
+        participant:
+            botParticipant,
         metadata
     };
 
@@ -1245,7 +1578,8 @@ async function executeHandlerLogic(sock, msg) {
             botParticipant.admin;
 
         botAdminData.isSuperAdmin =
-            admin === "superadmin";
+            admin ===
+            "superadmin";
 
         botAdminData.isAdmin =
             admin === "admin" ||
@@ -1257,15 +1591,6 @@ async function executeHandlerLogic(sock, msg) {
 
     const botIsSuperAdmin =
         botAdminData.isSuperAdmin;
-
-    // ═════════════════════════════
-    // 🚀 PLUGINS
-    // ═════════════════════════════
-
-    const plugins =
-        await getLoadedPlugins(sock);
-
-    if (!plugins.length) return;
 
     const pluginCache =
         getPluginCache(sock);
@@ -1285,7 +1610,9 @@ async function executeHandlerLogic(sock, msg) {
         "";
 
     const interactiveId =
-        extractInteractiveResponseId(msg);
+        extractInteractiveResponseId(
+            msg
+        );
 
     const fromInteractive =
         !!interactiveId;
@@ -1308,38 +1635,57 @@ async function executeHandlerLogic(sock, msg) {
             jid,
             sender,
             number,
+
             isGroup,
             isPrivate,
+
             message: msg,
 
-            isElite: isEliteUser,
+            isElite:
+                isEliteUser,
 
             botNumber,
-            mainBotNumber: mainNumber,
+
+            mainBotNumber:
+                mainNumber,
+
             isMainBot,
 
-            isInteractive: fromInteractive,
+            isInteractive:
+                fromInteractive,
+
             interactiveId:
-                interactiveId || null,
+                interactiveId ||
+                null,
+
             isListResponse:
                 fromInteractive,
 
-            isAdmin: botIsAdmin,
+            isAdmin:
+                botIsAdmin,
+
             isSuperAdmin:
                 botIsSuperAdmin,
 
-            adminMode: botIsAdmin,
+            adminMode:
+                botIsAdmin,
 
             botIsAdmin,
             botIsSuperAdmin,
 
             botParticipant:
-                botParticipant || null,
+                botParticipant ||
+                null,
 
             groupMetadata:
-                metadata || null
+                metadata ||
+                null
         };
 
+        /*
+         * لا نجعل onMessage
+         * يؤخر تنفيذ الأمر.
+         */
         for (
             const plugin
             of pluginCache.onMessage
@@ -1360,7 +1706,8 @@ async function executeHandlerLogic(sock, msg) {
     // 👑 ELITE MODE
     // ═════════════════════════════
 
-    const mode = getModeFast();
+    const mode =
+        getModeFast();
 
     if (
         mode?.elite === true &&
@@ -1370,7 +1717,9 @@ async function executeHandlerLogic(sock, msg) {
         return;
     }
 
-    if (!text) return;
+    if (!text) {
+        return;
+    }
 
     // ═════════════════════════════
     // 🔣 PREFIX
@@ -1379,7 +1728,9 @@ async function executeHandlerLogic(sock, msg) {
     const hasPrefix =
         fromInteractive
             ? false
-            : /^[./\\#,!^&+=]/.test(text);
+            : /^[./\\#,!^&+=]/.test(
+                  text
+              );
 
     let noPrefixText =
         hasPrefix
@@ -1393,14 +1744,18 @@ async function executeHandlerLogic(sock, msg) {
             );
     }
 
-    if (!noPrefixText) return;
+    if (!noPrefixText) {
+        return;
+    }
 
     // ═════════════════════════════
     // ⚡ COMMAND
     // ═════════════════════════════
 
     const space =
-        noPrefixText.search(/\s/);
+        noPrefixText.search(
+            /\s/
+        );
 
     const commandName =
         (
@@ -1412,15 +1767,24 @@ async function executeHandlerLogic(sock, msg) {
                   )
         ).toLowerCase();
 
-    if (!commandName) return;
+    if (!commandName) {
+        return;
+    }
 
     const cmd =
         pluginCache.commandIndex.get(
             commandName
         );
 
-    if (!cmd) return;
+    if (!cmd) {
+        return;
+    }
 
+    /*
+     * الأوامر العادية تحتاج Prefix
+     * إلا إذا كان المستخدم Elite
+     * أو التفاعل من قائمة/زر.
+     */
     if (
         !hasPrefix &&
         !isEliteUser &&
@@ -1445,7 +1809,7 @@ async function executeHandlerLogic(sock, msg) {
     );
 
     // ═════════════════════════════
-    // 🚀 EXECUTE
+    // 🚀 EXECUTE COMMAND
     // ═════════════════════════════
 
     try {
@@ -1469,6 +1833,7 @@ async function executeHandlerLogic(sock, msg) {
                     isEliteUser,
 
                 botNumber,
+
                 mainBotNumber:
                     mainNumber,
 
@@ -1478,7 +1843,8 @@ async function executeHandlerLogic(sock, msg) {
                     fromInteractive,
 
                 interactiveId:
-                    interactiveId || null,
+                    interactiveId ||
+                    null,
 
                 isListResponse:
                     fromInteractive,
@@ -1496,16 +1862,20 @@ async function executeHandlerLogic(sock, msg) {
                 botIsSuperAdmin,
 
                 botParticipant:
-                    botParticipant || null,
+                    botParticipant ||
+                    null,
 
                 groupMetadata:
-                    metadata || null
+                    metadata ||
+                    null
             }
         );
+
     } catch (error) {
         console.error(
             `Command Error [${commandName}]:`,
-            error?.message || error
+            error?.message ||
+                error
         );
     }
 }
@@ -1514,9 +1884,17 @@ async function executeHandlerLogic(sock, msg) {
 // 🔥 WARMUP
 // ═══════════════════════════════════════════════════════
 
-export async function warmupHandler(sock) {
+export async function warmupHandler(
+    sock
+) {
     try {
-        // تجهيز كل شيء قبل وصول أول رسالة
+        /*
+         * تجهيز كل شيء قبل أول رسالة.
+         *
+         * هذه النقطة مهمة جدًا للسرعة:
+         * أول أمر بعد تشغيل البوت لن يضطر
+         * إلى تحميل البلجنات والنخبة من الصفر.
+         */
         await Promise.all([
             refreshMode(true),
             refreshElite(true),
@@ -1532,21 +1910,26 @@ export async function warmupHandler(sock) {
         log(
             "ok",
             `Handler Ready | Bot: ${
-                botNumber || "UNKNOWN"
+                botNumber ||
+                "UNKNOWN"
             }`
         );
 
         log(
             "bot",
             `Identities: ${
-                identities.join(" | ") ||
+                identities.join(
+                    " | "
+                ) ||
                 "NONE"
             }`
         );
 
         log(
             "elite",
-            `Elite: ${eliteCache.length}`
+            `Elite: ${
+                eliteCache.length
+            }`
         );
 
         log(
@@ -1559,12 +1942,43 @@ export async function warmupHandler(sock) {
         );
 
         return true;
+
     } catch (error) {
         console.error(
             "Handler Warmup Error:",
-            error?.message || error
+            error?.message ||
+                error
         );
 
         return false;
     }
+}
+
+// ═══════════════════════════════════════════════════════
+// 🧹 CLEAN SHUTDOWN
+// ═══════════════════════════════════════════════════════
+
+export function clearHandlerCaches() {
+    try {
+        groupCache.clear();
+        groupLoading.clear();
+
+        processedMessages.clear();
+
+        modeReady = false;
+        eliteReady = false;
+
+        modeMtime = 0;
+        eliteMtime = 0;
+
+        modeCache = {
+            elite: false
+        };
+
+        eliteCache = [];
+        eliteSet = new Set();
+
+        lastFileCheck = 0;
+
+    } catch {}
 }
