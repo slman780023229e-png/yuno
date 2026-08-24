@@ -7,7 +7,6 @@ const __dirname = path.dirname(__filename);
 
 const dataDir = path.join(__dirname, "../data");
 const file = path.join(dataDir, "contactGuard.json");
-const eliteFile = path.join(dataDir, "النخبة.json");
 
 if (!fs.existsSync(dataDir)) {
     fs.mkdirSync(dataDir, { recursive: true });
@@ -29,21 +28,48 @@ function saveData(data) {
     fs.writeFileSync(file, JSON.stringify(data, null, 2));
 }
 
+// دالة جلب أعضاء النخبة
+function getElite() {
+    let elite = [];
+    const files = ["النخبة.json", "النخبه.json", "النخبة", "النخبه"];
+
+    for (const eliteFileName of files) {
+        const filePath = path.join(dataDir, eliteFileName);
+        if (fs.existsSync(filePath)) {
+            try {
+                const fileContent = fs.readFileSync(filePath, "utf8");
+                const parsed = JSON.parse(fileContent);
+                if (Array.isArray(parsed)) {
+                    elite = parsed;
+                    break;
+                } else if (typeof parsed === "object" && parsed !== null) {
+                    elite = Object.values(parsed).flat();
+                    break;
+                }
+            } catch (err) {}
+        }
+    }
+    return elite.map(x => String(x).replace(/\D/g, ""));
+}
+
+// دالة فحص المشرفين بدقة
+async function getGroupAdminStatus(sock, chatId, senderNumber) {
+    if (!chatId.endsWith("@g.us")) return { isAdmin: false };
+    try {
+        const groupMetadata = await sock.groupMetadata(chatId);
+        const participants = groupMetadata.participants || [];
+        const participant = participants.find(p => String(p.id).replace(/\D/g, "") === senderNumber);
+        
+        const isAdmin = participant && (participant.admin === "admin" || participant.admin === "superadmin");
+        return { isAdmin: Boolean(isAdmin) };
+    } catch (e) {
+        return { isAdmin: false };
+    }
+}
+
 const cleanJid = (jid) => {
     if (!jid) return "";
     return jid.replace(/:[0-9]+@/, "@");
-};
-
-// دالة فحص النخبة مطابقة تماماً لطريقة تخزين ملف نخبة.json
-const isEliteUser = (userJid) => {
-    try {
-        if (!fs.existsSync(eliteFile)) return false;
-        const eliteUsers = JSON.parse(fs.readFileSync(eliteFile, "utf-8"));
-        const senderNumber = cleanJid(userJid).split("@")[0];
-        return Array.isArray(eliteUsers) && eliteUsers.includes(senderNumber);
-    } catch {
-        return false;
-    }
 };
 
 export default {
@@ -52,7 +78,7 @@ export default {
     description: "حماية جهات الاتصال",
 
     execute: async (sock, msg, data) => {
-        const jid = data.jid;
+        const jid = data.jid || msg.key.remoteJid;
 
         if (!jid.endsWith("@g.us")) {
             return sock.sendMessage(jid, {
@@ -60,16 +86,18 @@ export default {
             });
         }
 
-        const sender = cleanJid(data.sender || msg.key.participant || msg.participant);
+        // جلب رقم المرسل بدقة عالية
+        const sender = data.sender || msg.key.participant || msg.participant || msg.key.remoteJid;
+        const senderNumber = String(sender).split("@")[0].replace(/\D/g, "");
+        const botNumber = cleanJid(sock.user?.id).split("@")[0].replace(/\D/g, "");
 
         try {
-            const metadata = await sock.groupMetadata(jid);
-            const participant = metadata.participants.find(p => cleanJid(p.id) === sender);
+            // استثناء البوت أو إذا كان الشخص هو صاحب البوت / من النخبة / مشرفاً
+            const eliteUsers = getElite();
+            const isElite = eliteUsers.includes(senderNumber) || senderNumber === botNumber;
+            const senderStatus = await getGroupAdminStatus(sock, jid, senderNumber);
+            const isAdmin = senderStatus.isAdmin || msg.key.fromMe;
 
-            const isAdmin = participant && Boolean(participant.admin);
-            const isElite = isEliteUser(sender);
-
-            // الشرط: لو لم يكن مشرفاً وليس نخبة، يرفض الأمر
             if (!isAdmin && !isElite) {
                 return sock.sendMessage(jid, {
                     text: `*╭━━〔 ❌ خطأ 〕━━╮*\n*┤ الأمر للمشرفين والنخبة فقط*\n*╰━━━━━━━━━━━━╯*`
@@ -137,7 +165,7 @@ export default {
 
             console.log(
 `╭━━━━━━━━━━━━━━━━━━━━━━╮
-┃ 🛡️ 𝐘𝐔𝐍𝐎 𝐒𝐄𝐂𝐔𝐑Ｉ𝐓𝐘
+┃ 🛡️ 𝐘𝐔𝐍𝐎 𝐒𝐄𝐂𝐔𝐑𝐈𝐓𝐘
 ┣━━━━━━━━━━━━━━━━━━━━━━┫
 ┃ 🚫 تم منع جهة اتصال بسرعة قصوى
 ┃ 👤 ${sender}
