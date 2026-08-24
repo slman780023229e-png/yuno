@@ -6,29 +6,45 @@ import { loadPlugins } from "./loader.js";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// ═══════════════════════════════════════
+// ═══════════════════════════════════════════════════════
 // 📁 FILES
-// ═══════════════════════════════════════
+// ═══════════════════════════════════════════════════════
 
-const modeFile =
-    path.join(__dirname, "../data/مود.json");
+const dataDir = path.join(__dirname, "../data");
 
-const eliteFile =
-    path.join(__dirname, "../data/النخبة.json");
+const modeFile = path.join(dataDir, "مود.json");
+const eliteFile = path.join(dataDir, "النخبة.json");
 
-// ═══════════════════════════════════════
-// ⚙️ SETTINGS
-// ═══════════════════════════════════════
+// الملف الثالث الذي سننشئه لاحقًا
+// لن يكون إجباريًا حاليًا
+const identityResolverFile = path.join(
+    __dirname,
+    "identityResolver.js"
+);
 
-const MODE_CACHE_TIME = 5000;
-const ELITE_CACHE_TIME = 10000;
+// ═══════════════════════════════════════════════════════
+// ⚡ PERFORMANCE
+// ═══════════════════════════════════════════════════════
 
+const MODE_CACHE_TIME = 3000;
+const ELITE_CACHE_TIME = 3000;
+
+// المجموعة تتغير أقل من الرسائل
+const GROUP_CACHE_TIME = 15000;
+
+// منع التكرار
 const MESSAGE_CACHE_TIME = 30000;
-const MAX_PROCESSED_MESSAGES = 5000;
 
-// ═══════════════════════════════════════
+// حدود الذاكرة
+const MAX_PROCESSED_MESSAGES = 5000;
+const MAX_GROUP_CACHE = 500;
+
+// أقل رقم مقبول
+const MIN_NUMBER_LENGTH = 5;
+
+// ═══════════════════════════════════════════════════════
 // 🎨 COLORS
-// ═══════════════════════════════════════
+// ═══════════════════════════════════════════════════════
 
 const COLORS = {
     reset: "\x1b[0m",
@@ -37,29 +53,32 @@ const COLORS = {
     red: "\x1b[38;5;196m",
     cyan: "\x1b[38;5;51m",
     yellow: "\x1b[38;5;226m",
-    gray: "\x1b[38;5;245m"
+    blue: "\x1b[38;5;39m",
+    magenta: "\x1b[38;5;201m"
 };
 
-// ═══════════════════════════════════════
+// ═══════════════════════════════════════════════════════
 // 📝 LOG
-// ═══════════════════════════════════════
+// ═══════════════════════════════════════════════════════
 
 function log(type, text) {
-
     try {
-
         const colors = {
             ok: COLORS.green,
             cmd: COLORS.cyan,
             err: COLORS.red,
-            elite: COLORS.gold
+            elite: COLORS.gold,
+            admin: COLORS.blue,
+            bot: COLORS.magenta
         };
 
         const icons = {
             ok: "✅",
             cmd: "⚡",
             err: "❌",
-            elite: "👑"
+            elite: "👑",
+            admin: "🛡️",
+            bot: "🤖"
         };
 
         console.log(
@@ -67,108 +86,407 @@ function log(type, text) {
             `[${icons[type] || "•"}] ${text}` +
             COLORS.reset
         );
-
     } catch {}
 }
 
-// ═══════════════════════════════════════
-// 🔍 NUMBER
-// ═══════════════════════════════════════
+// ═══════════════════════════════════════════════════════
+// 🔢 EXTRACT PURE NUMBER
+// ═══════════════════════════════════════════════════════
 
-export function extractPureNumber(jid) {
-
+export function extractPureNumber(value) {
     try {
-
-        if (!jid) {
+        if (
+            value === undefined ||
+            value === null
+        ) {
             return "";
         }
 
-        return String(jid)
-            .replace(/[@:].*/g, "")
-            .replace(/\D/g, "");
+        let v = String(value).trim();
 
+        if (!v) return "";
+
+        // 12345:12
+        if (v.includes(":")) {
+            v = v.split(":")[0];
+        }
+
+        // 12345@s.whatsapp.net
+        // 12345@lid
+        if (v.includes("@")) {
+            v = v.split("@")[0];
+        }
+
+        // أرقام فقط
+        v = v.replace(/\D/g, "");
+
+        return v;
     } catch {
-
         return "";
     }
 }
 
-// ═══════════════════════════════════════
-// 🔢 SAME NUMBER
-// ═══════════════════════════════════════
+// ═══════════════════════════════════════════════════════
+// 🔢 NORMALIZE NUMBER
+// ═══════════════════════════════════════════════════════
 
-function isSameNumber(a, b) {
+function normalizeStoredNumber(value) {
+    const number = extractPureNumber(value);
 
-    if (!a || !b) {
-        return false;
+    if (!number) {
+        return "";
     }
 
-    const x =
-        extractPureNumber(a);
+    // لا نضيف كود دولة
+    // لا نغير الرقم
+    // فقط نحذف أصفار البداية
+    return number.replace(/^0+(?=\d)/, "");
+}
 
-    const y =
-        extractPureNumber(b);
+// ═══════════════════════════════════════════════════════
+// 🆔 RAW ID NORMALIZER
+// ═══════════════════════════════════════════════════════
+
+function cleanRawId(value) {
+    try {
+        if (
+            value === undefined ||
+            value === null
+        ) {
+            return "";
+        }
+
+        return String(value)
+            .trim()
+            .toLowerCase();
+    } catch {
+        return "";
+    }
+}
+
+// ═══════════════════════════════════════════════════════
+// 🔎 SAME NUMBER
+// ═══════════════════════════════════════════════════════
+
+function isSameNumber(a, b) {
+    const x = normalizeStoredNumber(a);
+    const y = normalizeStoredNumber(b);
 
     if (!x || !y) {
         return false;
     }
 
-    return (
-        x === y ||
-        x.endsWith(y) ||
-        y.endsWith(x)
+    return x === y;
+}
+
+// ═══════════════════════════════════════════════════════
+// 🤖 BOT IDENTITIES
+// ═══════════════════════════════════════════════════════
+
+function getBotIdentities(sock) {
+    const result = [];
+    const seen = new Set();
+
+    function add(value) {
+        if (
+            value === undefined ||
+            value === null
+        ) {
+            return;
+        }
+
+        const raw = String(value).trim();
+
+        if (!raw) return;
+
+        const key = raw.toLowerCase();
+
+        if (!seen.has(key)) {
+            seen.add(key);
+            result.push(raw);
+        }
+    }
+
+    const candidates = [
+
+        // Baileys
+        sock?.user?.id,
+        sock?.user?.jid,
+        sock?.user?.lid,
+        sock?.user?.phone,
+
+        // credentials
+        sock?.authState?.creds?.me?.id,
+        sock?.authState?.creds?.me?.jid,
+        sock?.authState?.creds?.me?.lid,
+        sock?.authState?.creds?.me?.phone,
+
+        // custom
+        sock?.botJid,
+        sock?.botLid,
+        sock?.botPhone,
+
+        sock?.__botJid,
+        sock?.__botLid,
+        sock?.__botPhone
+    ];
+
+    for (const value of candidates) {
+        add(value);
+
+        const number =
+            extractPureNumber(value);
+
+        if (
+            number &&
+            number.length >= MIN_NUMBER_LENGTH
+        ) {
+            add(number);
+        }
+    }
+
+    return result;
+}
+
+// ═══════════════════════════════════════════════════════
+// 🔎 PARTICIPANT FINDER
+// ═══════════════════════════════════════════════════════
+
+function findParticipant(
+    participants,
+    identities
+) {
+    if (
+        !Array.isArray(participants) ||
+        participants.length === 0
+    ) {
+        return null;
+    }
+
+    const ids =
+        Array.isArray(identities)
+            ? identities
+            : [identities];
+
+    // ═══════════════════════════════════════════════
+    // 1️⃣ EXACT RAW ID
+    // ═══════════════════════════════════════════════
+
+    for (const identity of ids) {
+        if (!identity) continue;
+
+        const raw =
+            cleanRawId(identity);
+
+        if (!raw) continue;
+
+        for (const p of participants) {
+            if (!p) continue;
+
+            if (
+                cleanRawId(p.id) === raw ||
+                cleanRawId(p.jid) === raw ||
+                cleanRawId(p.lid) === raw ||
+                cleanRawId(p.phoneNumber) === raw ||
+                cleanRawId(p.phone) === raw
+            ) {
+                return p;
+            }
+        }
+    }
+
+    // ═══════════════════════════════════════════════
+    // 2️⃣ NUMBER
+    // ═══════════════════════════════════════════════
+
+    for (const identity of ids) {
+        const number =
+            normalizeStoredNumber(identity);
+
+        if (!number) continue;
+
+        for (const p of participants) {
+            if (!p) continue;
+
+            const candidates = [
+                p.phoneNumber,
+                p.phone,
+                p.id,
+                p.jid
+            ];
+
+            for (const candidate of candidates) {
+                if (
+                    isSameNumber(
+                        number,
+                        candidate
+                    )
+                ) {
+                    return p;
+                }
+            }
+        }
+    }
+
+    return null;
+}
+
+// ═══════════════════════════════════════════════════════
+// 🤖 RESOLVE BOT PARTICIPANT
+// ═══════════════════════════════════════════════════════
+
+function resolveBotParticipant(
+    sock,
+    metadata
+) {
+    if (
+        !metadata?.participants
+    ) {
+        return null;
+    }
+
+    const identities =
+        getBotIdentities(sock);
+
+    if (!identities.length) {
+        return null;
+    }
+
+    return findParticipant(
+        metadata.participants,
+        identities
     );
 }
 
-// ═══════════════════════════════════════
+// ═══════════════════════════════════════════════════════
+// 📱 GET PHONE FROM PARTICIPANT
+// ═══════════════════════════════════════════════════════
+
+function getParticipantPhone(participant) {
+    if (!participant) {
+        return "";
+    }
+
+    const candidates = [
+
+        // أهم شيء
+        participant.phoneNumber,
+        participant.phone,
+
+        // احتياط
+        participant.jid,
+        participant.id
+    ];
+
+    for (const value of candidates) {
+        const number =
+            normalizeStoredNumber(value);
+
+        if (
+            number &&
+            number.length >= MIN_NUMBER_LENGTH
+        ) {
+            return number;
+        }
+    }
+
+    return "";
+}
+
+// ═══════════════════════════════════════════════════════
+// 🤖 GET BOT NUMBER
+// ═══════════════════════════════════════════════════════
+
+function getBotNumber(
+    sock,
+    metadata = null
+) {
+    // أولاً نحاول من participant
+    if (metadata) {
+        const participant =
+            resolveBotParticipant(
+                sock,
+                metadata
+            );
+
+        const phone =
+            getParticipantPhone(
+                participant
+            );
+
+        if (phone) {
+            return phone;
+        }
+    }
+
+    // ثم هويات البوت
+    const identities =
+        getBotIdentities(sock);
+
+    for (const identity of identities) {
+        const number =
+            normalizeStoredNumber(
+                identity
+            );
+
+        if (
+            number &&
+            number.length >= MIN_NUMBER_LENGTH
+        ) {
+            return number;
+        }
+    }
+
+    return "";
+}
+
+// ═══════════════════════════════════════════════════════
 // 👑 MAIN BOT
-// ═══════════════════════════════════════
+// ═══════════════════════════════════════════════════════
 
 let cachedMainBotNumber = "";
 
 function getMainBotNumber(sock) {
-
     try {
-
         if (cachedMainBotNumber) {
             return cachedMainBotNumber;
         }
 
-        const possibleNumber =
-            sock?.mainBotNumber ||
-            sock?.__mainBotNumber ||
-            process.env.MAIN_BOT_NUMBER ||
-            "";
+        const candidates = [
+            sock?.mainBotNumber,
+            sock?.__mainBotNumber,
+            process.env.MAIN_BOT_NUMBER,
+            sock?.user?.mainBotNumber
+        ];
 
-        const clean =
-            extractPureNumber(
-                possibleNumber
-            );
+        for (const candidate of candidates) {
+            const number =
+                normalizeStoredNumber(
+                    candidate
+                );
 
-        if (
-            clean &&
-            clean.length >= 5
-        ) {
+            if (
+                number &&
+                number.length >= MIN_NUMBER_LENGTH
+            ) {
+                cachedMainBotNumber = number;
 
-            cachedMainBotNumber =
-                clean;
+                log(
+                    "elite",
+                    `Main Bot: ${number}`
+                );
 
-            log(
-                "elite",
-                `👑 Main Bot: ${clean}`
-            );
-
-            return clean;
+                return number;
+            }
         }
-
     } catch {}
 
     return "";
 }
 
-// ═══════════════════════════════════════
+// ═══════════════════════════════════════════════════════
 // ⚙️ MODE CACHE
-// ═══════════════════════════════════════
+// ═══════════════════════════════════════════════════════
 
 let modeCache = {
     elite: false
@@ -178,100 +496,87 @@ let lastModeCheck = 0;
 let modeLoading = null;
 
 async function refreshMode() {
-
     if (modeLoading) {
         return modeLoading;
     }
 
     modeLoading =
         (async () => {
-
             try {
+                await fs.promises.mkdir(
+                    dataDir,
+                    {
+                        recursive: true
+                    }
+                );
 
-                if (
-                    !fs.existsSync(modeFile)
-                ) {
-
-                    await fs.promises.mkdir(
-                        path.dirname(modeFile),
-                        {
-                            recursive: true
-                        }
-                    );
-
+                if (!fs.existsSync(modeFile)) {
                     await fs.promises.writeFile(
                         modeFile,
                         JSON.stringify(
                             {
                                 elite: false
-                            }
+                            },
+                            null,
+                            2
                         ),
                         "utf8"
                     );
-
                 } else {
-
                     const content =
                         await fs.promises.readFile(
                             modeFile,
                             "utf8"
                         );
 
-                    const parsed =
-                        JSON.parse(
-                            content || "{}"
-                        );
+                    try {
+                        const parsed =
+                            JSON.parse(
+                                content || "{}"
+                            );
 
-                    if (
-                        parsed &&
-                        typeof parsed === "object"
-                    ) {
-
-                        modeCache = {
-                            ...modeCache,
-                            ...parsed
-                        };
-                    }
+                        if (
+                            parsed &&
+                            typeof parsed === "object"
+                        ) {
+                            modeCache = {
+                                ...modeCache,
+                                ...parsed
+                            };
+                        }
+                    } catch {}
                 }
 
                 lastModeCheck =
                     Date.now();
 
                 return modeCache;
-
             } catch {
-
                 return modeCache;
-
             } finally {
-
                 modeLoading = null;
             }
-
         })();
 
     return modeLoading;
 }
 
 function getModeFast() {
-
-    const now =
-        Date.now();
+    const now = Date.now();
 
     if (
         now - lastModeCheck >=
         MODE_CACHE_TIME
     ) {
-
         refreshMode().catch(() => {});
     }
 
     return modeCache;
 }
 
-// ═══════════════════════════════════════
-// 👑 ELITE
-// ═══════════════════════════════════════
+// ═══════════════════════════════════════════════════════
+// 👑 ELITE CACHE
+// ═══════════════════════════════════════════════════════
 
 let eliteCache = [];
 let eliteSet = new Set();
@@ -280,31 +585,21 @@ let lastEliteCheck = 0;
 let eliteLoading = null;
 
 async function refreshElite() {
-
     if (eliteLoading) {
         return eliteLoading;
     }
 
     eliteLoading =
         (async () => {
-
             try {
+                await fs.promises.mkdir(
+                    dataDir,
+                    {
+                        recursive: true
+                    }
+                );
 
-                if (
-                    !fs.existsSync(
-                        eliteFile
-                    )
-                ) {
-
-                    await fs.promises.mkdir(
-                        path.dirname(
-                            eliteFile
-                        ),
-                        {
-                            recursive: true
-                        }
-                    );
-
+                if (!fs.existsSync(eliteFile)) {
                     await fs.promises.writeFile(
                         eliteFile,
                         "[]",
@@ -312,115 +607,349 @@ async function refreshElite() {
                     );
 
                     eliteCache = [];
-                    eliteSet.clear();
+                    eliteSet = new Set();
 
-                } else {
+                    lastEliteCheck =
+                        Date.now();
 
-                    const content =
-                        await fs.promises.readFile(
-                            eliteFile,
-                            "utf8"
-                        );
+                    return eliteCache;
+                }
 
-                    const data =
+                const content =
+                    await fs.promises.readFile(
+                        eliteFile,
+                        "utf8"
+                    );
+
+                let data;
+
+                try {
+                    data =
                         JSON.parse(
                             content || "[]"
                         );
+                } catch {
+                    data = [];
+                }
 
-                    const result = [];
-                    const set = new Set();
+                const result = [];
+                const set = new Set();
 
-                    if (
-                        Array.isArray(data)
-                    ) {
+                if (Array.isArray(data)) {
+                    for (const item of data) {
+                        let values = [];
+
+                        // ═══════════════════════════
+                        // نص
+                        // ═══════════════════════════
+
+                        if (
+                            typeof item ===
+                            "string" ||
+                            typeof item ===
+                            "number"
+                        ) {
+                            values.push(item);
+                        }
+
+                        // ═══════════════════════════
+                        // Object
+                        // ═══════════════════════════
+
+                        else if (
+                            item &&
+                            typeof item ===
+                            "object"
+                        ) {
+                            values.push(
+                                item.number,
+                                item.phone,
+                                item.phoneNumber,
+                                item.id,
+                                item.jid,
+                                item.lid
+                            );
+
+                            // احتياط لأي مفتاح آخر
+                            values.push(
+                                ...Object.values(
+                                    item
+                                )
+                            );
+                        }
 
                         for (
-                            const item
-                            of data
+                            const value
+                            of values
                         ) {
-
-                            let value =
-                                item;
-
-                            if (
-                                typeof item ===
-                                    "object" &&
-                                item !== null
-                            ) {
-
-                                value =
-                                    item.number ||
-                                    item.id ||
-                                    Object.values(
-                                        item
-                                    )[0];
-                            }
-
                             const number =
-                                extractPureNumber(
+                                normalizeStoredNumber(
                                     value
                                 );
 
                             if (
                                 number &&
-                                number.length >= 5 &&
+                                number.length >=
+                                MIN_NUMBER_LENGTH &&
                                 !set.has(number)
                             ) {
-
                                 set.add(number);
-
-                                result.push(
-                                    number
-                                );
+                                result.push(number);
                             }
                         }
                     }
-
-                    eliteCache =
-                        result;
-
-                    eliteSet =
-                        set;
                 }
+
+                eliteCache = result;
+                eliteSet = set;
 
                 lastEliteCheck =
                     Date.now();
 
+                log(
+                    "elite",
+                    `Elite Loaded: ${result.length}`
+                );
+
                 return eliteCache;
-
-            } catch {
+            } catch (error) {
+                console.error(
+                    "Elite Error:",
+                    error?.message ||
+                    error
+                );
 
                 return eliteCache;
-
             } finally {
-
                 eliteLoading = null;
             }
-
         })();
 
     return eliteLoading;
 }
 
 function getEliteFast() {
-
-    const now =
-        Date.now();
+    const now = Date.now();
 
     if (
+        !lastEliteCheck ||
         now - lastEliteCheck >=
         ELITE_CACHE_TIME
     ) {
-
         refreshElite().catch(() => {});
     }
 
     return eliteCache;
 }
 
-// ═══════════════════════════════════════
+// ═══════════════════════════════════════════════════════
+// 👑 ELITE CHECK
+// ═══════════════════════════════════════════════════════
+
+function checkElite(value) {
+    const number =
+        normalizeStoredNumber(value);
+
+    if (!number) {
+        return false;
+    }
+
+    return eliteSet.has(number);
+}
+
+function checkEliteIdentities(values) {
+    if (!Array.isArray(values)) {
+        values = [values];
+    }
+
+    for (const value of values) {
+        if (checkElite(value)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+// ═══════════════════════════════════════════════════════
+// 🛡️ GROUP CACHE
+// ═══════════════════════════════════════════════════════
+
+const groupCache = new Map();
+const groupLoading = new Map();
+
+async function getGroupMetadata(
+    sock,
+    jid,
+    force = false
+) {
+    if (
+        !jid ||
+        !jid.endsWith("@g.us")
+    ) {
+        return null;
+    }
+
+    const now = Date.now();
+
+    const cached =
+        groupCache.get(jid);
+
+    if (
+        !force &&
+        cached &&
+        now - cached.time <
+        GROUP_CACHE_TIME
+    ) {
+        return cached.data;
+    }
+
+    const pending =
+        groupLoading.get(jid);
+
+    if (pending) {
+        return pending;
+    }
+
+    const promise =
+        (async () => {
+            try {
+                const metadata =
+                    await sock.groupMetadata(
+                        jid
+                    );
+
+                if (metadata) {
+                    groupCache.set(
+                        jid,
+                        {
+                            data: metadata,
+                            time: Date.now()
+                        }
+                    );
+
+                    if (
+                        groupCache.size >
+                        MAX_GROUP_CACHE
+                    ) {
+                        const first =
+                            groupCache
+                                .keys()
+                                .next()
+                                .value;
+
+                        if (first) {
+                            groupCache.delete(
+                                first
+                            );
+                        }
+                    }
+                }
+
+                return metadata || null;
+            } catch {
+                return cached?.data || null;
+            } finally {
+                groupLoading.delete(jid);
+            }
+        })();
+
+    groupLoading.set(
+        jid,
+        promise
+    );
+
+    return promise;
+}
+
+// ═══════════════════════════════════════════════════════
+// 👤 RESOLVE SENDER
+// ═══════════════════════════════════════════════════════
+
+function resolveSender(
+    sock,
+    msg,
+    isGroup,
+    metadata
+) {
+    let rawSender = "";
+
+    if (msg?.key?.fromMe) {
+        rawSender =
+            sock?.user?.id ||
+            sock?.user?.jid ||
+            sock?.user?.lid ||
+            "";
+    } else if (isGroup) {
+        rawSender =
+            msg?.key?.participant ||
+            msg?.participant ||
+            "";
+    } else {
+        rawSender =
+            msg?.key?.remoteJid ||
+            "";
+    }
+
+    let number =
+        normalizeStoredNumber(
+            rawSender
+        );
+
+    // ═══════════════════════════════════
+    // LID → PARTICIPANT → PHONE
+    // ═══════════════════════════════════
+
+    if (
+        isGroup &&
+        metadata?.participants &&
+        rawSender
+    ) {
+        const participant =
+            findParticipant(
+                metadata.participants,
+                [rawSender]
+            );
+
+        if (participant) {
+            const resolved =
+                getParticipantPhone(
+                    participant
+                );
+
+            if (resolved) {
+                number = resolved;
+            }
+        }
+    }
+
+    return {
+        sender: rawSender,
+        number
+    };
+}
+
+// ═══════════════════════════════════════════════════════
+// 🧹 CLEAR GROUP CACHE
+// ═══════════════════════════════════════════════════════
+
+export function clearGroupMetadataCache(
+    jid = null
+) {
+    try {
+        if (jid) {
+            groupCache.delete(jid);
+            groupLoading.delete(jid);
+        } else {
+            groupCache.clear();
+            groupLoading.clear();
+        }
+    } catch {}
+}
+
+// ═══════════════════════════════════════════════════════
 // 🚀 PLUGINS
-// ═══════════════════════════════════════
+// ═══════════════════════════════════════════════════════
 
 let loadedPluginsCache = null;
 let pluginsLoadingPromise = null;
@@ -429,13 +958,11 @@ let commandIndex = new Map();
 let onMessagePlugins = [];
 
 async function getLoadedPlugins(sock) {
-
     if (
         Array.isArray(
             loadedPluginsCache
         )
     ) {
-
         return loadedPluginsCache;
     }
 
@@ -445,9 +972,7 @@ async function getLoadedPlugins(sock) {
 
     pluginsLoadingPromise =
         (async () => {
-
             try {
-
                 const plugins =
                     await loadPlugins(sock);
 
@@ -456,30 +981,23 @@ async function getLoadedPlugins(sock) {
                         ? plugins.filter(Boolean)
                         : [];
 
-                commandIndex =
-                    new Map();
-
-                const listeners = [];
+                commandIndex = new Map();
+                onMessagePlugins = [];
 
                 for (
                     const plugin
                     of loadedPluginsCache
                 ) {
-
                     if (
                         typeof plugin?.onMessage ===
                         "function"
                     ) {
-
-                        listeners.push(
+                        onMessagePlugins.push(
                             plugin
                         );
                     }
 
-                    if (
-                        !plugin?.command
-                    ) {
-
+                    if (!plugin?.command) {
                         continue;
                     }
 
@@ -488,42 +1006,32 @@ async function getLoadedPlugins(sock) {
                             plugin.command
                         )
                             ? plugin.command
-                            : [
-                                plugin.command
-                            ];
+                            : [plugin.command];
 
                     for (
                         const command
                         of commands
                     ) {
-
                         if (
                             command ===
-                                undefined ||
-                            command ===
-                                null
+                            undefined ||
+                            command === null
                         ) {
-
                             continue;
                         }
 
                         const key =
-                            String(
-                                command
-                            )
+                            String(command)
                                 .trim()
                                 .toLowerCase();
 
-                        if (!key) {
-                            continue;
-                        }
+                        if (!key) continue;
 
                         if (
                             !commandIndex.has(
                                 key
                             )
                         ) {
-
                             commandIndex.set(
                                 key,
                                 plugin
@@ -532,18 +1040,13 @@ async function getLoadedPlugins(sock) {
                     }
                 }
 
-                onMessagePlugins =
-                    listeners;
-
                 log(
                     "ok",
                     `Loaded ${loadedPluginsCache.length} plugins | ${commandIndex.size} commands`
                 );
 
                 return loadedPluginsCache;
-
             } catch (error) {
-
                 console.error(
                     "Plugin Loader Error:",
                     error?.message ||
@@ -555,118 +1058,90 @@ async function getLoadedPlugins(sock) {
                 onMessagePlugins = [];
 
                 return [];
-
             } finally {
-
                 pluginsLoadingPromise = null;
             }
-
         })();
 
     return pluginsLoadingPromise;
 }
 
-// ═══════════════════════════════════════
+// ═══════════════════════════════════════════════════════
 // 🧹 CLEAR PLUGINS
-// ═══════════════════════════════════════
+// ═══════════════════════════════════════════════════════
 
 export function clearPluginsCache() {
-
     loadedPluginsCache = null;
-
-    commandIndex =
-        new Map();
-
+    commandIndex = new Map();
     onMessagePlugins = [];
 
     console.log(
-        `${COLORS.yellow}⚡ Plugin Cache Cleared${COLORS.reset}`
+        `${COLORS.yellow}` +
+        `⚡ Plugin Cache Cleared` +
+        `${COLORS.reset}`
     );
 }
 
-// ═══════════════════════════════════════
-// 🛡️ MESSAGE CACHE — PER SESSION
-// ═══════════════════════════════════════
+// ═══════════════════════════════════════════════════════
+// 🛡️ MESSAGE CACHE
+// ═══════════════════════════════════════════════════════
 
-const processedMessages =
-    new Map();
+const processedMessages = new Map();
 
 function wasProcessed(
     id,
     sock
 ) {
-
     if (!id) {
         return false;
     }
 
-    const now =
-        Date.now();
+    const now = Date.now();
 
-    const botNumber =
-        extractPureNumber(
-            sock?.user?.id
+    const session =
+        String(
+            sock?.user?.id ||
+            sock?.user?.lid ||
+            "unknown"
         );
 
-    const sessionKey =
-        botNumber ||
-        sock?.user?.id ||
-        "unknown-session";
-
-    const cacheKey =
-        `${sessionKey}:${id}`;
+    const key =
+        `${session}:${id}`;
 
     const old =
-        processedMessages.get(
-            cacheKey
-        );
+        processedMessages.get(key);
 
     if (
         old &&
         now - old <
         MESSAGE_CACHE_TIME
     ) {
-
         return true;
     }
 
     processedMessages.set(
-        cacheKey,
+        key,
         now
     );
 
     if (
         processedMessages.size >
-        MAX_PROCESSED_MESSAGES * 10
+        MAX_PROCESSED_MESSAGES
     ) {
-
-        let removed = 0;
-
         for (
             const [
-                key,
+                cacheKey,
                 time
             ]
             of processedMessages
         ) {
-
             if (
                 now - time >
                 MESSAGE_CACHE_TIME
             ) {
-
                 processedMessages.delete(
-                    key
+                    cacheKey
                 );
-
-                removed++;
-            }
-
-            if (
-                removed >= 500
-            ) {
-
-                break;
             }
         }
     }
@@ -674,71 +1149,12 @@ function wasProcessed(
     return false;
 }
 
-// ═══════════════════════════════════════
-// 🧹 CACHE CLEANER
-// ═══════════════════════════════════════
-
-const cleaner =
-    setInterval(
-        () => {
-
-            try {
-
-                const now =
-                    Date.now();
-
-                for (
-                    const [
-                        key,
-                        time
-                    ]
-                    of processedMessages
-                ) {
-
-                    if (
-                        now - time >
-                        MESSAGE_CACHE_TIME
-                    ) {
-
-                        processedMessages.delete(
-                            key
-                        );
-                    }
-                }
-
-            } catch {}
-
-        },
-        30000
-    );
-
-if (
-    typeof cleaner.unref ===
-    "function"
-) {
-
-    cleaner.unref();
-}
-
-// ═══════════════════════════════════════
-// 📋 INTERACTIVE / DROPDOWN RESPONSE
-// ═══════════════════════════════════════
-//
-// يدعم:
-// • listResponseMessage
-// • buttonsResponseMessage
-// • templateButtonReplyMessage
-// • interactiveResponseMessage
-// • nativeFlowResponseMessage
-// • single_select
-// • quick_reply
-//
-// ═══════════════════════════════════════
+// ═══════════════════════════════════════════════════════
+// 📋 INTERACTIVE
+// ═══════════════════════════════════════════════════════
 
 function extractInteractiveResponseId(msg) {
-
     try {
-
         const message =
             msg?.message;
 
@@ -746,23 +1162,17 @@ function extractInteractiveResponseId(msg) {
             return "";
         }
 
-        // ═══════════════════════════════
-        // 📋 النظام القديم للقائمة
-        // ═══════════════════════════════
-
-        const oldListId =
+        const listId =
             message
                 ?.listResponseMessage
                 ?.singleSelectReply
                 ?.selectedRowId;
 
-        if (oldListId) {
-            return String(oldListId).trim();
+        if (listId) {
+            return String(
+                listId
+            ).trim();
         }
-
-        // ═══════════════════════════════
-        // 🔘 الأزرار القديمة
-        // ═══════════════════════════════
 
         const buttonId =
             message
@@ -770,12 +1180,10 @@ function extractInteractiveResponseId(msg) {
                 ?.selectedButtonId;
 
         if (buttonId) {
-            return String(buttonId).trim();
+            return String(
+                buttonId
+            ).trim();
         }
-
-        // ═══════════════════════════════
-        // 🔘 TEMPLATE BUTTON
-        // ═══════════════════════════════
 
         const templateId =
             message
@@ -783,200 +1191,91 @@ function extractInteractiveResponseId(msg) {
                 ?.selectedId;
 
         if (templateId) {
-            return String(templateId).trim();
+            return String(
+                templateId
+            ).trim();
         }
-
-        // ═══════════════════════════════
-        // ⚡ INTERACTIVE RESPONSE
-        // ═══════════════════════════════
 
         const interactive =
             message
                 ?.interactiveResponseMessage;
 
-        if (interactive) {
+        const native =
+            interactive
+                ?.nativeFlowResponseMessage;
 
-            const nativeFlow =
-                interactive
-                    ?.nativeFlowResponseMessage;
-
-            if (nativeFlow) {
-
-                const params =
-                    nativeFlow?.paramsJson;
-
-                if (params) {
-
-                    try {
-
-                        const parsed =
-                            typeof params === "string"
-                                ? JSON.parse(params)
-                                : params;
-
-                        if (
-                            parsed &&
-                            typeof parsed === "object"
-                        ) {
-
-                            // single_select
-                            if (
-                                parsed.id
-                            ) {
-
-                                return String(
-                                    parsed.id
-                                ).trim();
-                            }
-
-                            // selected row
-                            if (
-                                parsed.selectedRowId
-                            ) {
-
-                                return String(
-                                    parsed.selectedRowId
-                                ).trim();
-                            }
-
-                            // selected id
-                            if (
-                                parsed.selectedId
-                            ) {
-
-                                return String(
-                                    parsed.selectedId
-                                ).trim();
-                            }
-
-                            // command
-                            if (
-                                parsed.command
-                            ) {
-
-                                return String(
-                                    parsed.command
-                                ).trim();
-                            }
-                        }
-
-                    } catch {
-
-                        // أحيانًا تصل البيانات
-                        // كسلسلة غير قابلة للتحليل.
-                    }
-
-                    // محاولة استخراج id مباشرة
-                    const match =
-                        String(params).match(
-                            /"(?:id|selectedRowId|selectedId|command)"\s*:\s*"([^"]+)"/
-                        );
-
-                    if (match?.[1]) {
-
-                        return String(
-                            match[1]
-                        ).trim();
-                    }
-                }
-            }
-        }
-
-        // ═══════════════════════════════
-        // 🧩 دعم nativeFlow مباشرة
-        // ═══════════════════════════════
-
-        const nativeFlowDirect =
+        const direct =
             message
                 ?.nativeFlowResponseMessage;
 
-        if (nativeFlowDirect) {
+        const flow =
+            native || direct;
 
+        if (flow?.paramsJson) {
             const params =
-                nativeFlowDirect?.paramsJson;
+                flow.paramsJson;
 
-            if (params) {
+            try {
+                const parsed =
+                    typeof params ===
+                    "string"
+                        ? JSON.parse(
+                            params
+                        )
+                        : params;
 
-                try {
+                if (parsed?.id) {
+                    return String(
+                        parsed.id
+                    ).trim();
+                }
 
-                    const parsed =
-                        typeof params === "string"
-                            ? JSON.parse(params)
-                            : params;
+                if (
+                    parsed?.selectedRowId
+                ) {
+                    return String(
+                        parsed.selectedRowId
+                    ).trim();
+                }
 
-                    if (
-                        parsed?.id
-                    ) {
+                if (
+                    parsed?.selectedId
+                ) {
+                    return String(
+                        parsed.selectedId
+                    ).trim();
+                }
 
-                        return String(
-                            parsed.id
-                        ).trim();
-                    }
+                if (
+                    parsed?.command
+                ) {
+                    return String(
+                        parsed.command
+                    ).trim();
+                }
+            } catch {
+                const match =
+                    String(
+                        params
+                    ).match(
+                        /"(?:id|selectedRowId|selectedId|command)"\s*:\s*"([^"]+)"/
+                    );
 
-                    if (
-                        parsed?.selectedRowId
-                    ) {
-
-                        return String(
-                            parsed.selectedRowId
-                        ).trim();
-                    }
-
-                    if (
-                        parsed?.selectedId
-                    ) {
-
-                        return String(
-                            parsed.selectedId
-                        ).trim();
-                    }
-
-                } catch {
-
-                    const match =
-                        String(params).match(
-                            /"(?:id|selectedRowId|selectedId)"\s*:\s*"([^"]+)"/
-                        );
-
-                    if (match?.[1]) {
-
-                        return String(
-                            match[1]
-                        ).trim();
-                    }
+                if (match?.[1]) {
+                    return match[1].trim();
                 }
             }
         }
-
-    } catch (error) {
-
-        console.error(
-            "Interactive Response Parse Error:",
-            error?.message ||
-            error
-        );
-    }
+    } catch {}
 
     return "";
 }
 
-// ═══════════════════════════════════════
-// 🧹 NORMALIZE MENU ID
-// ═══════════════════════════════════════
-//
-// يسمح لك باستخدام:
-//
-// id: "اوامر"
-// id: "cmd:اوامر"
-// id: "command:اوامر"
-// id: ".اوامر"
-// id: "/اوامر"
-//
-// بدون تغيير البلجنات.
-// ═══════════════════════════════════════
+// ═══════════════════════════════════════════════════════
+// 🧹 MENU NORMALIZER
+// ═══════════════════════════════════════════════════════
 
 function normalizeMenuCommand(id) {
-
     if (!id) {
         return "";
     }
@@ -988,49 +1287,42 @@ function normalizeMenuCommand(id) {
         return "";
     }
 
-    // cmd:اوامر
-    if (
-        value
-            .toLowerCase()
-            .startsWith("cmd:")
-    ) {
+    const lower =
+        value.toLowerCase();
 
+    if (
+        lower.startsWith(
+            "cmd:"
+        )
+    ) {
         value =
             value.slice(4).trim();
-    }
-
-    // command:اوامر
-    else if (
-        value
-            .toLowerCase()
-            .startsWith("command:")
+    } else if (
+        lower.startsWith(
+            "command:"
+        )
     ) {
-
         value =
             value.slice(8).trim();
     }
 
-    // إزالة البادئة إذا كانت موجودة
-    value =
-        value.replace(
+    return value
+        .replace(
             /^[./\\#,!^&+=]+/,
             ""
-        ).trim();
-
-    return value;
+        )
+        .trim();
 }
 
-// ═══════════════════════════════════════
-// 🚀 MESSAGE ENTRY
-// ═══════════════════════════════════════
+// ═══════════════════════════════════════════════════════
+// 🚀 ENTRY
+// ═══════════════════════════════════════════════════════
 
 export async function handleMessages(
     sock,
     m
 ) {
-
     try {
-
         const msg =
             m?.messages?.[0];
 
@@ -1038,39 +1330,27 @@ export async function handleMessages(
             !msg ||
             !msg.message
         ) {
-
             return;
         }
 
-        const messageId =
+        const id =
             msg.key?.id;
 
         if (
-            messageId &&
+            id &&
             wasProcessed(
-                messageId,
+                id,
                 sock
             )
         ) {
-
             return;
         }
 
-        executeHandlerLogic(
+        await executeHandlerLogic(
             sock,
             msg
-        ).catch(error => {
-
-            console.error(
-                "Handler Error:",
-                error?.message ||
-                error
-            );
-
-        });
-
+        );
     } catch (error) {
-
         console.error(
             "handleMessages Error:",
             error?.message ||
@@ -1079,44 +1359,14 @@ export async function handleMessages(
     }
 }
 
-// ═══════════════════════════════════════
+// ═══════════════════════════════════════════════════════
 // ⚡ MAIN HANDLER
-// ═══════════════════════════════════════
+// ═══════════════════════════════════════════════════════
 
 async function executeHandlerLogic(
     sock,
     msg
 ) {
-
-    // ═══════════════════════════════
-    // 🤖 BOT
-    // ═══════════════════════════════
-
-    const botNumber =
-        extractPureNumber(
-            sock?.user?.id
-        );
-
-    // ═══════════════════════════════
-    // 👑 MAIN BOT
-    // ═══════════════════════════════
-
-    const mainNumber =
-        getMainBotNumber(sock);
-
-    const isMainBot =
-        !!(
-            mainNumber &&
-            isSameNumber(
-                botNumber,
-                mainNumber
-            )
-        );
-
-    // ═══════════════════════════════
-    // 📍 CHAT
-    // ═══════════════════════════════
-
     const jid =
         msg.key?.remoteJid;
 
@@ -1128,146 +1378,250 @@ async function executeHandlerLogic(
         jid.endsWith("@g.us");
 
     const isPrivate =
-        jid.endsWith("@s.whatsapp.net");
-
-    // ═══════════════════════════════
-    // 👤 SENDER
-    // ═══════════════════════════════
-
-    const sender =
-        msg.key?.fromMe
-            ? (
-                botNumber
-                    ? `${botNumber}@s.whatsapp.net`
-                    : (
-                        msg.key?.participant ||
-                        jid
-                    )
-            )
-            : (
-                isGroup
-                    ? (
-                        msg.key?.participant ||
-                        jid
-                    )
-                    : jid
-            );
-
-    const number =
-        extractPureNumber(
-            sender
+        jid.endsWith(
+            "@s.whatsapp.net"
         );
 
-    // ═══════════════════════════════
-    // 👑 ELITE
-    // ═══════════════════════════════
+    // ═══════════════════════════════════
+    // GROUP METADATA
+    // ═══════════════════════════════════
 
-    const eliteList =
-        getEliteFast();
+    let metadata = null;
+
+    if (isGroup) {
+        metadata =
+            await getGroupMetadata(
+                sock,
+                jid
+            );
+    }
+
+    // ═══════════════════════════════════
+    // BOT IDENTITIES
+    // ═══════════════════════════════════
+
+    const botIdentities =
+        getBotIdentities(sock);
+
+    const botNumber =
+        getBotNumber(
+            sock,
+            metadata
+        );
+
+    // ═══════════════════════════════════
+    // BOT PARTICIPANT
+    // ═══════════════════════════════════
+
+    const botParticipant =
+        isGroup
+            ? resolveBotParticipant(
+                sock,
+                metadata
+            )
+            : null;
+
+    const participantPhone =
+        getParticipantPhone(
+            botParticipant
+        );
+
+    // ═══════════════════════════════════
+    // MAIN BOT
+    // ═══════════════════════════════════
+
+    const mainNumber =
+        getMainBotNumber(sock);
+
+    const isMainBot =
+        !!(
+            mainNumber &&
+            (
+                isSameNumber(
+                    botNumber,
+                    mainNumber
+                ) ||
+
+                isSameNumber(
+                    participantPhone,
+                    mainNumber
+                ) ||
+
+                botIdentities.some(
+                    identity =>
+                        isSameNumber(
+                            identity,
+                            mainNumber
+                        )
+                )
+            )
+        );
+
+    // ═══════════════════════════════════
+    // SENDER
+    // ═══════════════════════════════════
+
+    const resolvedSender =
+        resolveSender(
+            sock,
+            msg,
+            isGroup,
+            metadata
+        );
+
+    const sender =
+        resolvedSender.sender;
+
+    const number =
+        resolvedSender.number;
+
+    // ═══════════════════════════════════
+    // 👑 ELITE
+    // ═══════════════════════════════════
 
     let isEliteUser =
-        false;
+        checkEliteIdentities([
+            number,
+            sender
+        ]);
 
-    if (isMainBot) {
+    // ═══════════════════════════════════
+    // BOT IS ELITE
+    // ═══════════════════════════════════
 
+    if (!isEliteUser) {
+        isEliteUser =
+            checkEliteIdentities([
+                botNumber,
+                participantPhone,
+                ...botIdentities
+            ]);
+    }
+
+    // ═══════════════════════════════════
+    // MAIN BOT ALWAYS ELITE
+    // ═══════════════════════════════════
+
+    if (
+        !isEliteUser &&
+        isMainBot
+    ) {
         isEliteUser = true;
+    }
 
-    } else if (number) {
+    // ═══════════════════════════════════
+    // DEBUG
+    // ═══════════════════════════════════
 
-        if (
-            eliteSet.has(number)
-        ) {
+    if (
+        isGroup &&
+        botParticipant
+    ) {
+        log(
+            "bot",
+            `BOT → ${
+                botNumber ||
+                "UNKNOWN"
+            } | PARTICIPANT → ${
+                participantPhone ||
+                botParticipant.id ||
+                "UNKNOWN"
+            } | ELITE → ${
+                isEliteUser
+                    ? "YES"
+                    : "NO"
+            }`
+        );
+    }
 
-            isEliteUser = true;
+    // ═══════════════════════════════════
+    // BOT ADMIN
+    // ═══════════════════════════════════
 
-        } else {
+    let botAdminData = {
+        isAdmin: false,
+        isSuperAdmin: false,
+        participant:
+            botParticipant,
+        metadata
+    };
 
-            for (
-                const elite
-                of eliteList
-            ) {
+    if (isGroup) {
+        // نبحث مرة ثانية باستخدام كل الهويات
+        const adminParticipant =
+            resolveBotParticipant(
+                sock,
+                metadata
+            );
 
-                if (
-                    isSameNumber(
-                        number,
-                        elite
-                    )
-                ) {
+        if (adminParticipant) {
+            botAdminData.participant =
+                adminParticipant;
 
-                    isEliteUser = true;
+            const admin =
+                adminParticipant.admin;
 
-                    break;
-                }
-            }
+            botAdminData.isSuperAdmin =
+                admin ===
+                "superadmin";
+
+            botAdminData.isAdmin =
+                admin === "admin" ||
+                botAdminData.isSuperAdmin;
         }
     }
 
-    // ═══════════════════════════════
-    // 📦 PLUGINS
-    // ═══════════════════════════════
+    const botIsAdmin =
+        botAdminData.isAdmin === true;
+
+    const botIsSuperAdmin =
+        botAdminData.isSuperAdmin === true;
+
+    // ═══════════════════════════════════
+    // PLUGINS
+    // ═══════════════════════════════════
 
     const plugins =
-        await getLoadedPlugins(
-            sock
-        );
+        await getLoadedPlugins(sock);
 
     if (!plugins.length) {
         return;
     }
 
-    // ═══════════════════════════════
-    // 📝 TEXT
-    // ═══════════════════════════════
+    // ═══════════════════════════════════
+    // TEXT
+    // ═══════════════════════════════════
 
     const normalText =
         msg.message.conversation ||
         msg.message.extendedTextMessage?.text ||
+        msg.message.imageMessage?.caption ||
+        msg.message.videoMessage?.caption ||
         "";
-
-    // ═══════════════════════════════
-    // 📋 INTERACTIVE ID
-    // ═══════════════════════════════
 
     const interactiveId =
         extractInteractiveResponseId(
             msg
         );
 
-    // ═══════════════════════════════
-    // 🧠 TEXT SOURCE
-    // ═══════════════════════════════
-    //
-    // الأولوية:
-    //
-    // 1. القائمة المنسدلة
-    // 2. الأزرار
-    // 3. الرسالة العادية
-    //
-    // ═══════════════════════════════
-
-    let rawText =
-        interactiveId ||
-        normalText ||
-        "";
-
-    let fromInteractive =
+    const fromInteractive =
         !!interactiveId;
 
     const text =
         String(
-            rawText || ""
+            interactiveId ||
+            normalText ||
+            ""
         ).trim();
 
-    // ═══════════════════════════════
-    // 🔔 TURBO LISTENERS
-    // ═══════════════════════════════
+    // ═══════════════════════════════════
+    // ON MESSAGE
+    // ═══════════════════════════════════
 
     if (
         onMessagePlugins.length
     ) {
-
         const context = {
-
             jid,
 
             sender,
@@ -1294,55 +1648,62 @@ async function executeHandlerLogic(
                 fromInteractive,
 
             interactiveId:
-                interactiveId || null,
+                interactiveId ||
+                null,
 
             isListResponse:
-                !!interactiveId,
+                fromInteractive,
 
-            isAdmin: false,
+            // ADMIN
+            isAdmin:
+                botIsAdmin,
 
-            isSuperAdmin: false,
+            isSuperAdmin:
+                botIsSuperAdmin,
 
-            adminMode: false
+            adminMode:
+                botIsAdmin,
+
+            botIsAdmin,
+
+            botIsSuperAdmin,
+
+            botParticipant:
+                botAdminData.participant ||
+                null,
+
+            groupMetadata:
+                metadata ||
+                null
         };
 
         for (
             const plugin
             of onMessagePlugins
         ) {
-
             try {
-
                 Promise.resolve(
                     plugin.onMessage(
                         sock,
                         msg,
                         context
                     )
-                ).catch(error => {
-
-                    console.error(
-                        "onMessage Error:",
-                        error?.message ||
-                        error
-                    );
-
-                });
-
-            } catch (error) {
-
-                console.error(
-                    "onMessage Sync Error:",
-                    error?.message ||
-                    error
+                ).catch(
+                    error => {
+                        console.error(
+                            "onMessage Error:",
+                            error?.message ||
+                            error
+                        );
+                    }
                 );
-            }
+            } catch {}
         }
     }
 
-    // ═══════════════════════════════
-    // 🔐 ELITE MODE
-    // ═══════════════════════════════
+    // ═══════════════════════════════════
+    // ELITE MODE
+    // ═══════════════════════════════════
 
     const mode =
         getModeFast();
@@ -1352,7 +1713,6 @@ async function executeHandlerLogic(
         !isMainBot &&
         !isEliteUser
     ) {
-
         return;
     }
 
@@ -1360,24 +1720,9 @@ async function executeHandlerLogic(
         return;
     }
 
-    // ═══════════════════════════════
-    // ⚡ PREFIX
-    // ═══════════════════════════════
-
-    /*
-     * القائمة لا تحتاج Prefix.
-     *
-     * مثال:
-     *
-     * id: "اوامر"
-     *
-     * سيعامل كأنه:
-     *
-     * اوامر
-     *
-     * أما الرسائل العادية فتبقى
-     * على نظام Prefix القديم.
-     */
+    // ═══════════════════════════════════
+    // PREFIX
+    // ═══════════════════════════════════
 
     const hasPrefix =
         fromInteractive
@@ -1391,12 +1736,7 @@ async function executeHandlerLogic(
             ? text.slice(1).trim()
             : text;
 
-    // ═══════════════════════════════
-    // 📋 MENU COMMAND NORMALIZATION
-    // ═══════════════════════════════
-
     if (fromInteractive) {
-
         noPrefixText =
             normalizeMenuCommand(
                 noPrefixText
@@ -1407,9 +1747,9 @@ async function executeHandlerLogic(
         return;
     }
 
-    // ═══════════════════════════════
-    // 📝 COMMAND
-    // ═══════════════════════════════
+    // ═══════════════════════════════════
+    // COMMAND
+    // ═══════════════════════════════════
 
     const space =
         noPrefixText.search(
@@ -1424,16 +1764,11 @@ async function executeHandlerLogic(
                     0,
                     space
                 )
-        )
-            .toLowerCase();
+        ).toLowerCase();
 
     if (!commandName) {
         return;
     }
-
-    // ═══════════════════════════════
-    // ⚡ O(1) COMMAND
-    // ═══════════════════════════════
 
     const cmd =
         commandIndex.get(
@@ -1441,65 +1776,45 @@ async function executeHandlerLogic(
         );
 
     if (!cmd) {
-
-        /*
-         * القائمة قد تحتوي ID
-         * لا يمثل أمرًا.
-         *
-         * لا نرسل أي رد تلقائي
-         * حتى لا نخرب البلجنات.
-         */
-
         return;
     }
 
-    // ═══════════════════════════════
-    // 🔐 NO PREFIX
-    // ═══════════════════════════════
-
-    /*
-     * اختيار القائمة يعتبر تفاعلًا
-     * مقصودًا من المستخدم.
-     *
-     * لذلك لا يحتاج Prefix.
-     *
-     * الأوامر المكتوبة يدويًا
-     * تبقى على النظام القديم.
-     */
+    // ═══════════════════════════════════
+    // NO PREFIX
+    // ═══════════════════════════════════
 
     if (
         !hasPrefix &&
         !isEliteUser &&
         !fromInteractive
     ) {
-
         return;
     }
 
-    // ═══════════════════════════════
-    // ⚡ EXECUTE
-    // ═══════════════════════════════
+    // ═══════════════════════════════════
+    // EXECUTE
+    // ═══════════════════════════════════
 
     log(
         "cmd",
-        `${commandName} ← ${jid} ← ${
-            fromInteractive
-                ? "MENU"
-                : (
-                    isMainBot
-                        ? "MAIN"
-                        : botNumber || "UNKNOWN"
-                )
+        `${commandName} ← ${
+            number ||
+            sender ||
+            "UNKNOWN"
+        } ← ${
+            isEliteUser
+                ? "ELITE"
+                : botIsAdmin
+                    ? "BOT ADMIN"
+                    : "USER"
         }`
     );
 
     try {
-
         await cmd.execute(
             sock,
             msg,
             {
-
                 text,
 
                 noPrefixText,
@@ -1528,33 +1843,41 @@ async function executeHandlerLogic(
 
                 isMainBot,
 
-                // ═══════════════════════
-                // 📋 MENU DATA
-                // ═══════════════════════
-
+                // Interactive
                 isInteractive:
                     fromInteractive,
 
                 interactiveId:
-                    interactiveId || null,
+                    interactiveId ||
+                    null,
 
                 isListResponse:
-                    !!interactiveId,
+                    fromInteractive,
 
-                // ═══════════════════════
-                // 🛡️ ADMIN READY
-                // ═══════════════════════
+                // Admin
+                isAdmin:
+                    botIsAdmin,
 
-                isAdmin: false,
+                isSuperAdmin:
+                    botIsSuperAdmin,
 
-                isSuperAdmin: false,
+                adminMode:
+                    botIsAdmin,
 
-                adminMode: false
+                botIsAdmin,
+
+                botIsSuperAdmin,
+
+                botParticipant:
+                    botAdminData.participant ||
+                    null,
+
+                groupMetadata:
+                    metadata ||
+                    null
             }
         );
-
     } catch (error) {
-
         console.error(
             `Command Error [${commandName}]:`,
             error?.message ||
@@ -1563,27 +1886,42 @@ async function executeHandlerLogic(
     }
 }
 
-// ═══════════════════════════════════════
+// ═══════════════════════════════════════════════════════
 // 🚀 WARMUP
-// ═══════════════════════════════════════
+// ═══════════════════════════════════════════════════════
 
-export async function warmupHandler(
-    sock
-) {
-
+export async function warmupHandler(sock) {
     try {
 
+        // تحميل الأشياء الثقيلة مرة واحدة
         await Promise.all([
             refreshMode(),
             refreshElite(),
             getLoadedPlugins(sock)
         ]);
 
-        getMainBotNumber(sock);
+        const botNumber =
+            getBotNumber(sock);
+
+        const identities =
+            getBotIdentities(sock);
 
         log(
             "ok",
-            "⚡ Handler Warmup Completed"
+            `Handler Ready | Bot: ${
+                botNumber ||
+                "UNKNOWN"
+            }`
+        );
+
+        log(
+            "bot",
+            `Identities: ${
+                identities.join(
+                    " | "
+                ) ||
+                "NONE"
+            }`
         );
 
         return true;
