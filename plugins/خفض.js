@@ -19,17 +19,22 @@ function getElite() {
     }
 }
 
+const cleanJid = (jid) => {
+    if (!jid) return "";
+    return jid.replace(/:[0-9]+@/, "@");
+};
+
 export default {
     command: "خفض",
     category: "المجموعات",
     description: "خفض مشرف إلى عضو أو خفض رقمك الشخصي (خاص بأعضاء النخبة والمشرفين) 👑",
 
     execute: async(sock, msg, data) => {
-        const jid = data.jid;
+        const jid = data.jid || msg.key.remoteJid;
 
         const head =
 `*╭━━━━━━━━━━━━━━╮*
-*┃ 👑 𝐀𝐑𝐓𝐇𝐔R LEYWIN*
+*┃ 👑 𝐀𝐑𝐓𝐇𝐔𝐑 𝐋𝐄𝐘𝐖𝐈𝐍*
 *┣━━━━━━━━━━━━━━┫*`;
 
         if (!jid.endsWith("@g.us")) {
@@ -47,29 +52,33 @@ export default {
             );
         }
 
-        const sender = (data.sender || msg.key.participant || msg.key.remoteJid).split("@")[0].replace(/\D/g, "");
+        // استخراج وتنظيف رقم المرسل والبوت بدقة عالية جداً
+        const senderJid = cleanJid(data.sender || msg.key.participant || msg.participant || msg.key.remoteJid);
+        const sender = senderJid.split("@")[0].replace(/\D/g, "");
         
-        // استخراج رقم البوت الحقيقي وتنظيفه
-        const botJid = sock.user?.id || "";
-        const currentBotNumber = botJid.split(":")[0].replace(/\D/g, "");
+        const botJid = cleanJid(sock.user?.id || "");
+        const currentBotNumber = botJid.split("@")[0].replace(/\D/g, "");
 
-        // جلب معلومات المجموعة المحدثة عبر فحص الـ Server مباشرة
+        // جلب معلومات المجموعة المحدثة
         const metadata = await sock.groupMetadata(jid);
         const participants = metadata.participants;
 
-        const args = data.text.trim().split(/\s+/);
+        const text = data.text || msg.message?.conversation || msg.message?.extendedTextMessage?.text || "";
+        const args = text.trim().split(/\s+/);
         const subAction = args[1]; // التأكد مما إذا كتب "رقمي"
+
+        // فحص صلاحيات النخبة والمشرفين بدقة تامة
+        const eliteUsers = getElite();
+        const senderParticipant = participants.find(p => cleanJid(p.id).split("@")[0].replace(/\D/g, "") === sender);
+        const isSenderAdmin = senderParticipant?.admin === "admin" || senderParticipant?.admin === "superadmin";
+        
+        // الأولوية القصوى للنخبة أو البوت أو المشرف الحقيقي أو كون الرسالة من المالك (fromMe)
+        const isUserElite = eliteUsers.includes(sender) || sender === currentBotNumber || data.isElite || msg.key.fromMe;
+        const hasPermission = isUserElite || isSenderAdmin;
 
         // فحص ما إذا كان المستخدم يريد خفض رقمه الشخصي
         if (subAction === "رقمي") {
-            const eliteUsers = getElite();
-            
-            const senderParticipant = participants.find(p => p.id.replace(/\D/g, "") === sender);
-            const isSenderAdmin = senderParticipant?.admin === "admin" || senderParticipant?.admin === "superadmin";
-            const isUserElite = eliteUsers.includes(sender) || sender === currentBotNumber || data.isElite;
-
-            // السماح للبوت أو عضو النخبة أو المشرف الحقيقي بالتنفيذ فوراً
-            if (!isUserElite && !isSenderAdmin) {
+            if (!hasPermission) {
                 return sock.sendMessage(
                     jid,
                     {
@@ -101,8 +110,6 @@ export default {
                 );
             }
 
-            const senderJid = data.sender || msg.key.participant || msg.key.remoteJid;
-
             try {
                 await sock.sendMessage(jid, { react: { text: "⏳", key: msg.key } });
 
@@ -116,7 +123,7 @@ export default {
 *┃ ✅ نجاح العمليات*
 *┃ ⬇️ تم خفض رقمك الشخصي*
 *┃ إلى عضو عادي بنجاح*
-*┃ 👤 العضو : @${sender}¦*
+*┃ 👤 العضو : @${sender}*
 *╰━━━━━━━━━━━━━━╯*`,
                         mentions: [senderJid]
                     },
@@ -144,11 +151,8 @@ export default {
             }
         }
 
-        // الأوامر العادية للمشرفين لخفض عضو آخر بالرد أو المنشن
-        const senderParticipant = participants.find(p => p.id.replace(/\D/g, "") === sender);
-        const isSenderAdmin = senderParticipant?.admin === "admin" || senderParticipant?.admin === "superadmin" || sender === currentBotNumber || data.isElite;
-
-        if (!isSenderAdmin) {
+        // الأوامر العادية لخفض عضو آخر بالرد أو المنشن
+        if (!hasPermission) {
             return sock.sendMessage(
                 jid,
                 {
@@ -182,7 +186,7 @@ export default {
 *┃ ❌ قم بالرد على رسالة*
 *┃ المشرف أو منشنه ثم اكتب:*
 *┃ 📝 .خفض*
-*┃ أو لخفض رقمك (للنخبة):*
+*┃ أو لخفض رقمك (لالنخبة):*
 *┃ 📝 .خفض رقمي*
 *╰━━━━━━━━━━━━━━╯*`
                 },
@@ -190,10 +194,11 @@ export default {
             );
         }
 
-        const targetNumber = target.split("@")[0].replace(/\D/g, "");
+        const targetCleanJid = cleanJid(target);
+        const targetNumber = targetCleanJid.split("@")[0].replace(/\D/g, "");
         const targetParticipant = participants.find(p => {
-            const pNum = p.id.split("@")[0].replace(/\D/g, "");
-            return p.id === target || pNum === targetNumber;
+            const pNum = cleanJid(p.id).split("@")[0].replace(/\D/g, "");
+            return cleanJid(p.id) === targetCleanJid || pNum === targetNumber;
         });
 
         // التحقق أن المستهدف مشرف أساساً
@@ -206,7 +211,7 @@ export default {
 *┃ ⚠️ تنبيه*
 *┣━━━━━━━━━━━━━━┫*
 *┃ ⚠️ العضو ليس مشرفاً*
-*┃ 👤 العضو : @${targetNumber}¦*
+*┃ 👤 العضو : @${targetNumber}*
 *╰━━━━━━━━━━━━━━╯*`,
                     mentions: [targetParticipant?.id || target]
                 },
@@ -215,7 +220,7 @@ export default {
         }
 
         // منع خفض مالك المجموعة
-        if (metadata.owner === targetParticipant.id || metadata.owner === target) {
+        if (metadata.owner === targetParticipant.id || metadata.owner === targetCleanJid) {
             return sock.sendMessage(
                 jid,
                 {
@@ -246,8 +251,7 @@ export default {
             );
         }
 
-        // منع خفض أعضاء النخبة
-        const eliteUsers = getElite();
+        // منع خفض أعضاء النخبة (إلا إذا كان المُنَفِّذ هو نفس صاحب الرقم)
         if (eliteUsers.includes(targetNumber) && targetNumber !== sender) {
             return sock.sendMessage(
                 jid,
@@ -257,9 +261,9 @@ export default {
 *┃ 👑 حماية النخبة*
 *┣━━━━━━━━━━━━━━┫*
 *┃ 👑 لا يمكن خفض عضو من النخبة*
-*┃ 👤 العضو : @${targetNumber}¦*
+*┃ 👤 العضو : @${targetNumber}*
 *╰━━━━━━━━━━━━━━╯*`,
-                    mentions: [target]
+                    mentions: [targetCleanJid]
                 },
                 { quoted: msg }
             );
@@ -268,7 +272,7 @@ export default {
         try {
             await sock.sendMessage(jid, { react: { text: "⏳", key: msg.key } });
 
-            await sock.groupParticipantsUpdate(jid, [target], "demote");
+            await sock.groupParticipantsUpdate(jid, [targetCleanJid], "demote");
 
             await sock.sendMessage(
                 jid,
@@ -278,9 +282,9 @@ export default {
 *┃ ✅ نجاح العمليات*
 *┃ ⬇️ تم خفض المشرف*
 *┃ إلى عضو عادي بنجاح*
-*┃ 👤 العضو : @${targetNumber}¦*
+*┃ 👤 العضو : @${targetNumber}*
 *╰━━━━━━━━━━━━━━╯*`,
-                    mentions: [target]
+                    mentions: [targetCleanJid]
                 },
                 { quoted: msg }
             );
