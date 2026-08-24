@@ -11,36 +11,20 @@ const __dirname = path.dirname(__filename);
 // ═══════════════════════════════════════════════════════
 
 const dataDir = path.join(__dirname, "../data");
-
 const modeFile = path.join(dataDir, "مود.json");
 const eliteFile = path.join(dataDir, "النخبة.json");
 
-// الملف الثالث الذي سننشئه لاحقًا
-// لن يكون إجباريًا حاليًا
-const identityResolverFile = path.join(
-    __dirname,
-    "identityResolver.js"
-);
-
 // ═══════════════════════════════════════════════════════
-// ⚡ PERFORMANCE
+// ⚡ MAX PERFORMANCE
 // ═══════════════════════════════════════════════════════
 
-const MODE_CACHE_TIME = 3000;
-const ELITE_CACHE_TIME = 3000;
+const GROUP_CACHE_TIME = 30_000;
+const FILE_CHECK_TIME = 30_000;
 
-// المجموعة تتغير أقل من الرسائل
-const GROUP_CACHE_TIME = 15000;
-
-// منع التكرار
-const MESSAGE_CACHE_TIME = 30000;
-
-// حدود الذاكرة
+const MESSAGE_CACHE_TIME = 30_000;
 const MAX_PROCESSED_MESSAGES = 5000;
-const MAX_GROUP_CACHE = 500;
 
-// أقل رقم مقبول
-const MIN_NUMBER_LENGTH = 5;
+const MAX_GROUP_CACHE = 500;
 
 // ═══════════════════════════════════════════════════════
 // 🎨 COLORS
@@ -52,13 +36,12 @@ const COLORS = {
     green: "\x1b[38;5;46m",
     red: "\x1b[38;5;196m",
     cyan: "\x1b[38;5;51m",
-    yellow: "\x1b[38;5;226m",
     blue: "\x1b[38;5;39m",
     magenta: "\x1b[38;5;201m"
 };
 
 // ═══════════════════════════════════════════════════════
-// 📝 LOG
+// 📝 LOGGER
 // ═══════════════════════════════════════════════════════
 
 function log(type, text) {
@@ -90,93 +73,50 @@ function log(type, text) {
 }
 
 // ═══════════════════════════════════════════════════════
-// 🔢 EXTRACT PURE NUMBER
+// 🔢 NUMBER
 // ═══════════════════════════════════════════════════════
 
 export function extractPureNumber(value) {
     try {
-        if (
-            value === undefined ||
-            value === null
-        ) {
-            return "";
-        }
+        if (value === undefined || value === null) return "";
 
         let v = String(value).trim();
 
         if (!v) return "";
 
-        // 12345:12
-        if (v.includes(":")) {
-            v = v.split(":")[0];
-        }
+        const colon = v.indexOf(":");
+        if (colon !== -1) v = v.slice(0, colon);
 
-        // 12345@s.whatsapp.net
-        // 12345@lid
-        if (v.includes("@")) {
-            v = v.split("@")[0];
-        }
+        const at = v.indexOf("@");
+        if (at !== -1) v = v.slice(0, at);
 
-        // أرقام فقط
-        v = v.replace(/\D/g, "");
-
-        return v;
+        return v.replace(/\D/g, "");
     } catch {
         return "";
     }
 }
-
-// ═══════════════════════════════════════════════════════
-// 🔢 NORMALIZE NUMBER
-// ═══════════════════════════════════════════════════════
 
 function normalizeStoredNumber(value) {
     const number = extractPureNumber(value);
+    if (!number) return "";
 
-    if (!number) {
-        return "";
-    }
-
-    // لا نضيف كود دولة
-    // لا نغير الرقم
-    // فقط نحذف أصفار البداية
     return number.replace(/^0+(?=\d)/, "");
 }
 
-// ═══════════════════════════════════════════════════════
-// 🆔 RAW ID NORMALIZER
-// ═══════════════════════════════════════════════════════
-
 function cleanRawId(value) {
     try {
-        if (
-            value === undefined ||
-            value === null
-        ) {
-            return "";
-        }
-
-        return String(value)
-            .trim()
-            .toLowerCase();
+        if (value === undefined || value === null) return "";
+        return String(value).trim().toLowerCase();
     } catch {
         return "";
     }
 }
-
-// ═══════════════════════════════════════════════════════
-// 🔎 SAME NUMBER
-// ═══════════════════════════════════════════════════════
 
 function isSameNumber(a, b) {
     const x = normalizeStoredNumber(a);
     const y = normalizeStoredNumber(b);
 
-    if (!x || !y) {
-        return false;
-    }
-
-    return x === y;
+    return !!x && !!y && x === y;
 }
 
 // ═══════════════════════════════════════════════════════
@@ -187,41 +127,31 @@ function getBotIdentities(sock) {
     const result = [];
     const seen = new Set();
 
-    function add(value) {
-        if (
-            value === undefined ||
-            value === null
-        ) {
-            return;
-        }
+    const add = value => {
+        if (value === undefined || value === null) return;
 
         const raw = String(value).trim();
-
         if (!raw) return;
 
         const key = raw.toLowerCase();
 
-        if (!seen.has(key)) {
-            seen.add(key);
-            result.push(raw);
-        }
-    }
+        if (seen.has(key)) return;
+
+        seen.add(key);
+        result.push(raw);
+    };
 
     const candidates = [
-
-        // Baileys
         sock?.user?.id,
         sock?.user?.jid,
         sock?.user?.lid,
         sock?.user?.phone,
 
-        // credentials
         sock?.authState?.creds?.me?.id,
         sock?.authState?.creds?.me?.jid,
         sock?.authState?.creds?.me?.lid,
         sock?.authState?.creds?.me?.phone,
 
-        // custom
         sock?.botJid,
         sock?.botLid,
         sock?.botPhone,
@@ -231,16 +161,12 @@ function getBotIdentities(sock) {
         sock?.__botPhone
     ];
 
-    for (const value of candidates) {
-        add(value);
+    for (const candidate of candidates) {
+        add(candidate);
 
-        const number =
-            extractPureNumber(value);
+        const number = extractPureNumber(candidate);
 
-        if (
-            number &&
-            number.length >= MIN_NUMBER_LENGTH
-        ) {
+        if (number) {
             add(number);
         }
     }
@@ -249,35 +175,23 @@ function getBotIdentities(sock) {
 }
 
 // ═══════════════════════════════════════════════════════
-// 🔎 PARTICIPANT FINDER
+// 👤 PARTICIPANT
 // ═══════════════════════════════════════════════════════
 
-function findParticipant(
-    participants,
-    identities
-) {
-    if (
-        !Array.isArray(participants) ||
-        participants.length === 0
-    ) {
+function findParticipant(participants, identities) {
+    if (!Array.isArray(participants) || !participants.length) {
         return null;
     }
 
-    const ids =
-        Array.isArray(identities)
-            ? identities
-            : [identities];
+    const ids = Array.isArray(identities)
+        ? identities
+        : [identities];
 
-    // ═══════════════════════════════════════════════
-    // 1️⃣ EXACT RAW ID
-    // ═══════════════════════════════════════════════
-
+    // المطابقة المباشرة أولًا
     for (const identity of ids) {
         if (!identity) continue;
 
-        const raw =
-            cleanRawId(identity);
-
+        const raw = cleanRawId(identity);
         if (!raw) continue;
 
         for (const p of participants) {
@@ -287,43 +201,31 @@ function findParticipant(
                 cleanRawId(p.id) === raw ||
                 cleanRawId(p.jid) === raw ||
                 cleanRawId(p.lid) === raw ||
-                cleanRawId(p.phoneNumber) === raw ||
-                cleanRawId(p.phone) === raw
+                cleanRawId(p.phone) === raw ||
+                cleanRawId(p.phoneNumber) === raw
             ) {
                 return p;
             }
         }
     }
 
-    // ═══════════════════════════════════════════════
-    // 2️⃣ NUMBER
-    // ═══════════════════════════════════════════════
-
+    // المطابقة بالرقم
     for (const identity of ids) {
-        const number =
-            normalizeStoredNumber(identity);
+        const number = normalizeStoredNumber(identity);
 
         if (!number) continue;
 
         for (const p of participants) {
             if (!p) continue;
 
-            const candidates = [
-                p.phoneNumber,
-                p.phone,
-                p.id,
-                p.jid
-            ];
-
-            for (const candidate of candidates) {
-                if (
-                    isSameNumber(
-                        number,
-                        candidate
-                    )
-                ) {
-                    return p;
-                }
+            if (
+                isSameNumber(number, p.phoneNumber) ||
+                isSameNumber(number, p.phone) ||
+                isSameNumber(number, p.id) ||
+                isSameNumber(number, p.jid) ||
+                isSameNumber(number, p.lid)
+            ) {
+                return p;
             }
         }
     }
@@ -331,26 +233,12 @@ function findParticipant(
     return null;
 }
 
-// ═══════════════════════════════════════════════════════
-// 🤖 RESOLVE BOT PARTICIPANT
-// ═══════════════════════════════════════════════════════
+function resolveBotParticipant(sock, metadata) {
+    if (!metadata?.participants) return null;
 
-function resolveBotParticipant(
-    sock,
-    metadata
-) {
-    if (
-        !metadata?.participants
-    ) {
-        return null;
-    }
+    const identities = getBotIdentities(sock);
 
-    const identities =
-        getBotIdentities(sock);
-
-    if (!identities.length) {
-        return null;
-    }
+    if (!identities.length) return null;
 
     return findParticipant(
         metadata.participants,
@@ -358,83 +246,44 @@ function resolveBotParticipant(
     );
 }
 
-// ═══════════════════════════════════════════════════════
-// 📱 GET PHONE FROM PARTICIPANT
-// ═══════════════════════════════════════════════════════
-
 function getParticipantPhone(participant) {
-    if (!participant) {
-        return "";
-    }
+    if (!participant) return "";
 
     const candidates = [
-
-        // أهم شيء
         participant.phoneNumber,
         participant.phone,
-
-        // احتياط
         participant.jid,
-        participant.id
+        participant.id,
+        participant.lid
     ];
 
-    for (const value of candidates) {
-        const number =
-            normalizeStoredNumber(value);
+    for (const candidate of candidates) {
+        const number = normalizeStoredNumber(candidate);
 
-        if (
-            number &&
-            number.length >= MIN_NUMBER_LENGTH
-        ) {
-            return number;
-        }
+        if (number) return number;
     }
 
     return "";
 }
 
-// ═══════════════════════════════════════════════════════
-// 🤖 GET BOT NUMBER
-// ═══════════════════════════════════════════════════════
-
-function getBotNumber(
-    sock,
-    metadata = null
-) {
-    // أولاً نحاول من participant
+function getBotNumber(sock, metadata = null) {
     if (metadata) {
         const participant =
-            resolveBotParticipant(
-                sock,
-                metadata
-            );
+            resolveBotParticipant(sock, metadata);
 
-        const phone =
-            getParticipantPhone(
-                participant
-            );
+        const number =
+            getParticipantPhone(participant);
 
-        if (phone) {
-            return phone;
-        }
+        if (number) return number;
     }
 
-    // ثم هويات البوت
-    const identities =
-        getBotIdentities(sock);
+    const identities = getBotIdentities(sock);
 
     for (const identity of identities) {
         const number =
-            normalizeStoredNumber(
-                identity
-            );
+            normalizeStoredNumber(identity);
 
-        if (
-            number &&
-            number.length >= MIN_NUMBER_LENGTH
-        ) {
-            return number;
-        }
+        if (number) return number;
     }
 
     return "";
@@ -444,13 +293,15 @@ function getBotNumber(
 // 👑 MAIN BOT
 // ═══════════════════════════════════════════════════════
 
-let cachedMainBotNumber = "";
+const mainBotCache = new WeakMap();
 
 function getMainBotNumber(sock) {
+    if (!sock) return "";
+
     try {
-        if (cachedMainBotNumber) {
-            return cachedMainBotNumber;
-        }
+        const cached = mainBotCache.get(sock);
+
+        if (cached) return cached;
 
         const candidates = [
             sock?.mainBotNumber,
@@ -461,21 +312,10 @@ function getMainBotNumber(sock) {
 
         for (const candidate of candidates) {
             const number =
-                normalizeStoredNumber(
-                    candidate
-                );
+                normalizeStoredNumber(candidate);
 
-            if (
-                number &&
-                number.length >= MIN_NUMBER_LENGTH
-            ) {
-                cachedMainBotNumber = number;
-
-                log(
-                    "elite",
-                    `Main Bot: ${number}`
-                );
-
+            if (number) {
+                mainBotCache.set(sock, number);
                 return number;
             }
         }
@@ -485,276 +325,265 @@ function getMainBotNumber(sock) {
 }
 
 // ═══════════════════════════════════════════════════════
-// ⚙️ MODE CACHE
+// 📦 FILE CACHE
 // ═══════════════════════════════════════════════════════
 
 let modeCache = {
     elite: false
 };
 
-let lastModeCheck = 0;
-let modeLoading = null;
-
-async function refreshMode() {
-    if (modeLoading) {
-        return modeLoading;
-    }
-
-    modeLoading =
-        (async () => {
-            try {
-                await fs.promises.mkdir(
-                    dataDir,
-                    {
-                        recursive: true
-                    }
-                );
-
-                if (!fs.existsSync(modeFile)) {
-                    await fs.promises.writeFile(
-                        modeFile,
-                        JSON.stringify(
-                            {
-                                elite: false
-                            },
-                            null,
-                            2
-                        ),
-                        "utf8"
-                    );
-                } else {
-                    const content =
-                        await fs.promises.readFile(
-                            modeFile,
-                            "utf8"
-                        );
-
-                    try {
-                        const parsed =
-                            JSON.parse(
-                                content || "{}"
-                            );
-
-                        if (
-                            parsed &&
-                            typeof parsed === "object"
-                        ) {
-                            modeCache = {
-                                ...modeCache,
-                                ...parsed
-                            };
-                        }
-                    } catch {}
-                }
-
-                lastModeCheck =
-                    Date.now();
-
-                return modeCache;
-            } catch {
-                return modeCache;
-            } finally {
-                modeLoading = null;
-            }
-        })();
-
-    return modeLoading;
-}
-
-function getModeFast() {
-    const now = Date.now();
-
-    if (
-        now - lastModeCheck >=
-        MODE_CACHE_TIME
-    ) {
-        refreshMode().catch(() => {});
-    }
-
-    return modeCache;
-}
-
-// ═══════════════════════════════════════════════════════
-// 👑 ELITE CACHE
-// ═══════════════════════════════════════════════════════
-
 let eliteCache = [];
 let eliteSet = new Set();
 
-let lastEliteCheck = 0;
+let modeReady = false;
+let eliteReady = false;
+
+let modeMtime = 0;
+let eliteMtime = 0;
+
+let modeLoading = null;
 let eliteLoading = null;
 
-async function refreshElite() {
-    if (eliteLoading) {
+let dataDirReady = false;
+let dataDirPromise = null;
+
+// ═══════════════════════════════════════════════════════
+// 📁 DATA DIRECTORY
+// ═══════════════════════════════════════════════════════
+
+async function ensureDataDir() {
+    if (dataDirReady) return;
+
+    if (!dataDirPromise) {
+        dataDirPromise = fs.promises
+            .mkdir(dataDir, { recursive: true })
+            .then(() => {
+                dataDirReady = true;
+            })
+            .catch(() => {})
+            .finally(() => {
+                dataDirPromise = null;
+            });
+    }
+
+    await dataDirPromise;
+}
+
+// ═══════════════════════════════════════════════════════
+// ⚙️ MODE
+// ═══════════════════════════════════════════════════════
+
+async function refreshMode(force = false) {
+    if (modeLoading && !force) {
+        return modeLoading;
+    }
+
+    modeLoading = (async () => {
+        try {
+            await ensureDataDir();
+
+            let stat;
+
+            try {
+                stat = await fs.promises.stat(modeFile);
+            } catch {
+                await fs.promises.writeFile(
+                    modeFile,
+                    JSON.stringify({ elite: false }, null, 2),
+                    "utf8"
+                );
+
+                stat = await fs.promises.stat(modeFile);
+            }
+
+            const mtime = stat.mtimeMs;
+
+            if (
+                !force &&
+                modeReady &&
+                mtime === modeMtime
+            ) {
+                return;
+            }
+
+            const content =
+                await fs.promises.readFile(
+                    modeFile,
+                    "utf8"
+                );
+
+            let parsed = {};
+
+            try {
+                parsed = JSON.parse(content || "{}");
+            } catch {
+                parsed = {};
+            }
+
+            if (
+                parsed &&
+                typeof parsed === "object"
+            ) {
+                modeCache = {
+                    ...modeCache,
+                    ...parsed
+                };
+            }
+
+            modeMtime = mtime;
+            modeReady = true;
+        } catch {}
+    })();
+
+    try {
+        await modeLoading;
+    } finally {
+        modeLoading = null;
+    }
+}
+
+// ═══════════════════════════════════════════════════════
+// 👑 ELITE
+// ═══════════════════════════════════════════════════════
+
+async function refreshElite(force = false) {
+    if (eliteLoading && !force) {
         return eliteLoading;
     }
 
-    eliteLoading =
-        (async () => {
+    eliteLoading = (async () => {
+        try {
+            await ensureDataDir();
+
+            let stat;
+
             try {
-                await fs.promises.mkdir(
-                    dataDir,
-                    {
-                        recursive: true
-                    }
+                stat = await fs.promises.stat(eliteFile);
+            } catch {
+                await fs.promises.writeFile(
+                    eliteFile,
+                    "[]",
+                    "utf8"
                 );
 
-                if (!fs.existsSync(eliteFile)) {
-                    await fs.promises.writeFile(
-                        eliteFile,
-                        "[]",
-                        "utf8"
-                    );
+                stat = await fs.promises.stat(eliteFile);
+            }
 
-                    eliteCache = [];
-                    eliteSet = new Set();
+            const mtime = stat.mtimeMs;
 
-                    lastEliteCheck =
-                        Date.now();
+            if (
+                !force &&
+                eliteReady &&
+                mtime === eliteMtime
+            ) {
+                return;
+            }
 
-                    return eliteCache;
-                }
+            const content =
+                await fs.promises.readFile(
+                    eliteFile,
+                    "utf8"
+                );
 
-                const content =
-                    await fs.promises.readFile(
-                        eliteFile,
-                        "utf8"
-                    );
+            let data = [];
 
-                let data;
+            try {
+                data = JSON.parse(content || "[]");
+            } catch {
+                data = [];
+            }
 
-                try {
-                    data =
-                        JSON.parse(
-                            content || "[]"
+            const result = [];
+            const set = new Set();
+
+            if (Array.isArray(data)) {
+                for (const item of data) {
+                    let values = [];
+
+                    if (
+                        typeof item === "string" ||
+                        typeof item === "number"
+                    ) {
+                        values.push(item);
+                    } else if (
+                        item &&
+                        typeof item === "object"
+                    ) {
+                        values.push(
+                            item.number,
+                            item.phone,
+                            item.phoneNumber,
+                            item.id,
+                            item.jid,
+                            item.lid
                         );
-                } catch {
-                    data = [];
-                }
+                    }
 
-                const result = [];
-                const set = new Set();
-
-                if (Array.isArray(data)) {
-                    for (const item of data) {
-                        let values = [];
-
-                        // ═══════════════════════════
-                        // نص
-                        // ═══════════════════════════
+                    for (const value of values) {
+                        const number =
+                            normalizeStoredNumber(value);
 
                         if (
-                            typeof item ===
-                            "string" ||
-                            typeof item ===
-                            "number"
+                            number &&
+                            !set.has(number)
                         ) {
-                            values.push(item);
-                        }
-
-                        // ═══════════════════════════
-                        // Object
-                        // ═══════════════════════════
-
-                        else if (
-                            item &&
-                            typeof item ===
-                            "object"
-                        ) {
-                            values.push(
-                                item.number,
-                                item.phone,
-                                item.phoneNumber,
-                                item.id,
-                                item.jid,
-                                item.lid
-                            );
-
-                            // احتياط لأي مفتاح آخر
-                            values.push(
-                                ...Object.values(
-                                    item
-                                )
-                            );
-                        }
-
-                        for (
-                            const value
-                            of values
-                        ) {
-                            const number =
-                                normalizeStoredNumber(
-                                    value
-                                );
-
-                            if (
-                                number &&
-                                number.length >=
-                                MIN_NUMBER_LENGTH &&
-                                !set.has(number)
-                            ) {
-                                set.add(number);
-                                result.push(number);
-                            }
+                            set.add(number);
+                            result.push(number);
                         }
                     }
                 }
-
-                eliteCache = result;
-                eliteSet = set;
-
-                lastEliteCheck =
-                    Date.now();
-
-                log(
-                    "elite",
-                    `Elite Loaded: ${result.length}`
-                );
-
-                return eliteCache;
-            } catch (error) {
-                console.error(
-                    "Elite Error:",
-                    error?.message ||
-                    error
-                );
-
-                return eliteCache;
-            } finally {
-                eliteLoading = null;
             }
-        })();
 
-    return eliteLoading;
+            eliteCache = result;
+            eliteSet = set;
+
+            eliteMtime = mtime;
+            eliteReady = true;
+        } catch {}
+    })();
+
+    try {
+        await eliteLoading;
+    } finally {
+        eliteLoading = null;
+    }
+}
+
+// ═══════════════════════════════════════════════════════
+// ⚡ BACKGROUND FILE REFRESH
+// ═══════════════════════════════════════════════════════
+
+let lastFileCheck = 0;
+
+function scheduleFileRefresh() {
+    const now = Date.now();
+
+    if (now - lastFileCheck < FILE_CHECK_TIME) {
+        return;
+    }
+
+    lastFileCheck = now;
+
+    // لا ننتظرها إطلاقًا
+    void refreshMode().catch(() => {});
+    void refreshElite().catch(() => {});
+}
+
+function getModeFast() {
+    scheduleFileRefresh();
+    return modeCache;
 }
 
 function getEliteFast() {
-    const now = Date.now();
-
-    if (
-        !lastEliteCheck ||
-        now - lastEliteCheck >=
-        ELITE_CACHE_TIME
-    ) {
-        refreshElite().catch(() => {});
-    }
-
+    scheduleFileRefresh();
     return eliteCache;
 }
-
-// ═══════════════════════════════════════════════════════
-// 👑 ELITE CHECK
-// ═══════════════════════════════════════════════════════
 
 function checkElite(value) {
     const number =
         normalizeStoredNumber(value);
 
-    if (!number) {
-        return false;
-    }
-
-    return eliteSet.has(number);
+    return !!number && eliteSet.has(number);
 }
 
 function checkEliteIdentities(values) {
@@ -778,92 +607,298 @@ function checkEliteIdentities(values) {
 const groupCache = new Map();
 const groupLoading = new Map();
 
-async function getGroupMetadata(
-    sock,
-    jid,
-    force = false
-) {
-    if (
-        !jid ||
-        !jid.endsWith("@g.us")
-    ) {
+async function getGroupMetadata(sock, jid, force = false) {
+    if (!jid || !jid.endsWith("@g.us")) {
         return null;
     }
 
     const now = Date.now();
-
-    const cached =
-        groupCache.get(jid);
+    const cached = groupCache.get(jid);
 
     if (
         !force &&
         cached &&
-        now - cached.time <
-        GROUP_CACHE_TIME
+        now - cached.time < GROUP_CACHE_TIME
     ) {
         return cached.data;
     }
 
-    const pending =
-        groupLoading.get(jid);
+    const existing = groupLoading.get(jid);
 
-    if (pending) {
-        return pending;
+    if (existing) {
+        return existing;
     }
 
-    const promise =
-        (async () => {
-            try {
-                const metadata =
-                    await sock.groupMetadata(
-                        jid
-                    );
+    const promise = (async () => {
+        try {
+            const metadata =
+                await sock.groupMetadata(jid);
 
-                if (metadata) {
-                    groupCache.set(
-                        jid,
-                        {
-                            data: metadata,
-                            time: Date.now()
-                        }
-                    );
+            if (metadata) {
+                groupCache.set(jid, {
+                    data: metadata,
+                    time: Date.now()
+                });
 
-                    if (
-                        groupCache.size >
-                        MAX_GROUP_CACHE
-                    ) {
-                        const first =
-                            groupCache
-                                .keys()
-                                .next()
-                                .value;
+                if (groupCache.size > MAX_GROUP_CACHE) {
+                    const first =
+                        groupCache.keys().next().value;
 
-                        if (first) {
-                            groupCache.delete(
-                                first
-                            );
-                        }
+                    if (first) {
+                        groupCache.delete(first);
                     }
                 }
-
-                return metadata || null;
-            } catch {
-                return cached?.data || null;
-            } finally {
-                groupLoading.delete(jid);
             }
-        })();
 
-    groupLoading.set(
-        jid,
-        promise
-    );
+            return metadata || cached?.data || null;
+        } catch {
+            return cached?.data || null;
+        } finally {
+            groupLoading.delete(jid);
+        }
+    })();
+
+    groupLoading.set(jid, promise);
 
     return promise;
 }
 
+export function clearGroupMetadataCache(jid = null) {
+    try {
+        if (jid) {
+            groupCache.delete(jid);
+            groupLoading.delete(jid);
+            return;
+        }
+
+        groupCache.clear();
+        groupLoading.clear();
+    } catch {}
+}
+
 // ═══════════════════════════════════════════════════════
-// 👤 RESOLVE SENDER
+// 🚀 PLUGIN CACHE PER BOT
+// ═══════════════════════════════════════════════════════
+
+const pluginCaches = new WeakMap();
+
+function createPluginCache() {
+    return {
+        loaded: null,
+        commandIndex: new Map(),
+        onMessage: [],
+        loading: null
+    };
+}
+
+function getPluginCache(sock) {
+    let cache = pluginCaches.get(sock);
+
+    if (!cache) {
+        cache = createPluginCache();
+        pluginCaches.set(sock, cache);
+    }
+
+    return cache;
+}
+
+async function getLoadedPlugins(sock) {
+    if (!sock) return [];
+
+    const cache = getPluginCache(sock);
+
+    if (Array.isArray(cache.loaded)) {
+        return cache.loaded;
+    }
+
+    if (cache.loading) {
+        return cache.loading;
+    }
+
+    cache.loading = (async () => {
+        try {
+            const plugins = await loadPlugins(sock);
+
+            cache.loaded = Array.isArray(plugins)
+                ? plugins.filter(Boolean)
+                : [];
+
+            cache.commandIndex.clear();
+            cache.onMessage.length = 0;
+
+            for (const plugin of cache.loaded) {
+                if (
+                    typeof plugin?.onMessage ===
+                    "function"
+                ) {
+                    cache.onMessage.push(plugin);
+                }
+
+                if (!plugin?.command) continue;
+
+                const commands =
+                    Array.isArray(plugin.command)
+                        ? plugin.command
+                        : [plugin.command];
+
+                for (const command of commands) {
+                    if (
+                        command === undefined ||
+                        command === null
+                    ) {
+                        continue;
+                    }
+
+                    const key =
+                        String(command)
+                            .trim()
+                            .toLowerCase();
+
+                    if (
+                        key &&
+                        !cache.commandIndex.has(key)
+                    ) {
+                        cache.commandIndex.set(
+                            key,
+                            plugin
+                        );
+                    }
+                }
+            }
+
+            log(
+                "ok",
+                `Loaded ${cache.loaded.length} plugins | ${cache.commandIndex.size} commands`
+            );
+        } catch (error) {
+            cache.loaded = [];
+            cache.commandIndex.clear();
+            cache.onMessage.length = 0;
+
+            console.error(
+                "Plugin Loader Error:",
+                error?.message || error
+            );
+        } finally {
+            cache.loading = null;
+        }
+
+        return cache.loaded;
+    })();
+
+    return cache.loading;
+}
+
+export function clearPluginsCache(sock = null) {
+    if (!sock) return;
+
+    try {
+        pluginCaches.delete(sock);
+    } catch {}
+}
+
+// ═══════════════════════════════════════════════════════
+// 🛡️ MESSAGE DEDUPLICATION
+// ═══════════════════════════════════════════════════════
+
+const processedMessages = new Map();
+
+let cleanupRunning = false;
+
+function wasProcessed(id, sock) {
+    if (!id) return false;
+
+    const session =
+        String(
+            sock?.user?.id ||
+            sock?.user?.jid ||
+            sock?.user?.lid ||
+            "unknown"
+        );
+
+    const key = `${session}:${id}`;
+    const now = Date.now();
+
+    const previous =
+        processedMessages.get(key);
+
+    if (
+        previous &&
+        now - previous < MESSAGE_CACHE_TIME
+    ) {
+        return true;
+    }
+
+    processedMessages.set(key, now);
+
+    if (
+        processedMessages.size >
+            MAX_PROCESSED_MESSAGES &&
+        !cleanupRunning
+    ) {
+        cleanupRunning = true;
+
+        queueMicrotask(() => {
+            try {
+                const cutoff =
+                    Date.now() -
+                    MESSAGE_CACHE_TIME;
+
+                let count = 0;
+
+                for (
+                    const [cacheKey, time]
+                    of processedMessages
+                ) {
+                    if (time < cutoff) {
+                        processedMessages.delete(
+                            cacheKey
+                        );
+
+                        count++;
+
+                        if (count >= 1000) {
+                            break;
+                        }
+                    }
+                }
+
+                if (
+                    processedMessages.size >
+                    MAX_PROCESSED_MESSAGES * 1.25
+                ) {
+                    const removeCount =
+                        processedMessages.size -
+                        MAX_PROCESSED_MESSAGES;
+
+                    let removed = 0;
+
+                    for (
+                        const key
+                        of processedMessages.keys()
+                    ) {
+                        processedMessages.delete(key);
+                        removed++;
+
+                        if (
+                            removed >=
+                            removeCount
+                        ) {
+                            break;
+                        }
+                    }
+                }
+            } finally {
+                cleanupRunning = false;
+            }
+        });
+    }
+
+    return false;
+}
+
+// ═══════════════════════════════════════════════════════
+// 👤 SENDER
 // ═══════════════════════════════════════════════════════
 
 function resolveSender(
@@ -892,13 +927,7 @@ function resolveSender(
     }
 
     let number =
-        normalizeStoredNumber(
-            rawSender
-        );
-
-    // ═══════════════════════════════════
-    // LID → PARTICIPANT → PHONE
-    // ═══════════════════════════════════
+        normalizeStoredNumber(rawSender);
 
     if (
         isGroup &&
@@ -930,237 +959,14 @@ function resolveSender(
 }
 
 // ═══════════════════════════════════════════════════════
-// 🧹 CLEAR GROUP CACHE
-// ═══════════════════════════════════════════════════════
-
-export function clearGroupMetadataCache(
-    jid = null
-) {
-    try {
-        if (jid) {
-            groupCache.delete(jid);
-            groupLoading.delete(jid);
-        } else {
-            groupCache.clear();
-            groupLoading.clear();
-        }
-    } catch {}
-}
-
-// ═══════════════════════════════════════════════════════
-// 🚀 PLUGINS
-// ═══════════════════════════════════════════════════════
-
-let loadedPluginsCache = null;
-let pluginsLoadingPromise = null;
-
-let commandIndex = new Map();
-let onMessagePlugins = [];
-
-async function getLoadedPlugins(sock) {
-    if (
-        Array.isArray(
-            loadedPluginsCache
-        )
-    ) {
-        return loadedPluginsCache;
-    }
-
-    if (pluginsLoadingPromise) {
-        return pluginsLoadingPromise;
-    }
-
-    pluginsLoadingPromise =
-        (async () => {
-            try {
-                const plugins =
-                    await loadPlugins(sock);
-
-                loadedPluginsCache =
-                    Array.isArray(plugins)
-                        ? plugins.filter(Boolean)
-                        : [];
-
-                commandIndex = new Map();
-                onMessagePlugins = [];
-
-                for (
-                    const plugin
-                    of loadedPluginsCache
-                ) {
-                    if (
-                        typeof plugin?.onMessage ===
-                        "function"
-                    ) {
-                        onMessagePlugins.push(
-                            plugin
-                        );
-                    }
-
-                    if (!plugin?.command) {
-                        continue;
-                    }
-
-                    const commands =
-                        Array.isArray(
-                            plugin.command
-                        )
-                            ? plugin.command
-                            : [plugin.command];
-
-                    for (
-                        const command
-                        of commands
-                    ) {
-                        if (
-                            command ===
-                            undefined ||
-                            command === null
-                        ) {
-                            continue;
-                        }
-
-                        const key =
-                            String(command)
-                                .trim()
-                                .toLowerCase();
-
-                        if (!key) continue;
-
-                        if (
-                            !commandIndex.has(
-                                key
-                            )
-                        ) {
-                            commandIndex.set(
-                                key,
-                                plugin
-                            );
-                        }
-                    }
-                }
-
-                log(
-                    "ok",
-                    `Loaded ${loadedPluginsCache.length} plugins | ${commandIndex.size} commands`
-                );
-
-                return loadedPluginsCache;
-            } catch (error) {
-                console.error(
-                    "Plugin Loader Error:",
-                    error?.message ||
-                    error
-                );
-
-                loadedPluginsCache = [];
-                commandIndex = new Map();
-                onMessagePlugins = [];
-
-                return [];
-            } finally {
-                pluginsLoadingPromise = null;
-            }
-        })();
-
-    return pluginsLoadingPromise;
-}
-
-// ═══════════════════════════════════════════════════════
-// 🧹 CLEAR PLUGINS
-// ═══════════════════════════════════════════════════════
-
-export function clearPluginsCache() {
-    loadedPluginsCache = null;
-    commandIndex = new Map();
-    onMessagePlugins = [];
-
-    console.log(
-        `${COLORS.yellow}` +
-        `⚡ Plugin Cache Cleared` +
-        `${COLORS.reset}`
-    );
-}
-
-// ═══════════════════════════════════════════════════════
-// 🛡️ MESSAGE CACHE
-// ═══════════════════════════════════════════════════════
-
-const processedMessages = new Map();
-
-function wasProcessed(
-    id,
-    sock
-) {
-    if (!id) {
-        return false;
-    }
-
-    const now = Date.now();
-
-    const session =
-        String(
-            sock?.user?.id ||
-            sock?.user?.lid ||
-            "unknown"
-        );
-
-    const key =
-        `${session}:${id}`;
-
-    const old =
-        processedMessages.get(key);
-
-    if (
-        old &&
-        now - old <
-        MESSAGE_CACHE_TIME
-    ) {
-        return true;
-    }
-
-    processedMessages.set(
-        key,
-        now
-    );
-
-    if (
-        processedMessages.size >
-        MAX_PROCESSED_MESSAGES
-    ) {
-        for (
-            const [
-                cacheKey,
-                time
-            ]
-            of processedMessages
-        ) {
-            if (
-                now - time >
-                MESSAGE_CACHE_TIME
-            ) {
-                processedMessages.delete(
-                    cacheKey
-                );
-            }
-        }
-    }
-
-    return false;
-}
-
-// ═══════════════════════════════════════════════════════
 // 📋 INTERACTIVE
 // ═══════════════════════════════════════════════════════
 
 function extractInteractiveResponseId(msg) {
     try {
-        const message =
-            msg?.message;
+        const message = msg?.message;
 
-        if (!message) {
-            return "";
-        }
+        if (!message) return "";
 
         const listId =
             message
@@ -1169,9 +975,7 @@ function extractInteractiveResponseId(msg) {
                 ?.selectedRowId;
 
         if (listId) {
-            return String(
-                listId
-            ).trim();
+            return String(listId).trim();
         }
 
         const buttonId =
@@ -1180,9 +984,7 @@ function extractInteractiveResponseId(msg) {
                 ?.selectedButtonId;
 
         if (buttonId) {
-            return String(
-                buttonId
-            ).trim();
+            return String(buttonId).trim();
         }
 
         const templateId =
@@ -1191,79 +993,47 @@ function extractInteractiveResponseId(msg) {
                 ?.selectedId;
 
         if (templateId) {
-            return String(
-                templateId
-            ).trim();
+            return String(templateId).trim();
         }
 
-        const interactive =
-            message
-                ?.interactiveResponseMessage;
-
-        const native =
-            interactive
-                ?.nativeFlowResponseMessage;
-
-        const direct =
-            message
-                ?.nativeFlowResponseMessage;
-
         const flow =
-            native || direct;
+            message
+                ?.interactiveResponseMessage
+                ?.nativeFlowResponseMessage ||
+            message?.nativeFlowResponseMessage;
 
         if (flow?.paramsJson) {
-            const params =
-                flow.paramsJson;
+            let parsed;
 
             try {
-                const parsed =
-                    typeof params ===
-                    "string"
-                        ? JSON.parse(
-                            params
-                        )
-                        : params;
-
-                if (parsed?.id) {
-                    return String(
-                        parsed.id
-                    ).trim();
-                }
-
-                if (
-                    parsed?.selectedRowId
-                ) {
-                    return String(
-                        parsed.selectedRowId
-                    ).trim();
-                }
-
-                if (
-                    parsed?.selectedId
-                ) {
-                    return String(
-                        parsed.selectedId
-                    ).trim();
-                }
-
-                if (
-                    parsed?.command
-                ) {
-                    return String(
-                        parsed.command
-                    ).trim();
-                }
+                parsed =
+                    typeof flow.paramsJson === "string"
+                        ? JSON.parse(flow.paramsJson)
+                        : flow.paramsJson;
             } catch {
-                const match =
-                    String(
-                        params
-                    ).match(
-                        /"(?:id|selectedRowId|selectedId|command)"\s*:\s*"([^"]+)"/
-                    );
+                parsed = null;
+            }
 
-                if (match?.[1]) {
-                    return match[1].trim();
-                }
+            if (parsed?.id) {
+                return String(parsed.id).trim();
+            }
+
+            if (parsed?.selectedRowId) {
+                return String(
+                    parsed.selectedRowId
+                ).trim();
+            }
+
+            if (parsed?.selectedId) {
+                return String(
+                    parsed.selectedId
+                ).trim();
+            }
+
+            if (parsed?.command) {
+                return String(
+                    parsed.command
+                ).trim();
             }
         }
     } catch {}
@@ -1271,134 +1041,94 @@ function extractInteractiveResponseId(msg) {
     return "";
 }
 
-// ═══════════════════════════════════════════════════════
-// 🧹 MENU NORMALIZER
-// ═══════════════════════════════════════════════════════
-
 function normalizeMenuCommand(id) {
-    if (!id) {
-        return "";
-    }
+    if (!id) return "";
 
-    let value =
-        String(id).trim();
+    let value = String(id).trim();
 
-    if (!value) {
-        return "";
-    }
+    const lower = value.toLowerCase();
 
-    const lower =
-        value.toLowerCase();
-
-    if (
-        lower.startsWith(
-            "cmd:"
-        )
-    ) {
-        value =
-            value.slice(4).trim();
-    } else if (
-        lower.startsWith(
-            "command:"
-        )
-    ) {
-        value =
-            value.slice(8).trim();
+    if (lower.startsWith("cmd:")) {
+        value = value.slice(4).trim();
+    } else if (lower.startsWith("command:")) {
+        value = value.slice(8).trim();
     }
 
     return value
-        .replace(
-            /^[./\\#,!^&+=]+/,
-            ""
-        )
+        .replace(/^[./\\#,!^&+=]+/, "")
         .trim();
 }
 
 // ═══════════════════════════════════════════════════════
-// 🚀 ENTRY
+// 🚀 ENTRY — ZERO WAIT
 // ═══════════════════════════════════════════════════════
 
-export async function handleMessages(
-    sock,
-    m
-) {
+export function handleMessages(sock, m) {
     try {
-        const msg =
-            m?.messages?.[0];
+        const msg = m?.messages?.[0];
 
-        if (
-            !msg ||
-            !msg.message
-        ) {
-            return;
-        }
+        if (!msg?.message) return;
 
-        const id =
-            msg.key?.id;
+        const id = msg.key?.id;
 
         if (
             id &&
-            wasProcessed(
-                id,
-                sock
-            )
+            wasProcessed(id, sock)
         ) {
             return;
         }
 
-        await executeHandlerLogic(
+        // لا ننتظر التنفيذ
+        void executeHandlerLogic(
             sock,
             msg
-        );
+        ).catch(error => {
+            console.error(
+                "Handler Execution Error:",
+                error?.message || error
+            );
+        });
     } catch (error) {
         console.error(
             "handleMessages Error:",
-            error?.message ||
-            error
+            error?.message || error
         );
     }
 }
 
 // ═══════════════════════════════════════════════════════
-// ⚡ MAIN HANDLER
+// ⚡ MAIN EXECUTION
 // ═══════════════════════════════════════════════════════
 
-async function executeHandlerLogic(
-    sock,
-    msg
-) {
-    const jid =
-        msg.key?.remoteJid;
+async function executeHandlerLogic(sock, msg) {
+    const jid = msg.key?.remoteJid;
 
-    if (!jid) {
-        return;
-    }
+    if (!jid) return;
 
     const isGroup =
         jid.endsWith("@g.us");
 
     const isPrivate =
-        jid.endsWith(
-            "@s.whatsapp.net"
-        );
+        jid.endsWith("@s.whatsapp.net");
 
-    // ═══════════════════════════════════
-    // GROUP METADATA
-    // ═══════════════════════════════════
+    // ═════════════════════════════
+    // ⚡ لا ننتظر الملفات
+    // ═════════════════════════════
 
-    let metadata = null;
+    getModeFast();
+    getEliteFast();
 
-    if (isGroup) {
-        metadata =
-            await getGroupMetadata(
-                sock,
-                jid
-            );
-    }
+    // ═════════════════════════════
+    // 👤 SENDER / GROUP
+    // ═════════════════════════════
 
-    // ═══════════════════════════════════
-    // BOT IDENTITIES
-    // ═══════════════════════════════════
+    const metadata =
+        isGroup
+            ? await getGroupMetadata(
+                  sock,
+                  jid
+              )
+            : null;
 
     const botIdentities =
         getBotIdentities(sock);
@@ -1409,26 +1139,18 @@ async function executeHandlerLogic(
             metadata
         );
 
-    // ═══════════════════════════════════
-    // BOT PARTICIPANT
-    // ═══════════════════════════════════
-
     const botParticipant =
         isGroup
             ? resolveBotParticipant(
-                sock,
-                metadata
-            )
+                  sock,
+                  metadata
+              )
             : null;
 
     const participantPhone =
         getParticipantPhone(
             botParticipant
         );
-
-    // ═══════════════════════════════════
-    // MAIN BOT
-    // ═══════════════════════════════════
 
     const mainNumber =
         getMainBotNumber(sock);
@@ -1441,12 +1163,10 @@ async function executeHandlerLogic(
                     botNumber,
                     mainNumber
                 ) ||
-
                 isSameNumber(
                     participantPhone,
                     mainNumber
                 ) ||
-
                 botIdentities.some(
                     identity =>
                         isSameNumber(
@@ -1457,11 +1177,7 @@ async function executeHandlerLogic(
             )
         );
 
-    // ═══════════════════════════════════
-    // SENDER
-    // ═══════════════════════════════════
-
-    const resolvedSender =
+    const resolved =
         resolveSender(
             sock,
             msg,
@@ -1470,14 +1186,14 @@ async function executeHandlerLogic(
         );
 
     const sender =
-        resolvedSender.sender;
+        resolved.sender;
 
     const number =
-        resolvedSender.number;
+        resolved.number;
 
-    // ═══════════════════════════════════
+    // ═════════════════════════════
     // 👑 ELITE
-    // ═══════════════════════════════════
+    // ═════════════════════════════
 
     let isEliteUser =
         checkEliteIdentities([
@@ -1485,131 +1201,91 @@ async function executeHandlerLogic(
             sender
         ]);
 
-    // ═══════════════════════════════════
-    // BOT IS ELITE (التعديل الدقيق هنا لضمان مطابقة هويات البوت تماماً)
-    // ═══════════════════════════════════
-
     if (!isEliteUser) {
-        const botCandidates = [
+        for (const candidate of [
             botNumber,
             participantPhone,
             ...botIdentities
-        ];
+        ]) {
+            const normalized =
+                normalizeStoredNumber(
+                    candidate
+                );
 
-        for (const candidate of botCandidates) {
-            const normalizedBotNum = normalizeStoredNumber(candidate);
-            if (normalizedBotNum && eliteSet.has(normalizedBotNum)) {
+            if (
+                normalized &&
+                eliteSet.has(normalized)
+            ) {
                 isEliteUser = true;
                 break;
             }
         }
     }
 
-    // ═══════════════════════════════════
-    // MAIN BOT ALWAYS ELITE
-    // ═══════════════════════════════════
-
-    if (
-        !isEliteUser &&
-        isMainBot
-    ) {
+    if (!isEliteUser && isMainBot) {
         isEliteUser = true;
     }
 
-    // ═══════════════════════════════════
-    // DEBUG
-    // ═══════════════════════════════════
+    // ═════════════════════════════
+    // 🛡️ BOT ADMIN
+    // ═════════════════════════════
+
+    let botAdminData = {
+        isAdmin: false,
+        isSuperAdmin: false,
+        participant: botParticipant,
+        metadata
+    };
 
     if (
         isGroup &&
         botParticipant
     ) {
-        log(
-            "bot",
-            `BOT → ${
-                botNumber ||
-                "UNKNOWN"
-            } | PARTICIPANT → ${
-                participantPhone ||
-                botParticipant.id ||
-                "UNKNOWN"
-            } | ELITE → ${
-                isEliteUser
-                    ? "YES"
-                    : "NO"
-            }`
-        );
-    }
+        const admin =
+            botParticipant.admin;
 
-    // ═══════════════════════════════════
-    // BOT ADMIN
-    // ═══════════════════════════════════
+        botAdminData.isSuperAdmin =
+            admin === "superadmin";
 
-    let botAdminData = {
-        isAdmin: false,
-        isSuperAdmin: false,
-        participant:
-            botParticipant,
-        metadata
-    };
-
-    if (isGroup) {
-        // نبحث مرة ثانية باستخدام كل الهويات
-        const adminParticipant =
-            resolveBotParticipant(
-                sock,
-                metadata
-            );
-
-        if (adminParticipant) {
-            botAdminData.participant =
-                adminParticipant;
-
-            const admin =
-                adminParticipant.admin;
-
-            botAdminData.isSuperAdmin =
-                admin ===
-                "superadmin";
-
-            botAdminData.isAdmin =
-                admin === "admin" ||
-                botAdminData.isSuperAdmin;
-        }
+        botAdminData.isAdmin =
+            admin === "admin" ||
+            botAdminData.isSuperAdmin;
     }
 
     const botIsAdmin =
-        botAdminData.isAdmin === true;
+        botAdminData.isAdmin;
 
     const botIsSuperAdmin =
-        botAdminData.isSuperAdmin === true;
+        botAdminData.isSuperAdmin;
 
-    // ═══════════════════════════════════
-    // PLUGINS
-    // ═══════════════════════════════════
+    // ═════════════════════════════
+    // 🚀 PLUGINS
+    // ═════════════════════════════
 
     const plugins =
         await getLoadedPlugins(sock);
 
-    if (!plugins.length) {
-        return;
-    }
+    if (!plugins.length) return;
 
-    // ═══════════════════════════════════
-    // TEXT
-    // ═══════════════════════════════════
+    const pluginCache =
+        getPluginCache(sock);
+
+    // ═════════════════════════════
+    // 📝 TEXT
+    // ═════════════════════════════
+
+    const message =
+        msg.message;
 
     const normalText =
-        msg.message.conversation ||
-        msg.message.extendedTextMessage?.text ||
-        msg.message.imageMessage?.caption ||
-        msg.message.videoMessage?.caption ||
+        message.conversation ||
+        message.extendedTextMessage?.text ||
+        message.imageMessage?.caption ||
+        message.videoMessage?.caption ||
         "";
 
     const interactiveId =
-        extractInteractiveResponseId(
-            msg
-        );
+        extractInteractiveResponseId(msg);
 
     const fromInteractive =
         !!interactiveId;
@@ -1621,99 +1297,70 @@ async function executeHandlerLogic(
             ""
         ).trim();
 
-    // ═══════════════════════════════════
-    // ON MESSAGE
-    // ═══════════════════════════════════
+    // ═════════════════════════════
+    // 👂 ON MESSAGE
+    // ═════════════════════════════
 
     if (
-        onMessagePlugins.length
+        pluginCache.onMessage.length
     ) {
         const context = {
             jid,
-
             sender,
-
             number,
-
             isGroup,
-
             isPrivate,
-
             message: msg,
 
-            isElite:
-                isEliteUser,
+            isElite: isEliteUser,
 
             botNumber,
-
-            mainBotNumber:
-                mainNumber,
-
+            mainBotNumber: mainNumber,
             isMainBot,
 
-            isInteractive:
-                fromInteractive,
-
+            isInteractive: fromInteractive,
             interactiveId:
-                interactiveId ||
-                null,
-
+                interactiveId || null,
             isListResponse:
                 fromInteractive,
 
-            // ADMIN
-            isAdmin:
-                botIsAdmin,
-
+            isAdmin: botIsAdmin,
             isSuperAdmin:
                 botIsSuperAdmin,
 
-            adminMode:
-                botIsAdmin,
+            adminMode: botIsAdmin,
 
             botIsAdmin,
-
             botIsSuperAdmin,
 
             botParticipant:
-                botAdminData.participant ||
-                null,
+                botParticipant || null,
 
             groupMetadata:
-                metadata ||
-                null
+                metadata || null
         };
 
         for (
             const plugin
-            of onMessagePlugins
+            of pluginCache.onMessage
         ) {
             try {
-                Promise.resolve(
+                void Promise.resolve(
                     plugin.onMessage(
                         sock,
                         msg,
                         context
                     )
-                ).catch(
-                    error => {
-                        console.error(
-                            "onMessage Error:",
-                            error?.message ||
-                            error
-                        );
-                    }
-                );
+                ).catch(() => {});
             } catch {}
         }
     }
 
-    // ═══════════════════════════════════
-    // ELITE MODE
-    // ═══════════════════════════════════
+    // ═════════════════════════════
+    // 👑 ELITE MODE
+    // ═════════════════════════════
 
-    const mode =
-        getModeFast();
+    const mode = getModeFast();
 
     if (
         mode?.elite === true &&
@@ -1723,20 +1370,16 @@ async function executeHandlerLogic(
         return;
     }
 
-    if (!text) {
-        return;
-    }
+    if (!text) return;
 
-    // ═══════════════════════════════════
-    // PREFIX
-    // ═══════════════════════════════════
+    // ═════════════════════════════
+    // 🔣 PREFIX
+    // ═════════════════════════════
 
     const hasPrefix =
         fromInteractive
             ? false
-            : /^[./\\#,!^&+=]/.test(
-                text
-            );
+            : /^[./\\#,!^&+=]/.test(text);
 
     let noPrefixText =
         hasPrefix
@@ -1750,45 +1393,33 @@ async function executeHandlerLogic(
             );
     }
 
-    if (!noPrefixText) {
-        return;
-    }
+    if (!noPrefixText) return;
 
-    // ═══════════════════════════════════
-    // COMMAND
-    // ═══════════════════════════════════
+    // ═════════════════════════════
+    // ⚡ COMMAND
+    // ═════════════════════════════
 
     const space =
-        noPrefixText.search(
-            /\s/
-        );
+        noPrefixText.search(/\s/);
 
     const commandName =
         (
             space === -1
                 ? noPrefixText
                 : noPrefixText.slice(
-                    0,
-                    space
-                )
+                      0,
+                      space
+                  )
         ).toLowerCase();
 
-    if (!commandName) {
-        return;
-    }
+    if (!commandName) return;
 
     const cmd =
-        commandIndex.get(
+        pluginCache.commandIndex.get(
             commandName
         );
 
-    if (!cmd) {
-        return;
-    }
-
-    // ═══════════════════════════════════
-    // NO PREFIX
-    // ═══════════════════════════════════
+    if (!cmd) return;
 
     if (
         !hasPrefix &&
@@ -1797,10 +1428,6 @@ async function executeHandlerLogic(
     ) {
         return;
     }
-
-    // ═══════════════════════════════════
-    // EXECUTE
-    // ═══════════════════════════════════
 
     log(
         "cmd",
@@ -1812,10 +1439,14 @@ async function executeHandlerLogic(
             isEliteUser
                 ? "ELITE"
                 : botIsAdmin
-                    ? "BOT ADMIN"
-                    : "USER"
+                ? "BOT ADMIN"
+                : "USER"
         }`
     );
+
+    // ═════════════════════════════
+    // 🚀 EXECUTE
+    // ═════════════════════════════
 
     try {
         await cmd.execute(
@@ -1823,45 +1454,35 @@ async function executeHandlerLogic(
             msg,
             {
                 text,
-
                 noPrefixText,
-
                 commandName,
 
                 jid,
-
                 sender,
-
                 number,
 
                 isGroup,
-
                 isPrivate,
-
                 hasPrefix,
 
                 isElite:
                     isEliteUser,
 
                 botNumber,
-
                 mainBotNumber:
                     mainNumber,
 
                 isMainBot,
 
-                // Interactive
                 isInteractive:
                     fromInteractive,
 
                 interactiveId:
-                    interactiveId ||
-                    null,
+                    interactiveId || null,
 
                 isListResponse:
                     fromInteractive,
 
-                // Admin
                 isAdmin:
                     botIsAdmin,
 
@@ -1872,38 +1493,33 @@ async function executeHandlerLogic(
                     botIsAdmin,
 
                 botIsAdmin,
-
                 botIsSuperAdmin,
 
                 botParticipant:
-                    botAdminData.participant ||
-                    null,
+                    botParticipant || null,
 
                 groupMetadata:
-                    metadata ||
-                    null
+                    metadata || null
             }
         );
     } catch (error) {
         console.error(
             `Command Error [${commandName}]:`,
-            error?.message ||
-            error
+            error?.message || error
         );
     }
 }
 
 // ═══════════════════════════════════════════════════════
-// 🚀 WARMUP
+// 🔥 WARMUP
 // ═══════════════════════════════════════════════════════
 
 export async function warmupHandler(sock) {
     try {
-
-        // تحميل الأشياء الثقيلة مرة واحدة
+        // تجهيز كل شيء قبل وصول أول رسالة
         await Promise.all([
-            refreshMode(),
-            refreshElite(),
+            refreshMode(true),
+            refreshElite(true),
             getLoadedPlugins(sock)
         ]);
 
@@ -1916,29 +1532,37 @@ export async function warmupHandler(sock) {
         log(
             "ok",
             `Handler Ready | Bot: ${
-                botNumber ||
-                "UNKNOWN"
+                botNumber || "UNKNOWN"
             }`
         );
 
         log(
             "bot",
             `Identities: ${
-                identities.join(
-                    " | "
-                ) ||
+                identities.join(" | ") ||
                 "NONE"
             }`
         );
 
+        log(
+            "elite",
+            `Elite: ${eliteCache.length}`
+        );
+
+        log(
+            "ok",
+            `Mode: ${
+                modeCache.elite
+                    ? "ELITE"
+                    : "NORMAL"
+            }`
+        );
+
         return true;
-
     } catch (error) {
-
         console.error(
             "Handler Warmup Error:",
-            error?.message ||
-            error
+            error?.message || error
         );
 
         return false;
