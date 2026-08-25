@@ -9,23 +9,14 @@ export default {
 
     description: "إعادة تشغيل البوت على منصة Render",
 
-
     execute: async(sock, msg, data)=>{
-
 
         // ==========================
         // البحث عن ملف النخبة
         // ==========================
 
-        const dataPath =
-        path.join(
-            process.cwd(),
-            "data"
-        );
-
-
+        const dataPath = path.join(process.cwd(), "data");
         let elite = [];
-
 
         const files = [
             "النخبة.json",
@@ -34,88 +25,45 @@ export default {
             "النخبه"
         ];
 
-
-
         for(const file of files){
-
-            const filePath =
-            path.join(
-                dataPath,
-                file
-            );
-
-
+            const filePath = path.join(dataPath, file);
             if(fs.existsSync(filePath)){
-
                 try{
-
-                    elite = JSON.parse(
-                        fs.readFileSync(
-                            filePath,
-                            "utf8"
-                        )
-                    );
-
-                    console.log(
-                        "تم تحميل النخبة من:",
-                        filePath
-                    );
-
+                    const rawData = JSON.parse(fs.readFileSync(filePath, "utf8"));
+                    // التأكد من أن البيانات مصفوفة أو تحويلها لشكل يقبل القراءة
+                    elite = Array.isArray(rawData) ? rawData : Object.values(rawData);
+                    console.log("تم تحميل النخبة من:", filePath);
                     break;
-
-
                 }catch(err){
-
-                    console.log(
-                        "خطأ قراءة النخبة:",
-                        err.message
-                    );
-
+                    console.log("خطأ قراءة النخبة:", err.message);
                 }
-
             }
-
         }
 
-
-
-        elite = elite.map(
-            x=>String(x).replace(/\D/g,"")
-        );
-
-
+        // تنظيف أرقام النخبة واستخراج الأجزاء الأساسية منها
+        const cleanElite = elite.map(x => String(x).replace(/\D/g, ""));
 
         // ==========================
-        // رقم المرسل
+        // رقم المرسل الحالي
         // ==========================
 
-        const sender =
-        data.sender ||
-        data.jid;
+        const sender = data.sender || data.jid || "";
+        const senderNumber = sender.split("@")[0].replace(/\D/g, "");
 
+        console.log("رقم المرسل المفحوص:", senderNumber);
+        console.log("قائمة النخبة المسجلة:", cleanElite);
 
-        const number =
-        sender
-        .split("@")[0]
-        .replace(/\D/g,"");
+        // ==========================
+        // التحقق الذكي والقوي (يتعرف على أي صيغة مطابقة)
+        // ==========================
 
+        const isElite = cleanElite.some(el => {
+            // مطابقة تامة أو مطابقة الأجزاء الأخيرة (لتجنب مشاكل مفتاح الدولة)
+            return senderNumber === el || 
+                   (senderNumber.length > 8 && el.length > 8 && (senderNumber.endsWith(el) || el.endsWith(senderNumber)));
+        });
 
-
-        console.log(
-            "رقم المرسل:",
-            number
-        );
-
-        console.log(
-            "النخبة:",
-            elite
-        );
-
-
-
-        if(!elite.includes(number)){
-
-
+        if(!isElite){
             return sock.sendMessage(
                 data.jid,
                 {
@@ -127,22 +75,13 @@ export default {
 ╰━━━━━━━━━━━━━━╯`
                 }
             );
-
         }
-
-
 
         // ==========================
         // حفظ مكان الرسالة
         // ==========================
 
-        const restartFile =
-        path.join(
-            dataPath,
-            "restart.json"
-        );
-
-
+        const restartFile = path.join(dataPath, "restart.json");
         fs.writeFileSync(
             restartFile,
             JSON.stringify({
@@ -150,8 +89,6 @@ export default {
                 time: Date.now()
             })
         );
-
-
 
         await sock.sendMessage(
             data.jid,
@@ -166,20 +103,14 @@ export default {
             }
         );
 
-
-
         // ==========================
         // إعادة التشغيل على Render
         // ==========================
 
         setTimeout(()=>{
-
-            // إيقاف العملية بإجبار Render على إعادة تشغيل الخدمة تلقائياً
-            process.exit(0);
-
+            // استخدام 1 لإجبار Render على إعادة التشغيل التلقائي
+            process.exit(1);
         }, 2000);
-
-
 
     }
 
