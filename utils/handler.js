@@ -1408,13 +1408,6 @@ async function executeHandlerLogic(
      * ⚡ أهم تحسين:
      *
      * كل العمليات المستقلة تبدأ معًا.
-     *
-     * بدل:
-     * metadata
-     * ثم plugins
-     * ثم الملفات
-     *
-     * الآن كلها تبدأ بالتوازي.
      */
 
     const metadataPromise =
@@ -1431,17 +1424,9 @@ async function executeHandlerLogic(
     getModeFast();
     getEliteFast();
 
-    /*
-     * نحتاج metadata قبل تحديد
-     * هوية البوت وصلاحياته.
-     */
     const metadata =
         await metadataPromise;
 
-    /*
-     * في نفس الوقت البلجنات تكون
-     * غالبًا بدأت بالتحميل مسبقًا.
-     */
     const plugins =
         await pluginsPromise;
 
@@ -1546,11 +1531,6 @@ async function executeHandlerLogic(
         }
     }
 
-    /*
-     * البوت الرئيسي يعتبر Elite
-     * حتى لو لم يكن رقمه موجودًا
-     * داخل ملف النخبة.
-     */
     if (
         !isEliteUser &&
         isMainBot
@@ -1682,10 +1662,6 @@ async function executeHandlerLogic(
                 null
         };
 
-        /*
-         * لا نجعل onMessage
-         * يؤخر تنفيذ الأمر.
-         */
         for (
             const plugin
             of pluginCache.onMessage
@@ -1722,15 +1698,15 @@ async function executeHandlerLogic(
     }
 
     // ═════════════════════════════
-    // 🔣 PREFIX
+    // 🔣 PREFIX (Strict dot check)
     // ═════════════════════════════
 
-    const hasPrefix =
-        fromInteractive
-            ? false
-            : /^[./\\#,!^&+=]/.test(
-                  text
-              );
+    // يجب أن يبدأ النص بنقطة (.) حصراً، ما لم يكن تفاعلاً من قائمة أو زر
+    const hasPrefix = fromInteractive ? false : text.startsWith(".");
+
+    if (!hasPrefix && !fromInteractive) {
+        return; // إذا لم يبدأ بنقطة، يتم تجاهل الرسالة بالكامل
+    }
 
     let noPrefixText =
         hasPrefix
@@ -1777,19 +1753,6 @@ async function executeHandlerLogic(
         );
 
     if (!cmd) {
-        return;
-    }
-
-    /*
-     * الأوامر العادية تحتاج Prefix
-     * إلا إذا كان المستخدم Elite
-     * أو التفاعل من قائمة/زر.
-     */
-    if (
-        !hasPrefix &&
-        !isEliteUser &&
-        !fromInteractive
-    ) {
         return;
     }
 
@@ -1888,13 +1851,6 @@ export async function warmupHandler(
     sock
 ) {
     try {
-        /*
-         * تجهيز كل شيء قبل أول رسالة.
-         *
-         * هذه النقطة مهمة جدًا للسرعة:
-         * أول أمر بعد تشغيل البوت لن يضطر
-         * إلى تحميل البلجنات والنخبة من الصفر.
-         */
         await Promise.all([
             refreshMode(true),
             refreshElite(true),
