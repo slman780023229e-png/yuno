@@ -9,14 +9,23 @@ export default {
 
     description: "إعادة تشغيل البوت على منصة Render",
 
+
     execute: async(sock, msg, data)=>{
+
 
         // ==========================
         // البحث عن ملف النخبة
         // ==========================
 
-        const dataPath = path.join(process.cwd(), "data");
+        const dataPath =
+        path.join(
+            process.cwd(),
+            "data"
+        );
+
+
         let elite = [];
+
 
         const files = [
             "النخبة.json",
@@ -25,45 +34,104 @@ export default {
             "النخبه"
         ];
 
+
+
         for(const file of files){
-            const filePath = path.join(dataPath, file);
+
+            const filePath =
+            path.join(
+                dataPath,
+                file
+            );
+
+
             if(fs.existsSync(filePath)){
+
                 try{
-                    const rawData = JSON.parse(fs.readFileSync(filePath, "utf8"));
-                    // التأكد من أن البيانات مصفوفة أو تحويلها لشكل يقبل القراءة
+
+                    const rawData = JSON.parse(
+                        fs.readFileSync(
+                            filePath,
+                            "utf8"
+                        )
+                    );
+                    
+                    // تحويل البيانات لدعم المصفوفات أو الكائنات بشكل سليم
                     elite = Array.isArray(rawData) ? rawData : Object.values(rawData);
-                    console.log("تم تحميل النخبة من:", filePath);
+
+                    console.log(
+                        "تم تحميل النخبة من:",
+                        filePath
+                    );
+
                     break;
+
+
                 }catch(err){
-                    console.log("خطأ قراءة النخبة:", err.message);
+
+                    console.log(
+                        "خطأ قراءة النخبة:",
+                        err.message
+                    );
+
                 }
+
             }
+
         }
 
-        // تنظيف أرقام النخبة واستخراج الأجزاء الأساسية منها
-        const cleanElite = elite.map(x => String(x).replace(/\D/g, ""));
+
+
+        // تنظيف أرقام النخبة تماماً من الرموز
+        const cleanElite = elite.map(
+            x=>String(x).replace(/\D/g,"")
+        );
+
+
 
         // ==========================
-        // رقم المرسل الحالي
+        // رقم المرسل
         // ==========================
 
-        const sender = data.sender || data.jid || "";
-        const senderNumber = sender.split("@")[0].replace(/\D/g, "");
+        const sender =
+        data.sender ||
+        data.jid ||
+        "";
 
-        console.log("رقم المرسل المفحوص:", senderNumber);
-        console.log("قائمة النخبة المسجلة:", cleanElite);
+
+        const number =
+        sender
+        .split("@")[0]
+        .replace(/\D/g,"");
+
+
+
+        console.log(
+            "رقم المرسل:",
+            number
+        );
+
+        console.log(
+            "النخبة المصفاة:",
+            cleanElite
+        );
+
+
 
         // ==========================
-        // التحقق الذكي والقوي (يتعرف على أي صيغة مطابقة)
+        // فحص قوي وذكي للنخبة (يتعرف على أي صيغة أو مفتاح دولة)
         // ==========================
 
         const isElite = cleanElite.some(el => {
-            // مطابقة تامة أو مطابقة الأجزاء الأخيرة (لتجنب مشاكل مفتاح الدولة)
-            return senderNumber === el || 
-                   (senderNumber.length > 8 && el.length > 8 && (senderNumber.endsWith(el) || el.endsWith(senderNumber)));
+            return number === el || 
+                   (number.length > 8 && el.length > 8 && (number.endsWith(el) || el.endsWith(number)));
         });
 
+
+
         if(!isElite){
+
+
             return sock.sendMessage(
                 data.jid,
                 {
@@ -75,13 +143,22 @@ export default {
 ╰━━━━━━━━━━━━━━╯`
                 }
             );
+
         }
+
+
 
         // ==========================
         // حفظ مكان الرسالة
         // ==========================
 
-        const restartFile = path.join(dataPath, "restart.json");
+        const restartFile =
+        path.join(
+            dataPath,
+            "restart.json"
+        );
+
+
         fs.writeFileSync(
             restartFile,
             JSON.stringify({
@@ -89,6 +166,8 @@ export default {
                 time: Date.now()
             })
         );
+
+
 
         await sock.sendMessage(
             data.jid,
@@ -103,14 +182,20 @@ export default {
             }
         );
 
+
+
         // ==========================
         // إعادة التشغيل على Render
         // ==========================
 
         setTimeout(()=>{
-            // استخدام 1 لإجبار Render على إعادة التشغيل التلقائي
-            process.exit(1);
+
+            // إيقاف العملية بإجبار Render على إعادة تشغيل الخدمة تلقائياً
+            process.exit(0);
+
         }, 2000);
+
+
 
     }
 
