@@ -238,9 +238,16 @@ ${chalk.cyan("━━━━━━━━━━━━━━━━━━━━━━
     // MESSAGE HANDLER  
     // ===============================  
 
-    sock.ev.on("messages.upsert", async (m) => {  
+    sock.ev.on("messages.upsert", async (chatUpdate) => {  
         try {  
-            await handleMessages(sock, m);  
+            const mek = chatUpdate.messages[0];
+            if (!mek.message) return;
+            
+            // تطبيق السيرياليزي لتفعيل الأزرار والخصائص التفاعلية
+            serialize(sock, mek);  
+
+            // تمرير chatUpdate بالكامل ليتوافق تماماً مع توقعات هاندلر الأوامر
+            await handleMessages(sock, chatUpdate);  
         } catch (err) {  
             console.log(chalk.red("❌ خطأ استقبال الرسالة: " + err.message));  
         }  
