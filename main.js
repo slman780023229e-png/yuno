@@ -1,3 +1,4 @@
+import serialize from "./utils/serialize.js";
 import { handleMessages } from "./utils/handler.js";
 import { loadPlugins } from "./utils/loader.js";
 import makeWASocket, {
