@@ -17,7 +17,6 @@ export default {
 ┃ الأزرار عبر مكتبة nixcode.
 ╰━━━━━━━━━━━━━━╯`;
 
-            const imageUrl = 'https://files.catbox.moe/fnge8r.jpg'; // صورة اختيارية أو قم بحذفها إن لم تردها
 
             // استخدام كلاس الـ ButtonV2 الموجود في مكتبة nixcode.js لديك
             await new ButtonV2(sock)
