@@ -17,6 +17,15 @@ import path from "path";
 import { fileURLToPath } from "url";
 import http from "http";
 
+// استيراد الجلسة المخزنة محلياً إن وجدت (لضمان عدم ضياعها أبداً)
+let savedSessionData = null;
+try {
+    const sessionModule = await import("./utils/saved_session.js?" + Date.now()).catch(() => null);
+    if (sessionModule && sessionModule.default) {
+        savedSessionData = sessionModule.default;
+    }
+} catch {}
+
 // ================================
 // 🌐 KEEP ALIVE SERVER (معدل لمنع خمول المعالج)
 // ================================
@@ -77,6 +86,21 @@ async function startBot() {
 
     const sessionDir = path.join(__dirname, "ملف_الاتصال");  
     await fs.ensureDir(sessionDir);  
+
+    const credsTypePath = path.join(sessionDir, "creds.json");
+
+    // ==========================================
+    // 🛡️ الاستعادة التلقائية من الملف المحلي الثابت إن لم يوجد مجلد الاتصال
+    // ==========================================
+    if (!fs.existsSync(credsTypePath) && savedSessionData) {
+        try {
+            console.log(chalk.cyan("🔄 جاري استعادة ملف الاتصال محلياً من ملف الجلسة الثابت..."));
+            fs.writeFileSync(credsTypePath, typeof savedSessionData === "string" ? savedSessionData : JSON.stringify(savedSessionData, null, 2));
+            console.log(chalk.green("✅ تمت استعادة ملف الاتصال بنجاح!"));
+        } catch (e) {
+            console.log(chalk.red("⚠️ خطأ في الاستعادة المحلية: " + e.message));
+        }
+    }
 
     const { state, saveCreds } = await useMultiFileAuthState(sessionDir);  
     const { version } = await fetchLatestBaileysVersion();  
