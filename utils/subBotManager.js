@@ -39,6 +39,68 @@ const MAX_RECONNECT_ATTEMPTS = 50;
 const SUBBOT_EVENT_YIELD = true;
 
 // ═══════════════════════════════════════
+// ⚡ TOOLKIT WITH SMART CACHING SYSTEM
+// ═══════════════════════════════════════
+
+class Toolkit {
+    static #mediaCache = new Map();
+    static #bufferCache = new Map();
+    static #MAX_CACHE_SIZE = 100;
+
+    static clearCache() {
+        this.#mediaCache.clear();
+        this.#bufferCache.clear();
+    }
+
+    static async fetchBuffer(url) {
+        if (this.#bufferCache.has(url)) {
+            return this.#bufferCache.get(url);
+        }
+        try {
+            const res = await fetch(url);
+            const buffer = Buffer.from(await res.arrayBuffer());
+            
+            if (this.#bufferCache.size >= this.#MAX_CACHE_SIZE) {
+                const firstKey = this.#bufferCache.keys().next().value;
+                this.#bufferCache.delete(firstKey);
+            }
+            this.#bufferCache.set(url, buffer);
+            return buffer;
+        } catch (error) {
+            throw new Error(`Failed to fetch buffer: ${error.message}`);
+        }
+    }
+
+    static async toUrl(client, pathOrBuffer) {
+        try {
+            const buffer = Buffer.isBuffer(pathOrBuffer) 
+                ? pathOrBuffer 
+                : await this.fetchBuffer(pathOrBuffer);
+
+            const crypto = await import('crypto');
+            const hash = crypto.createHash('md5').update(buffer).digest('hex');
+
+            if (this.#mediaCache.has(hash)) {
+                return this.#mediaCache.get(hash);
+            }
+
+            const uploadResult = await client.waUploadToServer(buffer, { ext: 'bin' });
+            const url = uploadResult?.url || uploadResult;
+
+            if (this.#mediaCache.size >= this.#MAX_CACHE_SIZE) {
+                const firstKey = this.#mediaCache.keys().next().value;
+                this.#mediaCache.delete(firstKey);
+            }
+            this.#mediaCache.set(hash, url);
+
+            return url;
+        } catch (error) {
+            throw new Error(`Failed to upload media: ${error.message}`);
+        }
+    }
+}
+
+// ═══════════════════════════════════════
 // 🧠 MEMORY
 // ═══════════════════════════════════════
 
@@ -423,6 +485,9 @@ async function startSubBotInternal(number) {
         keepAliveIntervalMs: 25000
     });
 
+    // حقن نظام Toolkit مع الكاش بداخل السوكت لتكون جاهزة للاستخدام في أي وقت
+    sock.Toolkit = Toolkit;
+
     installRealButtons(sock);
     sock.ev.on("creds.update", saveCreds);
 
@@ -457,7 +522,7 @@ async function startSubBotInternal(number) {
         });
     });
 
-    // 👥 GROUP PARTICIPANTS UPDATE (مضافة لتطابق البوت الرئيسي تماماً)
+    // 👥 GROUP PARTICIPANTS UPDATE
     sock.ev.on("group-participants.update", update => {
         const current = runningBots.get(number);
         if (!current || current.generation !== generation) return;
@@ -475,7 +540,7 @@ async function startSubBotInternal(number) {
         });
     });
 
-    // 🔗 GROUP JOIN REQUESTS (مضافة لتطابق البوت الرئيسي تماماً)
+    // 🔗 GROUP JOIN REQUESTS
     sock.ev.on("group.join-request", update => {
         const current = runningBots.get(number);
         if (!current || current.generation !== generation) return;
@@ -521,7 +586,6 @@ async function startSubBotInternal(number) {
             console.log(`🟢 SubBot ONLINE | ${number}`);
             saveNumber(number).catch(() => {});
             
-            // تحميل البلجنات فور فتح الاتصال
             getSubPlugins(sock).catch(() => {});
         }
 
