@@ -15,14 +15,27 @@ class Database {
     constructor() {
         this.cache = new Map();
         this.cacheTimestamps = new Map();
-        this.CACHE_DURATION = 60 * 1000; // صلاحية الكاش دقيقة واحدة فقط لتفريغ الرام باستمرار
+        this.CACHE_DURATION = 60 * 1000; // دقيقة واحدة صلاحية للكاش
+        this.MAX_CACHE_ITEMS = 100; // الحد الأقصى للعناصر في الذاكرة لمنع امتلاءها نهائياً
+    }
+
+    // تنظيف تلقائي للعناصر القديمة في الكاش
+    _cleanupCache() {
+        if (this.cache.size <= this.MAX_CACHE_ITEMS) return;
+        
+        // إزالة أقدم عنصر تم تخزينه (FIFO)
+        const oldestKey = this.cache.keys().next().value;
+        if (oldestKey !== undefined) {
+            this.cache.delete(oldestKey);
+            this.cacheTimestamps.delete(oldestKey);
+        }
     }
 
     read(filename, defaultData = []) {
         const filePath = path.join(dbPath, filename);
         const now = Date.now();
 
-        // التحقق من وجود الكاش وصلاحيته (لم تتجاوز الدقيقة)
+        // التحقق من صلاحية الكاش
         if (this.cache.has(filename) && (now - this.cacheTimestamps.get(filename) < this.CACHE_DURATION)) {
             return this.cache.get(filename);
         }
@@ -41,6 +54,9 @@ class Database {
 
             const parsed = JSON.parse(data);
             
+            // تنظيف الذاكرة قبل إضافة عنصر جديد إذا وصلت للحد الأقصى
+            this._cleanupCache();
+
             // تحديث الكاش والوقت الحالي
             this.cache.set(filename, parsed);
             this.cacheTimestamps.set(filename, now);
@@ -56,11 +72,18 @@ class Database {
         const filePath = path.join(dbPath, filename);
         
         try {
+            this._cleanupCache();
+
+            // تحديث الكاش أولاً
             this.cache.set(filename, data);
             this.cacheTimestamps.set(filename, Date.now());
             
             const tempPath = `${filePath}.tmp`;
             fs.writeFileSync(tempPath, JSON.stringify(data, null, 2), "utf-8");
+            
+            if (fs.existsSync(filePath)) {
+                fs.unlinkSync(filePath);
+            }
             fs.renameSync(tempPath, filePath);
             
             return true;
