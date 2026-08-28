@@ -1,7 +1,7 @@
 /**
- * Do not remove this watermark.
+ * Do not remove this waterark.
  *
- * NIXCODE - Advanced WhatsApp Interactive Message Builder
+ * NIXCODE - Advanced WhatsAp Interactive Message Builder
  * Built for creating buttons, carousels, native flows,
  * and AI rich response payloads using Baileys with
  * fluent chaining, flexible payload customization,
@@ -229,6 +229,19 @@ async function waitAllPromises(input) {
 }
 
 class Toolkit {
+	// ذاكرة مؤقتة فائقة السرعة وآمنة تماماً تمنع بطء البوت (Memory Cache)
+	static #mediaCache = new Map();
+	static #bufferCache = new Map();
+	static #MAX_CACHE_SIZE = 100;
+
+	static #setCache(cacheMap, key, value) {
+		if (cacheMap.size >= Toolkit.#MAX_CACHE_SIZE) {
+			const firstKey = cacheMap.keys().next().value;
+			cacheMap.delete(firstKey);
+		}
+		cacheMap.set(key, value);
+	}
+
 	constructor() {}
 
 	static extractIE(text, { extract = true, hyperlink = true, citation = true, latex = true } = {}) {
@@ -250,19 +263,34 @@ class Toolkit {
 		return await waitAllPromises(input);
 	}
 
-	static async fetchBuffer(url, options = {}, { silent = true } = {}) {
+	static async fetchBuffer(url, options = {}, { silent = true, useCache = true } = {}) {
 		try {
+			if (useCache && Toolkit.#bufferCache.has(url)) {
+				return Toolkit.#bufferCache.get(url);
+			}
+
 			let response = await fetch(url, options);
 			if (!response.ok) throw Error(`HTTP ${response.status}`);
-			return Buffer.from(await response.arrayBuffer());
+			const buffer = Buffer.from(await response.arrayBuffer());
+
+			if (useCache && buffer.length > 0) {
+				Toolkit.#setCache(Toolkit.#bufferCache, url, buffer);
+			}
+
+			return buffer;
 		} catch (error) {
 			if (silent) return Buffer.alloc(0);
 			throw error;
 		}
 	}
 
-	static async toUrl(_client, path, mediaType = 'document') {
+	static async toUrl(_client, path, mediaType = 'document', useCache = true) {
 		if (!path) throw new Error('Url or buffer needed');
+
+		const cacheKey = typeof path === 'string' ? path : crypto.createHash('md5').update(path).digest('hex');
+		if (useCache && Toolkit.#mediaCache.has(cacheKey)) {
+			return Toolkit.#mediaCache.get(cacheKey);
+		}
 
 		const media = await prepareWAMessageMedia(
 			{
@@ -274,7 +302,12 @@ class Toolkit {
 			}
 		);
 
-		return Object.values(media)[0]?.url;
+		const url = Object.values(media)[0]?.url;
+		if (url && useCache) {
+			Toolkit.#setCache(Toolkit.#mediaCache, cacheKey, url);
+		}
+
+		return url;
 	}
 
 	static async resolveMedia(_client, media, mediaType = 'image', { resolveUrl = false, resolveWAUrl = false, result = 'url', resize = false, width = 300, height = 300 } = {}) {
@@ -2223,7 +2256,7 @@ class AIRich extends BaseBuilder {
 				cells: normalize(r),
 			})),
 		].map((row) => {
-			const markdown_cells = row.cells.map((cell) => {
+			const markdown_cells = row.cells.codeContent ? [] : row.cells.map((cell) => {
 				const extracted = extractIE(cell, { hyperlink, citation, latex });
 
 				return {
