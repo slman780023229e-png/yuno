@@ -8,11 +8,12 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // =============================
-// 🛡️ درع حماية وتطهير ملفات الجلسة والاتصال
+// 🛡️ درع حماية وتطهير ملفات الجلسة والاتصال (معدل لحماية ملف_الاتصال وعدم مسح الجلسة النشطة)
 // =============================
 function protectAndCleanSession() {
     try {
         const sessionPaths = [
+            path.join(__dirname, "ملف_الاتصال"),
             path.join(__dirname, "session"),
             path.join(__dirname, "sessions"),
             path.join(__dirname, "../session"),
@@ -29,6 +30,11 @@ function protectAndCleanSession() {
                     try {
                         const stats = fs.statSync(filePath);
                         if (stats.isFile()) {
+                            // حماية ملف الاعتماد الأساسي للربط لكي لا يطلب كود جديد كل مرة
+                            if (file === "creds.json") {
+                                continue;
+                            }
+
                             if (stats.size === 0) {
                                 fs.unlinkSync(filePath);
                                 continue;
@@ -39,6 +45,35 @@ function protectAndCleanSession() {
                             } else {
                                 seenFiles.add(file);
                             }
+                        }
+                    } catch {}
+                }
+            }
+        }
+    } catch {}
+}
+
+// =============================
+// 🧹 دالة تنظيف الكاش والملفات المؤقتة لتخفيف الذاكرة
+// =============================
+function clearTempCache() {
+    try {
+        const cacheDirs = [
+            path.join(__dirname, "tmp"),
+            path.join(__dirname, "temp"),
+            path.join(__dirname, "data/cache")
+        ];
+
+        for (const dir of cacheDirs) {
+            if (fs.existsSync(dir)) {
+                const files = fs.readdirSync(dir);
+                for (const file of files) {
+                    const filePath = path.join(dir, file);
+                    try {
+                        const stats = fs.statSync(filePath);
+                        if (stats.isFile()) {
+                            // حذف الملفات المؤقتة القديمة التي تملأ الذاكرة
+                            fs.unlinkSync(filePath);
                         }
                     } catch {}
                 }
@@ -75,11 +110,12 @@ async function loading(text) {
 }
 
 async function start() {
+    // تشغيل درع الحماية وتنظيف الكاش المؤقت بذكاء دون المساس بملف الاتصال الرئيسي
     protectAndCleanSession();
+    clearTempCache();
 
     console.clear();
 
-    // 👑 شعار أسطوري ضخم داخل كبسولة مربعة مع ألوان آمنة وصحيحة
     console.log(`
 ${chalk.yellow("╔══════════════════════════════════════════════════════════════════╗")}
 ${chalk.yellow("║")} ${chalk.red("█████╗ ██████╗ ████████╗██╗  ██╗██╗   ██╗██████╗     👑 𝐀𝐑𝐓𝐇𝐔𝐑 👑")} ${chalk.yellow("║")}
