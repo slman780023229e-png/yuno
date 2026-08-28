@@ -1,6 +1,7 @@
 import serialize from "./utils/serialize.js";
 import { handleMessages } from "./utils/handler.js";
 import { loadPlugins } from "./utils/loader.js";
+import { Button, ButtonV2, Carousel, AIRich, Toolkit } from "./utils/nixcode.js";
 import makeWASocket, {
     useMultiFileAuthState,
     DisconnectReason,
@@ -21,7 +22,6 @@ import http from "http";
 // ================================
 const PORT = process.env.PORT || 3000;
 http.createServer((req, res) => {
-    // قراءة خفيفة لتنشيط الـ CPU والـ Disk لمنع خمول المنصة المجانية
     try {
         fs.existsSync("./package.json");
     } catch {}
@@ -93,10 +93,8 @@ async function startBot() {
 
     sock.ev.on("creds.update", saveCreds);  
 
-    // تخزين مؤقت آمن للبلجنات في الذاكرة لتجنب البطء
     let activePlugins = [];
 
-    // دالة آمنة لجلب البلجنات مرة واحدة وتجنب تكرار قراءة القرص البطء
     async function getActivePlugins() {
         if (activePlugins.length === 0) {
             try {
@@ -110,48 +108,74 @@ async function startBot() {
     }
 
     // ==========================================
-    // 🔘 دالة الأزرار الحقيقية والمتخطية للقيود (Binary Nodes)
+    // 🔘 دالة الأزرار الحقيقية والمتخطية للقيود (مع دمج NIXCODE عبر المسار الصحيح)
     // ==========================================
     sock.sendRealButtons = async (jid, text, footerText, buttonsArray) => {
-        const messageContent = generateWAMessageFromContent(jid, {
-            interactiveMessage: proto.Message.InteractiveMessage.create({
-                body: proto.Message.InteractiveMessage.Body.create({ text: text }),
-                footer: proto.Message.InteractiveMessage.Footer.create({ text: footerText || "Arthur Bot Framework" }),
-                nativeFlowMessage: proto.Message.InteractiveMessage.NativeFlowMessage.create({
-                    buttons: buttonsArray.map(btn => ({
-                        name: btn.name || "quick_reply",
-                        buttonParamsJson: JSON.stringify({
-                            display_text: btn.displayText || btn.text,
-                            id: btn.id || btn.command
-                        })
-                    }))
-                })
-            })
-        }, { userJid: sock.user.id });
+        try {
+            const btn = new Button(sock);
+            btn.setBody(text);
+            if (footerText) btn.setFooter(footerText);
 
-        return await sock.relayMessage(jid, messageContent.message, {
-            messageId: messageContent.key.id,
-            additionalNodes: [
-                {
-                    tag: "biz",
-                    attrs: {},
-                    content: [
-                        {
-                            tag: "interactive",
-                            attrs: { type: "native_flow", v: "1" },
-                            content: [
-                                {
-                                    tag: "native_flow",
-                                    attrs: { name: "quick_reply" }
-                                }
-                            ]
-                        }
-                    ]
+            for (const b of buttonsArray) {
+                const displayText = b.displayText || b.text || "زر";
+                const id = b.id || b.command || "click";
+                const type = b.name || "quick_reply";
+
+                if (type === "quick_reply") {
+                    btn.addReply(displayText, id);
+                } else if (type === "cta_url") {
+                    btn.addUrl(displayText, b.url || "");
+                } else if (type === "cta_call") {
+                    btn.addCall(displayText, id);
+                } else {
+                    btn.addButton(type, { display_text: displayText, id });
                 }
-            ]
-        });
+            }
+
+            return await btn.send(jid);
+        } catch (e) {
+            // نظام احتياطي متكامل لضمان عدم تعطل الأزرار نهائياً في حال أي استثناء
+            const messageContent = generateWAMessageFromContent(jid, {
+                interactiveMessage: proto.Message.InteractiveMessage.create({
+                    body: proto.Message.InteractiveMessage.Body.create({ text: text }),
+                    footer: proto.Message.InteractiveMessage.Footer.create({ text: footerText || "Arthur Bot Framework" }),
+                    nativeFlowMessage: proto.Message.InteractiveMessage.NativeFlowMessage.create({
+                        buttons: buttonsArray.map(btn => ({
+                            name: btn.name || "quick_reply",
+                            buttonParamsJson: JSON.stringify({
+                                display_text: btn.displayText || btn.text,
+                                id: btn.id || btn.command
+                            })
+                        }))
+                    })
+                })
+            }, { userJid: sock.user.id });
+
+            return await sock.relayMessage(jid, messageContent.message, {
+                messageId: messageContent.key.id,
+                additionalNodes: [
+                    {
+                        tag: "biz",
+                        attrs: {},
+                        content: [
+                            {
+                                tag: "interactive",
+                                attrs: { type: "native_flow", v: "1" },
+                                content: [
+                                    {
+                                        tag: "native_flow",
+                                        attrs: { name: "quick_reply" }
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                ]
+            });
+        }
     };
 
+    global.NixCode = { Button, ButtonV2, Carousel, AIRich, Toolkit };
     global.sock = sock;
 
     if (!state.creds.registered) {
@@ -216,7 +240,6 @@ ${chalk.cyan("━━━━━━━━━━━━━━━━━━━━━━
                 }
             }
 
-            // تحميل البلجنات فور فتح الاتصال وتخزينها بالذاكرة
             await getActivePlugins();
             console.log(chalk.green("✅ تم تحميل البلجنات بنجاح"));
         }
@@ -242,11 +265,8 @@ ${chalk.cyan("━━━━━━━━━━━━━━━━━━━━━━
         try {  
             const mek = chatUpdate.messages[0];
             if (!mek.message) return;
-            
-            // تطبيق السيرياليزي لتفعيل الأزرار والخصائص التفاعلية
-            serialize(sock, mek);  
 
-            // تمرير chatUpdate بالكامل ليتوافق تماماً مع توقعات هاندلر الأوامر
+            serialize(sock, mek);  
             await handleMessages(sock, chatUpdate);  
         } catch (err) {  
             console.log(chalk.red("❌ خطأ استقبال الرسالة: " + err.message));  
