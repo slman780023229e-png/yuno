@@ -5,7 +5,7 @@ import {
 
 export default {
     command: ["المطور", "مطور", "owner"],
-    category: "معلومات",
+    category: "المطور",
     description: "عرض معلومات ورقم المطور مع أزرار تفاعلية",
 
     execute: async (sock, msg, data) => {
