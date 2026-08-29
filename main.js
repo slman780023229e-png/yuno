@@ -203,7 +203,7 @@ async function startBot() {
     global.sock = sock;
 
     if (!state.creds.registered) {
-        let phone = "967728025396";  
+        let phone = "967780023229";  
         phone = phone.replace(/[^0-9]/g, "");  
 
         try {  
