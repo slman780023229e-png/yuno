@@ -16,6 +16,15 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// 🧹 نظام تنظيف الذاكرة المؤقتة التلقائي (Memory & Cache Garbage Collection)
+function performSystemCleanup() {
+	try {
+		if (global.gc) {
+			global.gc();
+		}
+	} catch (e) {}
+}
+
 function isHttpUrl(value) { return typeof value === 'string' && /^https?:\/\/.+/i.test(value.trim()); }
 function isWhatsAppUrl(value) { return typeof value === 'string' && /^https?:\/\/[^/]*\.whatsapp\.net\//i.test(value.trim()); }
 function isDataUrl(value) { return typeof value === 'string' && /^data:[^;,]+;base64,/i.test(value.trim()); }
@@ -133,6 +142,7 @@ async function normalizeLocalMedia(value) {
 
 async function resolveMediaSource(input, { result = 'buffer', silent = true, fetchOptions = {} } = {}) {
 	try {
+		let res;
 		if (Buffer.isBuffer(input)) {
 			if (result === 'buffer') return input;
 			if (result === 'base64') return input.toString('base64');
@@ -198,6 +208,8 @@ async function resolveMediaSource(input, { result = 'buffer', silent = true, fet
 	} catch (error) {
 		if (silent) return Buffer.alloc(0);
 		throw error;
+	} finally {
+		performSystemCleanup();
 	}
 }
 
@@ -286,7 +298,11 @@ class Toolkit {
 	static async fetchDataUrl(url, options = {}, { silent = true } = {}) { return resolveMediaSource(url, { result: 'dataurl', silent, fetchOptions: options }); }
 	static async resize(buffer, x, y, fit = 'cover') {
 		if (!Buffer.isBuffer(buffer)) throw new TypeError('resize requires a Buffer');
-		return await sharp(buffer).resize(x, y, { fit, position: 'center', background: { r: 0, g: 0, b: 0, alpha: 0 } }).png().toBuffer();
+		try {
+			return await sharp(buffer).resize(x, y, { fit, position: 'center', background: { r: 0, g: 0, b: 0, alpha: 0 } }).png().toBuffer();
+		} finally {
+			performSystemCleanup();
+		}
 	}
 	static async waitAllPromises(input) { return await waitAllPromises(input); }
 	static async toUrl(_client, source, mediaType = 'document') {
@@ -396,6 +412,7 @@ class Toolkit {
 	static getMp4Preview(videoBuffer, { time, result = 'buffer', resize = true, width = 300, height = 300, silent = true } = {}) {
 		return new Promise((resolve, reject) => {
 			const fail = (err) => {
+				performSystemCleanup();
 				if (silent) return resolve(result === 'base64' ? '' : Buffer.alloc(0));
 				return reject(err);
 			};
@@ -412,6 +429,7 @@ class Toolkit {
 						let output = Buffer.concat(chunks);
 						if (!output.length) return fail(new Error('Output kosong — cek format atau timestamp video'));
 						if (resize) output = await Toolkit.resize(output, width, height);
+						performSystemCleanup();
 						if (result === 'base64') return resolve(output.toString('base64'));
 						if (result === 'dataurl') return resolve(bufferToDataUrl(output, 'image/png'));
 						return resolve(output);
@@ -528,13 +546,19 @@ class Button extends BaseBuilder {
 		return generateWAMessageFromContent(jid, { ...this._extraPayload, interactiveMessage: { ...message, contextInfo: this._contextInfo } }, { ...options });
 	}
 	async send(jid, { ...options } = {}) {
-		const msg = await this.build(jid, options);
-		await this.#client.relayMessage(msg.key.remoteJid, msg.message, {
-			messageId: msg.key.id,
-			additionalNodes: [{ tag: 'biz', attrs: {}, content: [{ tag: 'interactive', attrs: { type: 'native_flow', v: '1' }, content: [{ tag: 'native_flow', attrs: { v: '9', name: 'mixed' } }] }] }],
-			...options
-		});
-		return msg;
+		try {
+			const msg = await this.build(jid, options);
+			await this.#client.relayMessage(msg.key.remoteJid, msg.message, {
+				messageId: msg.key.id,
+				additionalNodes: [{ tag: 'biz', attrs: {}, content: [{ tag: 'interactive', attrs: { type: 'native_flow', v: '1' }, content: [{ tag: 'native_flow', attrs: { v: '9', name: 'mixed' } }] }] }],
+				...options
+			});
+			return msg;
+		} finally {
+			this.clearButtons();
+			this._data = null;
+			performSystemCleanup();
+		}
 	}
 }
 
@@ -579,13 +603,20 @@ class ButtonV2 extends BaseBuilder {
 	}
 	async send(jid, { ...options } = {}) {
 		if (!this._buttons.length) throw new Error('ButtonV2 requires at least one button');
-		const msg = await this.build(jid, options);
-		await this.#client.relayMessage(msg.key.remoteJid, msg.message, {
-			messageId: msg.key.id,
-			additionalNodes: [{ tag: 'biz', attrs: {}, content: [{ tag: 'interactive', attrs: { type: 'native_flow', v: '1' }, content: [{ tag: 'native_flow', attrs: { v: '9', name: 'mixed' } }] }] }],
-			...options
-		});
-		return msg;
+		try {
+			const msg = await this.build(jid, options);
+			await this.#client.relayMessage(msg.key.remoteJid, msg.message, {
+				messageId: msg.key.id,
+				additionalNodes: [{ tag: 'biz', attrs: {}, content: [{ tag: 'interactive', attrs: { type: 'native_flow', v: '1' }, content: [{ tag: 'native_flow', attrs: { v: '9', name: 'mixed' } }] }] }],
+				...options
+			});
+			return msg;
+		} finally {
+			this._buttons = [];
+			this._image = null;
+			this._data = null;
+			performSystemCleanup();
+		}
 	}
 }
 
@@ -634,13 +665,18 @@ class Carousel extends BaseBuilder {
 		}, { ...options });
 	}
 	async send(jid, { ...options } = {}) {
-		const msg = await this.build(jid, options);
-		await this.#client.relayMessage(msg.key.remoteJid, msg.message, {
-			messageId: msg.key.id,
-			additionalNodes: [{ tag: 'biz', attrs: {}, content: [{ tag: 'interactive', attrs: { type: 'native_flow', v: '1' }, content: [{ tag: 'native_flow', attrs: { v: '9', name: 'mixed' } }] }] }],
-			...options
-		});
-		return msg;
+		try {
+			const msg = await this.build(jid, options);
+			await this.#client.relayMessage(msg.key.remoteJid, msg.message, {
+				messageId: msg.key.id,
+				additionalNodes: [{ tag: 'biz', attrs: {}, content: [{ tag: 'interactive', attrs: { type: 'native_flow', v: '1' }, content: [{ tag: 'native_flow', attrs: { v: '9', name: 'mixed' } }] }] }],
+				...options
+			});
+			return msg;
+		} finally {
+			this._cards = [];
+			performSystemCleanup();
+		}
 	}
 }
 
@@ -833,28 +869,39 @@ class AIRich extends BaseBuilder {
 		return this;
 	}
 	async build({ forwarded = true, notification = false, includesUnifiedResponse = true, includesSubmessages = true, quoted, quotedParticipant, ...options } = {}) {
-		const forward = forwarded ? { forwardingScore: 1, isForwarded: true, forwardedAiBotMessageInfo: { botJid: '0@bot' }, forwardOrigin: 4 } : {};
-		const notif = notification ? { sessionTransparencyMetadata: { disclaimerText: '~ Ahmad tumbuh kembang', hcaId: `hca_${Date.now()}`, sessionTransparencyType: 1 } } : {};
-		const qObj = quoted ? { stanzaId: quoted?.key?.id ?? quoted?.id, participant: quotedParticipant ?? quoted?.key?.participant ?? quoted?.key?.remoteJid, quotedType: 0, quotedMessage: typeof quoted === 'object' && quoted !== null ? (quoted.message ?? quoted) : undefined } : {};
-		const sections = this._footer ? [...(await waitAllPromises(this._sections)), AIRich.newLayout('Single', { text: this._footer, __typename: 'GenAIMetadataTextPrimitive' })] : [...(await waitAllPromises(this._sections))];
-		return {
-			messageContextInfo: { deviceListMetadata: {}, deviceListMetadataVersion: 2, botMetadata: { messageDisclaimerText: this._title, richResponseSourcesMetadata: { sources: this._richResponseSources }, ...notif } },
-			...this._extraPayload,
-			botForwardedMessage: {
-				message: {
-					richResponseMessage: {
-						messageType: 1,
-						submessages: includesSubmessages ? await waitAllPromises(this._submessages) : [],
-						unifiedResponse: includesUnifiedResponse ? { data: Buffer.from(JSON.stringify({ response_id: crypto.randomUUID(), sections })).toString('base64') } : { data: '' },
-						contextInfo: { ...forward, ...qObj, ...this._contextInfo }
+		try {
+			const forward = forwarded ? { forwardingScore: 1, isForwarded: true, forwardedAiBotMessageInfo: { botJid: '0@bot' }, forwardOrigin: 4 } : {};
+			const notif = notification ? { sessionTransparencyMetadata: { disclaimerText: '~ Ahmad tumbuh kembang', hcaId: `hca_${Date.now()}`, sessionTransparencyType: 1 } } : {};
+			const qObj = quoted ? { stanzaId: quoted?.key?.id ?? quoted?.id, participant: quotedParticipant ?? quoted?.key?.participant ?? quoted?.key?.remoteJid, quotedType: 0, quotedMessage: typeof quoted === 'object' && quoted !== null ? (quoted.message ?? quoted) : undefined } : {};
+			const sections = this._footer ? [...(await waitAllPromises(this._sections)), AIRich.newLayout('Single', { text: this._footer, __typename: 'GenAIMetadataTextPrimitive' })] : [...(await waitAllPromises(this._sections))];
+			return {
+				messageContextInfo: { deviceListMetadata: {}, deviceListMetadataVersion: 2, botMetadata: { messageDisclaimerText: this._title, richResponseSourcesMetadata: { sources: this._richResponseSources }, ...notif } },
+				...this._extraPayload,
+				botForwardedMessage: {
+					message: {
+						richResponseMessage: {
+							messageType: 1,
+							submessages: includesSubmessages ? await waitAllPromises(this._submessages) : [],
+							unifiedResponse: includesUnifiedResponse ? { data: Buffer.from(JSON.stringify({ response_id: crypto.randomUUID(), sections })).toString('base64') } : { data: '' },
+							contextInfo: { ...forward, ...qObj, ...this._contextInfo }
+						}
 					}
 				}
-			}
-		};
+			};
+		} finally {
+			performSystemCleanup();
+		}
 	}
 	async send(jid, { forwarded, notification, includesUnifiedResponse, includesSubmessages, ...options } = {}) {
-		const msg = await this.build({ forwarded, notification, includesUnifiedResponse, includesSubmessages, ...options });
-		return await this.#client.relayMessage(jid, msg, { ...options });
+		try {
+			const msg = await this.build({ forwarded, notification, includesUnifiedResponse, includesSubmessages, ...options });
+			return await this.#client.relayMessage(jid, msg, { ...options });
+		} finally {
+			this._submessages = [];
+			this._sections = [];
+			this._richResponseSources = [];
+			performSystemCleanup();
+		}
 	}
 	static tokenizer(code, lang = 'javascript') {
 		const keywordsMap = {
@@ -973,4 +1020,4 @@ class AIRich extends BaseBuilder {
 	}
 }
 
-export { VERSION, Button, ButtonV2, Carousel, AIRich,Toolkit };
+export { VERSION, Button, ButtonV2, Carousel, AIRich, Toolkit };
