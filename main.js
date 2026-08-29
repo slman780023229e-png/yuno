@@ -2,6 +2,7 @@ import serialize from "./utils/serialize.js";
 import { handleMessages } from "./utils/handler.js";
 import { loadPlugins } from "./utils/loader.js";
 import { Button, ButtonV2, Carousel, AIRich, Toolkit } from "./utils/nixcode.js";
+import "./utils/memory-cleaner.js"; // 🛡️ استدعاء وتشغيل نظام مراقبة وتنظيف الذاكرة تلقائياً
 import makeWASocket, {
     useMultiFileAuthState,
     DisconnectReason,
@@ -33,7 +34,7 @@ try {
         const dataToWrite = typeof sessionModule.default === "string" 
             ? sessionModule.default 
             : JSON.stringify(sessionModule.default, null, 2);
-            
+
         fs.writeFileSync(credsTypePath, dataToWrite);
         console.log(chalk.green("✅ تم إنشاء ملف creds.json بنجاح من الجلسة المحفوظة مسبقاً!"));
     }
