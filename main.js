@@ -17,14 +17,29 @@ import path from "path";
 import { fileURLToPath } from "url";
 import http from "http";
 
-// استيراد الجلسة المخزنة محلياً إن وجدت (لضمان عدم ضياعها أبداً)
-let savedSessionData = null;
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// ==========================================
+// 🛡️ الاستعادة المبكرة والآمنة لملف الجلسة
+// ==========================================
+const sessionDir = path.join(__dirname, "ملف_الاتصال");
+await fs.ensureDir(sessionDir);
+const credsTypePath = path.join(sessionDir, "creds.json");
+
 try {
     const sessionModule = await import("./utils/saved_session.js?" + Date.now()).catch(() => null);
-    if (sessionModule && sessionModule.default) {
-        savedSessionData = sessionModule.default;
+    if (sessionModule && sessionModule.default && !fs.existsSync(credsTypePath)) {
+        const dataToWrite = typeof sessionModule.default === "string" 
+            ? sessionModule.default 
+            : JSON.stringify(sessionModule.default, null, 2);
+            
+        fs.writeFileSync(credsTypePath, dataToWrite);
+        console.log(chalk.green("✅ تم إنشاء ملف creds.json بنجاح من الجلسة المحفوظة مسبقاً!"));
     }
-} catch {}
+} catch (e) {
+    console.log(chalk.red("⚠️ خطأ في الاستعادة المبكرة للجلسة: " + e.message));
+}
 
 // ================================
 // 🌐 KEEP ALIVE SERVER (معدل لمنع خمول المعالج)
@@ -69,9 +84,6 @@ process.on("uncaughtException", (err) => {
     console.error("Uncaught Exception:", err);
 });
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 async function startBot() {
@@ -83,24 +95,6 @@ async function startBot() {
 ║         System Initializing...     ║
 ╚════════════════════════════════════╝
 `));
-
-    const sessionDir = path.join(__dirname, "ملف_الاتصال");  
-    await fs.ensureDir(sessionDir);  
-
-    const credsTypePath = path.join(sessionDir, "creds.json");
-
-    // ==========================================
-    // 🛡️ الاستعادة التلقائية من الملف المحلي الثابت إن لم يوجد مجلد الاتصال
-    // ==========================================
-    if (!fs.existsSync(credsTypePath) && savedSessionData) {
-        try {
-            console.log(chalk.cyan("🔄 جاري استعادة ملف الاتصال محلياً من ملف الجلسة الثابت..."));
-            fs.writeFileSync(credsTypePath, typeof savedSessionData === "string" ? savedSessionData : JSON.stringify(savedSessionData, null, 2));
-            console.log(chalk.green("✅ تمت استعادة ملف الاتصال بنجاح!"));
-        } catch (e) {
-            console.log(chalk.red("⚠️ خطأ في الاستعادة المحلية: " + e.message));
-        }
-    }
 
     const { state, saveCreds } = await useMultiFileAuthState(sessionDir);  
     const { version } = await fetchLatestBaileysVersion();  
@@ -132,7 +126,7 @@ async function startBot() {
     }
 
     // ==========================================
-    // 🔘 دالة الأزرار الحقيقية والمتخطية للقيود (مع دمج NIXCODE عبر المسار الصحيح)
+    // 🔘 دالة الأزرار الحقيقية والمتخطية للقيود
     // ==========================================
     sock.sendRealButtons = async (jid, text, footerText, buttonsArray) => {
         try {
@@ -158,7 +152,6 @@ async function startBot() {
 
             return await btn.send(jid);
         } catch (e) {
-            // نظام احتياطي متكامل لضمان عدم تعطل الأزرار نهائياً في حال أي استثناء
             const messageContent = generateWAMessageFromContent(jid, {
                 interactiveMessage: proto.Message.InteractiveMessage.create({
                     body: proto.Message.InteractiveMessage.Body.create({ text: text }),
