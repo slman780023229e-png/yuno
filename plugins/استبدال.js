@@ -21,7 +21,7 @@ const checkElitePermission = (msg, data) => {
 
         const filePath = path.join(dataDir, eliteFile);
         const fileContent = fs.readFileSync(filePath, "utf8");
-        
+
         if (fileContent.includes("{") || fileContent.includes("[")) {
             const parsed = JSON.parse(fileContent);
             const stringified = JSON.stringify(parsed);
@@ -42,11 +42,25 @@ export default {
     execute: async (sock, msg, data) => {
         const jid = data?.jid || msg.key.remoteJid;
 
+        const input = data.text ? data.text.trim() : "";
+        const args = input.replace(/^\.استبدال/, "").trim().split(/\s+/);
+        const query = args[0] ? args[0].toLowerCase() : "";
+
+        // التفاعل يظهر فقط عند كتابة .استبدال وحدها لجلب أوامر القائمة
+        if (!query) {
+            await sock.sendMessage(jid, {
+                react: {
+                    text: "🔄",
+                    key: msg.key
+                }
+            }).catch(() => {});
+        }
+
         // التحقق من صلاحيات النخبة
         const isElite = checkElitePermission(msg, data);
         if (!isElite) {
             return await sock.sendMessage(jid, {
-                text: `*╭━━〔 ❌ عذراً 〕━━╮*\n*┤ هذا الأمر مخصص لقسم (النخبة) فقط*\n*┤ لست مسجلاً في قائمة النخبة لتنفيذ الاستبدال*\n*╰─────────────╯*`,
+                text: `*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*\n❌ *هذا الأمر مخصص لقسم (النخبة) فقط*\n*لست مسجلاً في قائمة النخبة لتنفيذ الاستبدال*\n*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*`,
                 quoted: msg
             });
         }
@@ -73,7 +87,7 @@ export default {
                 const utilsFiles = fs.readdirSync(utilsPath)
                     .filter(f => f.endsWith(".js") || f.endsWith(".json"))
                     .map(f => ({ name: f, fullPath: path.join(utilsPath, f), type: "Utils / Handler" }));
-                
+
                 for (const uf of utilsFiles) {
                     if (!allFiles.some(af => af.name === uf.name)) {
                         allFiles.push(uf);
@@ -86,7 +100,7 @@ export default {
                 const pluginFiles = fs.readdirSync(pluginsPath)
                     .filter(f => f.endsWith(".js"))
                     .map(f => ({ name: f, fullPath: path.join(pluginsPath, f), type: "Plugin" }));
-                
+
                 for (const pf of pluginFiles) {
                     if (!allFiles.some(af => af.name === pf.name)) {
                         allFiles.push(pf);
@@ -95,13 +109,13 @@ export default {
             }
         } catch (e) {}
 
-        const input = data.text ? data.text.trim() : "";
-        const args = input.replace(/^\.استبدال/, "").trim().split(/\s+/);
-        const query = args[0] ? args[0].toLowerCase() : "";
-
         // إذا لم يتم كتابة رقم أو اسم، عرض قائمة الملفات الشاملة المتاحة
         if (!query) {
-            let listText = `╭━━━ ⚡ *قائمة ملفات النظام الشاملة* ━━━╮\n\n`;
+            let listText = `*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*\n`;
+            listText += `       *𝚫𝚪𝚻𝚮𝚼𝚪 • 𝚩𝚯𝚻 2026*\n`;
+            listText += `*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*\n`;
+            listText += `📂 *قائمة ملفات النظام الشاملة:*\n\n`;
+            
             allFiles.forEach((file, index) => {
                 let icon = "📂";
                 if (file.type === "System / Main") icon = "⚙️";
@@ -110,8 +124,10 @@ export default {
 
                 listText += `*${index + 1}-* ${icon} \`${file.name}\` (${file.type})\n`;
             });
-            listText += `\n╰━━━━━━━━━━━━━━━━━━━━╯\n`;
-            listText += `💡 *للاستبدال:* رد على رسالة الكود الجديد واكتب:\n\`.استبدال [الرقم أو الاسم]\`\n*مثال:* \`.استبدال 1\` أو \`.استبدال index.js\``;
+
+            listText += `\n*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*\n`;
+            listText += `💡 *للاستبدال:* رد على رسالة الكود الجديد واكتب:\n\`.استبدال [الرقم أو الاسم]\`\n*مثال:* \`.استبدال 1\` أو \`.استبدال index.js\`\n`;
+            listText += `*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*`;
 
             return await sock.sendMessage(jid, { text: listText }, { quoted: msg });
         }
@@ -120,7 +136,7 @@ export default {
         const quotedMsg = msg.message?.extendedTextMessage?.contextInfo?.quotedMessage;
         if (!quotedMsg) {
             return await sock.sendMessage(jid, {
-                text: `*❌ يجب عليك الرد على رسالة تحتوي على الكود الجديد واستخدام الأمر مع رقم أو اسم الملف.*\n*مثال:* \`.استبدال 1\``,
+                text: `*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*\n❌ *يجب عليك الرد على رسالة تحتوي على الكود الجديد واستخدام الأمر مع رقم أو اسم الملف.*\n*مثال:* \`.استبدال 1\`\n*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*`,
                 quoted: msg
             });
         }
@@ -140,7 +156,7 @@ export default {
 
         if (!newContent.trim()) {
             return await sock.sendMessage(jid, {
-                text: `*❌ الرسالة التي رددت عليها لا تحتوي على كود برمجي صالح!*`,
+                text: `*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*\n❌ *الرسالة التي رددت عليها لا تحتوي على كود برمجي صالح!*\n*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*`,
                 quoted: msg
             });
         }
@@ -156,7 +172,7 @@ export default {
 
         if (!targetFileObj) {
             return await sock.sendMessage(jid, {
-                text: `*❌ الملف غير موجود! تأكد من الرقم أو الاسم (اكتب .استبدال وحدها لرؤية القائمة).*`,
+                text: `*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*\n❌ *الملف غير موجود! تأكد من الرقم أو الاسم (اكتب .استبدال وحدها لرؤية القائمة).*\n*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*`,
                 quoted: msg
             });
         }
@@ -165,13 +181,13 @@ export default {
             fs.writeFileSync(targetFileObj.fullPath, newContent, "utf8");
 
             await sock.sendMessage(jid, {
-                text: `*✅ تم استبدال الملف بنجاح!*\n*📄 الملف:* \`${targetFileObj.name}\`\n\n*🛡️ تم تحديث وحفظ الملف في (${targetFileObj.type}) فوراً.*`,
+                text: `*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*\n✅ *تم استبدال الملف بنجاح!*\n*📄 الملف:* \`${targetFileObj.name}\`\n\n*🛡️ تم تحديث وحفظ الملف في (${targetFileObj.type}) فوراً.*\n*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*`,
                 quoted: msg
             });
 
         } catch (e) {
             await sock.sendMessage(jid, {
-                text: `*❌ حدث خطأ أثناء الاستبدال: ${e.message}*`,
+                text: `*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*\n❌ *حدث خطأ أثناء الاستبدال: ${e.message}*\n*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*`,
                 quoted: msg
             });
         }
