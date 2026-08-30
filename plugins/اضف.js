@@ -2,7 +2,7 @@ import fs from "fs";
 import path from "path";
 import { downloadMediaMessage } from '@whiskeysockets/baileys';
 
-// دالة جلب أعضاء النخبة
+// دالة جلب أعضاء النخبة مطابقة تماماً لكود الريستارت
 function getElite(){
     const dataPath = path.join(process.cwd(), "data");
     let elite = [];
@@ -12,7 +12,13 @@ function getElite(){
         const filePath = path.join(dataPath, file);
         if(fs.existsSync(filePath)){
             try{
-                elite = JSON.parse(fs.readFileSync(filePath, "utf8"));
+                const fileContent = fs.readFileSync(filePath, "utf8");
+                if (fileContent.includes("{") || fileContent.includes("[")) {
+                    const rawData = JSON.parse(fileContent);
+                    elite = Array.isArray(rawData) ? rawData : Object.values(rawData);
+                } else {
+                    elite = fileContent.split(/\r?\n/).filter(Boolean);
+                }
                 break;
             }catch(err){}
         }
@@ -32,39 +38,42 @@ export default {
 
     command: 'اضف',
 
-    description: 'إضافة ملفات وصور ومجلدات (خاص بالنخبة)',
+    description: 'إضافة ملفات، صور، فيديوهات ومجلدات (خاص بالنخبة)',
 
     usage: '.اضف رقم الاسم',
 
     category: 'النخبه',
 
-    async execute(sock, msg){
+    async execute(sock, msg, data){
 
         try{
 
-            const chatId = msg.key.remoteJid;
+            const chatId = data?.jid || msg.key.remoteJid;
 
             const sender =
             msg.key.participant ||
             msg.participant ||
-            msg.key.remoteJid;
+            msg.key.remoteJid ||
+            data?.sender || "";
 
-            const senderNumber = sender.split("@")[0].replace(/\D/g, "");
+            const senderNumber = String(sender).replace(/\D/g, "");
             const eliteUsers = getElite();
 
-            // التحقق من صلاحية النخبة
-            if(!eliteUsers.includes(senderNumber)){
+            // التحقق من صلاحية النخبة بنفس معيار الريستارت بدقة تامة
+            const isElite = eliteUsers.some(el => {
+                return senderNumber === el || 
+                       (senderNumber.length > 8 && el.length > 8 && (senderNumber.endsWith(el) || el.endsWith(senderNumber)));
+            });
+
+            if(!isElite){
                 return sock.sendMessage(chatId, {
-                    text:
-`╭━━━━━━━━━━━━━━╮
-┃ ❌ رفض الأمر
-┣━━━━━━━━━━━━━━┫
-┃ 👑 هذا الأمر للنخبة فقط
-╰━━━━━━━━━━━━━━╯`
-                }, {quoted: msg});
+                    text: `*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*\n❌ *هذا الأمر مخصص لقسم (النخبة) فقط*\n*لست مسجلاً في قائمة النخبة لإضافة الملفات*\n*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*`,
+                    quoted: msg
+                });
             }
 
             const text =
+            data?.text ||
             msg.message?.conversation ||
             msg.message?.extendedTextMessage?.text ||
             "";
@@ -80,35 +89,25 @@ export default {
                 const folders = getFolders();
 
                 let list =
-`
-> ━ ╼╃ ⌬〔 📁 ملفات البوت 📁 〕⌬ ╄╾ ━
-
+`*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*
+📁 *قائمة مجلدات البوت الأساسية*
 `;
 
                 folders.forEach((f, i)=>{
-                    list +=
-`
-> *${i+1}- 📂 ${f}*
-`;
+                    list += `📂 *[ ${i+1} ]* ⟵ ${f}\n`;
                 });
 
                 list +=
-`
-> ─────────────
+`*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*
+⚡ *طريقة الاستخدام:*
+> \`.اضف رقم_المجلد اسم_الملف\`
 
-طريقة الاستخدام:
+📌 *مثال:*
+> \`.اضف 1 test\`
 
-.اضف رقم المجلد اسم الملف
-
-مثال:
-
-.اضف 1 test
-
-
-لإنشاء مجلد:
-
-.اضف مجلد اسم_المجلد
-`;
+📂 *لإنشاء مجلد جديد:*
+> \`.اضف مجلد اسم_المجلد\`
+*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*`;
 
                 return sock.sendMessage(chatId, {
                     text: list
@@ -121,8 +120,9 @@ export default {
 
                 if(!args[1])
                 return sock.sendMessage(chatId, {
-                    text: "❌ اكتب اسم المجلد"
-                }, {quoted: msg});
+                    text: `*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*\n❌ *يرجى كتابة اسم المجلد المراد إنشاؤه*\n*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*`,
+                    quoted: msg
+                });
 
                 fs.mkdirSync(
                     path.join(process.cwd(), args[1]),
@@ -130,10 +130,9 @@ export default {
                 );
 
                 return sock.sendMessage(chatId, {
-                    text:
-`✅ تم إنشاء المجلد:
-📂 ${args[1]}`
-                }, {quoted: msg});
+                    text: `*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*\n📂 *تم إنشاء المجلد بنجاح!*\n📁 *الاسم:* \`${args[1]}\`\n*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*`,
+                    quoted: msg
+                });
 
             }
 
@@ -142,16 +141,18 @@ export default {
 
             if(!folders[index]){
                 return sock.sendMessage(chatId, {
-                    text: "❌ رقم المجلد غير موجود"
-                }, {quoted: msg});
+                    text: `*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*\n❌ *رقم المجلد غير موجود في القائمة*\n*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*`,
+                    quoted: msg
+                });
             }
 
             const fileName = args[1];
 
             if(!fileName){
                 return sock.sendMessage(chatId, {
-                    text: "❌ اكتب اسم الملف"
-                }, {quoted: msg});
+                    text: `*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*\n❌ *يرجى كتابة اسم الملف المراد حفظه*\n*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*`,
+                    quoted: msg
+                });
             }
 
             const quoted =
@@ -159,8 +160,9 @@ export default {
 
             if(!quoted){
                 return sock.sendMessage(chatId, {
-                    text: "❌ رد على الكود أو الصورة"
-                }, {quoted: msg});
+                    text: `*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*\n❌ *يرجى الرد على الكود، الصورة، أو الفيديو المطلوب حفظه*\n*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*`,
+                    quoted: msg
+                });
             }
 
             const folderPath = path.join(process.cwd(), folders[index]);
@@ -186,15 +188,36 @@ export default {
                 );
 
                 return sock.sendMessage(chatId, {
-                    text:
-`
-✅ تم حفظ الصورة
+                    text: `*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*\n🖼️ *تم حفظ الصورة بنجاح!*\n📂 *المجلد:* \`${folders[index]}\`\n📄 *الملف:* \`${fileName + ext}\`\n*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*`,
+                    quoted: msg
+                });
 
-📂 ${folders[index]}
+            }
 
-🖼️ ${fileName + ext}
-`
-                }, {quoted: msg});
+            // حفظ فيديو
+            if(quoted.videoMessage){
+
+                const buffer = await downloadMediaMessage(
+                    { message: quoted },
+                    'buffer',
+                    {},
+                    { logger: console }
+                );
+
+                const ext =
+                quoted.videoMessage.mimetype?.includes('gif')
+                ? '.gif'
+                : '.mp4';
+
+                fs.writeFileSync(
+                    path.join(folderPath, fileName + ext),
+                    buffer
+                );
+
+                return sock.sendMessage(chatId, {
+                    text: `*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*\n🎥 *تم حفظ الفيديو بنجاح!*\n📂 *المجلد:* \`${folders[index]}\`\n📄 *الملف:* \`${fileName + ext}\`\n*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*`,
+                    quoted: msg
+                });
 
             }
 
@@ -206,8 +229,9 @@ export default {
 
             if(!code){
                 return sock.sendMessage(chatId, {
-                    text: "❌ لم يتم العثور على محتوى"
-                }, {quoted: msg});
+                    text: `*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*\n❌ *لم يتم العثور على محتوى نصي أو كود صالح في الرسالة المردود عليها*\n*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*`,
+                    quoted: msg
+                });
             }
 
             let saveName =
@@ -222,28 +246,20 @@ export default {
             );
 
             await sock.sendMessage(chatId, {
-                text:
-`
-✅ تم حفظ الملف
-
-📂 ${folders[index]}
-
-📄 ${saveName}
-`
-            }, {quoted: msg});
+                text: `*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*\n📄 *تم حفظ ملف الكود بنجاح!*\n📂 *المجلد:* \`${folders[index]}\`\n📑 *الملف:* \`${saveName}\`\n*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*`,
+                quoted: msg
+            });
 
         }catch(e){
 
             console.log("اضف خطأ:", e);
 
             await sock.sendMessage(
-                msg.key.remoteJid,
+                data?.jid || msg.key.remoteJid,
                 {
-                    text:
-`❌ خطأ:
-${e.message}`
-                },
-                {quoted: msg}
+                    text: `*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*\n❌ *حدث خطأ أثناء تنفيذ الأمر:*\n\`${e.message}\`\n*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*`,
+                    quoted: msg
+                }
             );
 
         }
