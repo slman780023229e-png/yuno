@@ -84,7 +84,7 @@ const getAllSystemFiles = () => {
 export default {
     command: ["كود", "عرض_الكود"],
     category: "النخبة",
-    description: "جلب أكواد النظام والبلجنات بالاسم أو الرقم لأعضاء النخبة حصرياً",
+    description: "جلب وحذف أكواد النظام والبلجنات بالاسم أو الرقم لأعضاء النخبة حصرياً",
 
     execute: async (sock, msg, data) => {
         const chatId = data.jid;
@@ -92,7 +92,7 @@ export default {
 
         if (!checkElitePermission(senderJid)) {
             return await sock.sendMessage(chatId, {
-                text: "❌ *عذراً، هذا الأمر مخصص حصرياً لأعضاء فئة (النخبة) فقط!*"
+                text: "⚔️ ┃ *عذراً، هذا الأمر خاص بأعضاء النخبة فقط!* 🩸"
             }, { quoted: msg });
         }
 
@@ -103,57 +103,105 @@ export default {
 
         let rawText = data.text ? data.text.trim() : "";
         const parts = rawText.split(/\s+/);
-        parts.shift();
+        parts.shift(); // إزالة اسم الأمر الرئيسي
+        
         const subCommand = parts[0] ? parts[0].toLowerCase() : "";
+        parts.shift(); // إزالة الكلمة الفرعية (عرض أو حذف)
         const queryArg = parts.join(" ").trim();
 
         const allFiles = getAllSystemFiles();
 
-        // 1. أمر العرض بإطار أنيق وأقصر لضمان التنسيق المثالي في واتساب
-        if (subCommand === "عرض" || subCommand === "الكل" || !queryArg) {
-            if (!queryArg || subCommand === "عرض" || subCommand === "الكل") {
-                let listText = 
-`┌─── 🩸 𝕬𝕽𝕿𝕳𝖀𝕽 𝕰𝖑𝖎𝖙𝖊 ───┐\n`;
-                
-                allFiles.forEach((file, index) => {
-                    listText += `│ 🩸 [${index + 1}] \`${file.name}\`\n`;
-                });
+        // 1. أمر العرض بتصميم منسق وأنيق بخصوصية YUNO و Arthur
+        if (subCommand === "عرض" || subCommand === "الكل" || (!subCommand && !queryArg)) {
+            let listText = 
+`*╔══ 🩸 𝐀𝐑𝐓𝐇𝐔𝐑 𝐁𝐎𝐓 ══╗*\n` +
+`*┃ ⚡ *قائمة ملفات النظام النشطة:*\n` +
+`*╠──────────────────╣*\n`;
+            
+            allFiles.forEach((file, index) => {
+                listText += `┃ 🩸 [${index + 1}] \`${file.name}\`\n`;
+            });
 
-                listText += 
-`└─────────────────────┘\n` +
-`💡 استخدم: \`.كود [الرقم أو الاسم]\``;
+            listText += 
+`*╚────────────────────╝*\n` +
+`💡 *طريقة الاستخدام:*\n` +
+`• لجلب الكود: \`.كود [الرقم أو الاسم]\`\n` +
+`• لحذف ملف: \`.كود حذف [الرقم أو الاسم]\``;
 
-                return await sock.sendMessage(chatId, { text: listText }, { quoted: msg });
+            return await sock.sendMessage(chatId, { text: listText }, { quoted: msg });
+        }
+
+        // 2. أمر الحذف
+        if (subCommand === "حذف") {
+            if (!queryArg) {
+                return await sock.sendMessage(chatId, {
+                    text: "❌ ┃ *يرجى تحديد اسم أو رقم الملف المراد حذفه.*\n💡 *مثال:* \`.كود حذف plugin.js\` أو \`.كود حذف 3\`"
+                }, { quoted: msg });
+            }
+
+            let targetFile = null;
+
+            if (!isNaN(queryArg)) {
+                const index = parseInt(queryArg) - 1;
+                if (index >= 0 && index < allFiles.length) {
+                    targetFile = allFiles[index];
+                }
+            } else {
+                targetFile = allFiles.find(f => f.name.toLowerCase().includes(queryArg.toLowerCase()));
+            }
+
+            if (!targetFile || !fs.existsSync(targetFile.path)) {
+                return await sock.sendMessage(chatId, {
+                    text: `❌ ┃ *لم يتم العثور على أي ملف مطابق لـ:* \`${queryArg}\``
+                }, { quoted: msg });
+            }
+
+            // حماية المجلدات والملفات الأساسية الحساسة جداً من الحذف الخاطئ
+            const criticalFiles = ["package.json", "index.js", "main.js"];
+            if (criticalFiles.includes(targetFile.name.toLowerCase()) || targetFile.category === "Root") {
+                return await sock.sendMessage(chatId, {
+                    text: `⚠️ ┃ *لا يمكن حذف هذا الملف الأساسي (${targetFile.name}) حمايةً لاستقرار النظام!*`
+                }, { quoted: msg });
+            }
+
+            try {
+                fs.unlinkSync(targetFile.path);
+                return await sock.sendMessage(chatId, {
+                    text: `✅ ┃ *تم حذف الملف بنجاح تام:*\n📁 \`${targetFile.name}\``
+                }, { quoted: msg });
+            } catch (err) {
+                return await sock.sendMessage(chatId, {
+                    text: `❌ ┃ *حدث خطأ أثناء محاولة حذف الملف:* ${err.message}`
+                }, { quoted: msg });
             }
         }
 
-        // 2. جلب الملف بالرقم أو بالاسم
+        // معالجة البحث المباشر
+        const directQuery = subCommand ? `${subCommand} ${queryArg}`.trim() : queryArg;
         let targetFile = null;
 
-        if (!isNaN(queryArg)) {
-            const index = parseInt(queryArg) - 1;
+        if (!isNaN(directQuery)) {
+            const index = parseInt(directQuery) - 1;
             if (index >= 0 && index < allFiles.length) {
                 targetFile = allFiles[index];
             }
         } else {
-            targetFile = allFiles.find(f => f.name.toLowerCase().includes(queryArg.toLowerCase()));
+            targetFile = allFiles.find(f => f.name.toLowerCase().includes(directQuery.toLowerCase()));
         }
 
         if (!targetFile || !fs.existsSync(targetFile.path)) {
             return await sock.sendMessage(chatId, {
-                text: `❌ *لم يتم العثور على أي ملف مطابق لـ:* \`${queryArg}\`\n\n*اكتب:* \`.كود عرض\` لمعرفة الأرقام والأسماء المتاحة.`
+                text: `❌ ┃ *لم يتم العثور على أي ملف مطابق لـ:* \`${directQuery}\`\n\n*اكتب:* \`.كود عرض\` لمعرفة الأرقام والأسماء المتاحة.`
             }, { quoted: msg });
         }
 
         try {
-            let fileContent = fs.readFileSync(targetFile.path, "utf8");
-            if (fileContent.length > 60000) {
-                fileContent = fileContent.slice(0, 60000) + "\n\n// ... [تم اقتصاص المحتوى لحجمه الضخم]";
-            }
+            // جلب محتوى الملف كاملاً بدون أي اقتصاص
+            const fileContent = fs.readFileSync(targetFile.path, "utf8");
 
             const interactiveMessage = {
-                body: { text: `🩸 *[ 𝕬𝕽𝕿𝕳𝖀𝕽 ]* ── ⟨ ملف: ${targetFile.name} ⟩` },
-                footer: { text: "✦ 🩸 𝕬𝕽𝕿𝕳𝖀𝕽 𝕰𝖑𝖎𝖙𝖊 2026 ✦" },
+                body: { text: `🩸 *[ 𝓨𝓤𝓝𝓞 & 𝓐𝓡𝓣𝓗𝓤𝓡 ]* \n ┃ 📁 *الملف:* \`${targetFile.name}\`` },
+                footer: { text: "✦ 🩸 𝓨𝓤𝓝𝓞 𝓔𝓛𝓘𝓣𝓔 2026 ✦" },
                 nativeFlowMessage: {
                     buttons: [
                         {
@@ -181,7 +229,7 @@ export default {
 
         } catch (err) {
             return await sock.sendMessage(chatId, {
-                text: `❌ *حدث خطأ أثناء قراءة الملف:* ${err.message}`
+                text: `❌ ┃ *حدث خطأ أثناء قراءة الملف:* ${err.message}`
             }, { quoted: msg });
         }
     }
