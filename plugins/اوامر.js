@@ -13,9 +13,10 @@ const __dirname = path.dirname(__filename);
 
 const startTime = Date.now();
 
+// 🚀 نظام التخزين المؤقت الفائق لمنع أي تأخير في الاستجابة
 let cachedPluginsData = null;
 let lastCacheTime = 0;
-const CACHE_TTL = 30000;
+const CACHE_TTL = 300000; // تخزين مؤقت لمدة 5 دقائق
 
 const getCommandsImageBuffer = () => {
     const possibleFolders = [
@@ -80,19 +81,20 @@ export default {
 
         if (input === ".رابط_القناة" || input.includes("رابط القناة")) {
             return await sock.sendMessage(chatId, {
-                text: `📢 *قناة المطور Salman الرسمية:*\n\nhttps://whatsapp.com/channel/0029Vb8ejXH7oQhXeLW2Kd1H`
+                text: "*◇❐ ═━━╾ 🩸 ╼━━═ ❐◇*\n📢 *قناة المطور Salman الرسمية:*\n\nhttps://whatsapp.com/channel/0029Vb8ejXH7oQhXeLW2Kd1H\n*◇❐ ═━━╾ 🩸 ╼━━═ ❐◇*"
             });
         }
 
         if (input === ".رابط_المطور" || input.includes("رابط المطور") || input === ".المطور") {
             return await sock.sendMessage(chatId, {
-                text: `📞 *للتواصل المباشر مع المطور Salman:*\n\nhttps://wa.me/967780023229`
+                text: "*◇❐ ═━━╾ 🩸 ╼━━═ ❐◇*\n📞 *للتواصل المباشر مع المطور Salman:*\n\nhttps://wa.me/967780023229\n*◇❐ ═━━╾ 🩸 ╼━━═ ❐◇*"
             });
         }
 
         const now = Date.now();
         let categories, order, totalCommandsCount;
 
+        // ⚡ فحص الذاكرة المؤقتة لضمان السرعة الفورية
         if (cachedPluginsData && (now - lastCacheTime < CACHE_TTL)) {
             categories = cachedPluginsData.categories;
             order = cachedPluginsData.order;
@@ -144,27 +146,25 @@ export default {
                         order.push(formattedCategory);
                     }
 
-                    let rawCommands = cmd.command;
-                    let commandList = [];
+                    let rawCommand = cmd.command;
+                    let primaryCommand = "";
 
-                    if (Array.isArray(rawCommands)) {
-                        commandList = rawCommands;
-                    } else if (typeof rawCommands === "string") {
-                        commandList = rawCommands.split(/[,،\s]+/);
+                    if (Array.isArray(rawCommand)) {
+                        primaryCommand = rawCommand[0] ? rawCommand[0].trim() : "";
+                    } else if (typeof rawCommand === "string") {
+                        const parts = rawCommand.split(/[,،\s]+/);
+                        primaryCommand = parts[0] ? parts[0].trim() : "";
                     }
 
-                    for (const rawCmd of commandList) {
-                        const primaryCommand = rawCmd.trim();
-                        if (!primaryCommand) continue;
+                    if (!primaryCommand) continue;
 
-                        const isDuplicate = categories[formattedCategory].some(c => c.command.toLowerCase() === primaryCommand.toLowerCase());
-                        if (!isDuplicate) {
-                            categories[formattedCategory].push({
-                                command: primaryCommand,
-                                description: cmd.description || "لا يوجد وصف"
-                            });
-                            totalCommandsCount++;
-                        }
+                    const isDuplicate = categories[formattedCategory].some(c => c.command.toLowerCase() === primaryCommand.toLowerCase());
+                    if (!isDuplicate) {
+                        categories[formattedCategory].push({
+                            command: primaryCommand,
+                            description: cmd.description || "لا يوجد وصف"
+                        });
+                        totalCommandsCount++;
                     }
                 } catch {}
             }
@@ -237,16 +237,16 @@ export default {
             }
 
             const textBody = 
-`┏━━━ارثــر━━━┓
-┃ 👑 المطور : *Salman*
-┃ ⚡ الحالة : *${botMode}*
-┃ ⏳ التشغيل : *${uptimeFormatted}*
-┃ 🏰 الأقسام : *${order.length} أقسام*
-┃ ⚔️ الأوامر : *${totalCommandsCount} أمر*
-┗━━━━━━━━━━━┛
+`*◇❐ ═━╾ 🩸 ╼━═ ❐◇*
+👑 المطور : *Salman*
+⚡ الحالة : *${botMode}*
+⏳ التشغيل : *${uptimeFormatted}*
+🏰 الأقسام : *${order.length} أقسام*
+⚔️ الأوامر : *${totalCommandsCount} أمر*
+*◇❐ ═━╾ 🩸 ╼━═ ❐◇*
 
    🩸 *𝐓𝐇𝐄 𝐃𝐀𝐑𝐊 𝐊𝐈𝐍𝐆 𝐀𝐑𝐓𝐇𝐔𝐑* 🩸
-_« على عرش الدماء والجبروت، حيث تركع السلاطين.. »_`;
+_« على عرش الدم والسلطة المطلقة، حيث تتهاوي العوالم وتصمت العقول أمام سيادة الجبروت.. »_`;
 
             const rows = order.map((cat, index) => {
                 const desc = getCategoryDescription(cat);
@@ -325,25 +325,26 @@ _« على عرش الدماء والجبروت، حيث تركع السلاطي
 
         if (isNaN(index) || index < 0 || index >= order.length) {
             return await sock.sendMessage(chatId, {
-                text: "*❌ القسم غير موجود يا سلمان! استخدم .اوامر للعودة.*"
+                text: "*◇❐ ═━━╾ 🩸 ╼━━═ ❐◇*\n❌ *القسم غير موجود يا سلمان! استخدم .اوامر للعودة.*\n*◇❐ ═━━╾ 🩸 ╼━━═ ❐◇*"
             });
         }
 
         const category = order[index];
         const cmdList = categories[category];
 
-        let text = `┏━〔 ${getIcon(category)} ${category} 〕━┓\n`;
-        text += `┃ _${getCategoryDescription(category)}_\n`;
-        text += `┗━━━━━━━━━━━━┛\n\n`;
+        let text = `*◇❐ ═━━╾ 🩸 ╼━━═ ❐◇*\n`;
+        text += `       *𝚫𝚪𝚻𝚮𝚼𝚪 • 𝚩𝚯𝚻 2026*\n`;
+        text += `*◇❐ ═━━╾ 🩸 ╼━━═ ❐◇*\n`;
+        text += `*${getIcon(category)} [ ${category} ]* - _${getCategoryDescription(category)}_\n\n`;
 
         for (let i = 0; i < cmdList.length; i++) {
-            text += `│ ⚡ .${cmdList[i].command}\n`;
+            text += `❖ .${cmdList[i].command}\n`;
             text += `└ 🏷️ _${cmdList[i].description}_\n\n`;
         }
 
-        text += `╭────────╮\n`;
-        text += `│ 📌 الإجمالي: ${cmdList.length}\n`;
-        text += `╰────────╯`;
+        text += `*◇❐ ═━━╾ 🩸 ╼━━═ ❐◇*\n`;
+        text += `💡 *إجمالي أوامر القسم:* ${cmdList.length}\n`;
+        text += `*◇❐ ═━━╾ 🩸 ╼━━═ ❐◇*`;
 
         const buttonV2Instance = new ButtonV2(sock)
             .setBody(text)
@@ -354,7 +355,7 @@ _« على عرش الدماء والجبروت، حيث تركع السلاطي
         }
 
         return await buttonV2Instance
-            .addButton('📁 القائمة الرئيسية', '.اوامر')
+            .addButton('📁 القائمة', '.اوامر')
             .addButton('👑 المطور', '.المطور')
             .send(chatId, { quoted: msg });
     }
