@@ -92,7 +92,7 @@ export default {
 
         if (!checkElitePermission(senderJid)) {
             return await sock.sendMessage(chatId, {
-                text: "*❐ ━━━━━━ 🩸 ━━━━━━ ❐*\n⚔️ *عذراً، هذا الأمر خاص بأعضاء النخبة فقط!*\n*❐ ━━━━━━ 🩸 ━━━━━━ ❐*"
+                text: "*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*\n⚔️ *عذراً، هذا الأمر خاص بأعضاء النخبة فقط!*\n*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*"
             }, { quoted: msg });
         }
 
@@ -111,12 +111,12 @@ export default {
 
         const allFiles = getAllSystemFiles();
 
-        // 1. أمر العرض بالتصميم الغامق والبارز
+        // 1. أمر العرض بالتصميم الأسطوري المتناسق
         if (subCommand === "عرض" || subCommand === "الكل" || (!subCommand && !queryArg)) {
             let listText = 
-`*❐ ━━━━━━ 🩸 ━━━━━━ ❐*\n` +
-`   *𝚫𝚪𝚻𝚮𝚼𝚪 • 𝚩𝚯𝚻 2026*\n` +
-`*❐ ━━━━━━ 🩸 ━━━━━━ ❐*\n` +
+`*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*\n` +
+`       *𝚫𝚪𝚻𝚮𝚼𝚪 • 𝚩𝚯𝚻 2026*\n` +
+`*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*\n` +
 `⚡ *قائمة ملفات النظام النشطة:* \n`;
 
             allFiles.forEach((file, index) => {
@@ -124,10 +124,10 @@ export default {
             });
 
             listText += 
-`*❐ ━━━━━━ 🩸 ━━━━━━ ❐*\n` +
+`*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*\n` +
 `💡 *طريقة الاستخدام:*\n` +
 `• لجلب الكود: \`.كود [الرقم أو الاسم]\`\n` +
-`• لحذف ملف: \`.كود حذف [الرقم أو الاسم]\`\n*❐ ━━━━━ 🩸 ━━━━━ ❐*`;
+`• لحذف ملف: \`.كود حذف [الرقم أو الاسم]\`\n*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*"
 
             return await sock.sendMessage(chatId, { text: listText }, { quoted: msg });
         }
@@ -136,7 +136,7 @@ export default {
         if (subCommand === "حذف") {
             if (!queryArg) {
                 return await sock.sendMessage(chatId, {
-                    text: "*❐ ━━━━━━ 🩸 ━━━━━━ ❐*\n❌ *يرجى تحديد اسم أو رقم الملف المراد حذفه.*\n💡 *مثال:* \`.كود حذف plugin.js\`\n*❐ ━━━━━ 🩸 ━━━━━ ❐*"
+                    text: "*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*\n❌ *يرجى تحديد اسم أو رقم الملف المراد حذفه.*\n💡 *مثال:* \`.كود حذف plugin.js\`\n*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*"
                 }, { quoted: msg });
             }
 
@@ -153,7 +153,7 @@ export default {
 
             if (!targetFile || !fs.existsSync(targetFile.path)) {
                 return await sock.sendMessage(chatId, {
-                    text: `*❐ ━━━━━ 🩸 ━━━━━━ ❐*\n❌ *لم يتم العثور على أي ملف مطابق لـ:* \`${queryArg}\`\n*❐ ━━━━━━ 🩸 ━━━━━━ ❐*`
+                    text: `*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*\n❌ *لم يتم العثور على أي ملف مطابق لـ:* \`${queryArg}\`\n*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*`
                 }, { quoted: msg });
             }
 
@@ -161,18 +161,18 @@ export default {
             const criticalFiles = ["package.json", "index.js", "main.js"];
             if (criticalFiles.includes(targetFile.name.toLowerCase()) || targetFile.category === "Root") {
                 return await sock.sendMessage(chatId, {
-                    text: `*❐ ━━━━━ 🩸 ━━━━━━ ❐*\n⚠️ *لا يمكن حذف هذا الملف الأساسي (${targetFile.name}) حمايةً لاستقرار النظام!*\n*❐ ━━━━━━━ 🩸 ━━━━━━━ ❐*`
+                    text: `*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*\n⚠️ *لا يمكن حذف هذا الملف الأساسي (${targetFile.name}) حمايةً لاستقرار النظام!*\n*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*`
                 }, { quoted: msg });
             }
 
             try {
                 fs.unlinkSync(targetFile.path);
                 return await sock.sendMessage(chatId, {
-                    text: `*❐ ━━━━━━ 🩸 ━━━━━━ ❐*\n✅ *تم حذف الملف بنجاح تام:*\n📁 \`${targetFile.name}\`\n*❐ ━━━━━━ 🩸 ━━━━━━ ❐*`
+                    text: `*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*\n✅ *تم حذف الملف بنجاح تام:*\n📁 \`${targetFile.name}\`\n*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*`
                 }, { quoted: msg });
             } catch (err) {
                 return await sock.sendMessage(chatId, {
-                    text: `*❐ ━━━━━━ 🩸 ━━━━━━ ❐*\n❌ *حدث خطأ أثناء محاولة حذف الملف:* ${err.message}\n*❐ ━━━━━━ 🩸 ━━━━━━ ❐*`
+                    text: `*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*\n❌ *حدث خطأ أثناء محاولة حذف الملف:* ${err.message}\n*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*`
                 }, { quoted: msg });
             }
         }
@@ -192,7 +192,7 @@ export default {
 
         if (!targetFile || !fs.existsSync(targetFile.path)) {
             return await sock.sendMessage(chatId, {
-                text: `*❐ ━━━━━ 🩸 ━━━━━━ ❐*\n❌ *لم يتم العثور على أي ملف مطابق لـ:* \`${directQuery}\`\n\n*اكتب:* \`.كود عرض\` لمعرفة الأسماء المتاحة.\n*❐ ━━━━━━ 🩸 ━━━━━━ ❐*`
+                text: `*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*\n❌ *لم يتم العثور على أي ملف مطابق لـ:* \`${directQuery}\`\n\n*اكتب:* \`.كود عرض\` لمعرفة الأسماء المتاحة.\n*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*`
             }, { quoted: msg });
         }
 
@@ -201,7 +201,7 @@ export default {
             const fileContent = fs.readFileSync(targetFile.path, "utf8");
 
             const interactiveMessage = {
-                body: { text: `*❐ ━━━━━━ 🩸 ━━━━━━ ❐*\n*𝚫𝚪𝚻𝚮𝚼𝚪 • 𝚩𝚯𝚻*\n📁 *الملف:* \`${targetFile.name}\`\n*❐ ━━━━━ 🩸 ━━━━━ ❐*` },
+                body: { text: `*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*\n*𝚫𝚪𝚻𝚮𝚼𝚪 • 𝚩𝚯𝚻*\n📁 *الملف:* \`${targetFile.name}\`\n*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*` },
                 footer: { text: "✦ 𝚫𝚪𝚻𝚮𝚼𝚪 𝕰𝖑𝖎𝖙𝖊 2026 ✦" },
                 nativeFlowMessage: {
                     buttons: [
@@ -230,7 +230,7 @@ export default {
 
         } catch (err) {
             return await sock.sendMessage(chatId, {
-                text: `*❐ ━━━━━━ 🩸 ━━━━━ ❐*\n❌ *حدث خطأ أثناء قراءة الملف:* ${err.message}\n*❐ ━━━━━ 🩸 ━━━━━ ❐*`
+                text: `*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*\n❌ *حدث خطأ أثناء قراءة الملف:* ${err.message}\n*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*`
             }, { quoted: msg });
         }
     }
