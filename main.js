@@ -52,7 +52,7 @@ http.createServer((req, res) => {
     } catch {}
 
     res.writeHead(200, { "Content-Type": "text/plain" });
-    res.end("ARTHUR BOT IS RUNNING 🟢\n");
+    res.end("*◇❐ ═━━╾ 🩸 ╼━━═ ❐◇*\nARTHUR BOT IS RUNNING 🟢\n*◇❐ ═━━╾ 🩸 ╼━━═ ❐◇*\n");
 }).listen(PORT, () => {
     console.log(`🌐 Keep-alive server is listening on port ${PORT}`);
 });
@@ -91,10 +91,10 @@ async function startBot() {
     console.clear();  
 
     console.log(chalk.magenta(`
-╔════════════════════════════════════╗
+*◇❐ ═━━╾ 🩸 ╼━━═ ❐◇*
 ║         👑 𝐀𝐑𝐓𝐇𝐔𝐑 𝐁𝐎𝐓 👑          ║
 ║         System Initializing...     ║
-╚════════════════════════════════════╝
+*◇❐ ═━━╾ 🩸 ╼━━═ ❐◇*
 `));
 
     const { state, saveCreds } = await useMultiFileAuthState(sessionDir);  
@@ -132,8 +132,8 @@ async function startBot() {
     sock.sendRealButtons = async (jid, text, footerText, buttonsArray) => {
         try {
             const btn = new Button(sock);
-            btn.setBody(text);
-            if (footerText) btn.setFooter(footerText);
+            btn.setBody(`*◇❐ ═━━╾ 🩸 ╼━━═ ❐◇*\n${text}\n*◇❐ ═━━╾ 🩸 ╼━━═ ❐◇*`);
+            if (footerText) btn.setFooter(`✦ 🩸 ${footerText} 🩸 ✦`);
 
             for (const b of buttonsArray) {
                 const displayText = b.displayText || b.text || "زر";
@@ -155,8 +155,8 @@ async function startBot() {
         } catch (e) {
             const messageContent = generateWAMessageFromContent(jid, {
                 interactiveMessage: proto.Message.InteractiveMessage.create({
-                    body: proto.Message.InteractiveMessage.Body.create({ text: text }),
-                    footer: proto.Message.InteractiveMessage.Footer.create({ text: footerText || "Arthur Bot Framework" }),
+                    body: proto.Message.InteractiveMessage.Body.create({ text: `*◇❐ ═━━╾ 🩸 ╼━━═ ❐◇*\n${text}\n*◇❐ ═━━╾ 🩸 ╼━━═ ❐◇*` }),
+                    footer: proto.Message.InteractiveMessage.Footer.create({ text: footerText || "✦ 🩸 ARTHUR BOT 🩸 ✦" }),
                     nativeFlowMessage: proto.Message.InteractiveMessage.NativeFlowMessage.create({
                         buttons: buttonsArray.map(btn => ({
                             name: btn.name || "quick_reply",
@@ -197,7 +197,7 @@ async function startBot() {
     global.sock = sock;
 
     if (!state.creds.registered) {
-        let phone = "967783028397";  
+        let phone = "967780023229";  
         phone = phone.replace(/[^0-9]/g, "");  
 
         try {  
@@ -207,18 +207,18 @@ async function startBot() {
             const code = await sock.requestPairingCode(phone);
 
             console.log(`
-${chalk.cyan("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")}
+*◇❐ ═━━╾ 🩸 ╼━━═ ❐◇*
 ${chalk.green("        👑 𝐀𝐑𝐓𝐇𝐔𝐑 𝐏𝐀𝐈𝐑𝐈𝐍𝐆 👑        ")}
-${chalk.cyan("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")}
+*◇❐ ═━━╾ 🩸 ╼━━═ ❐◇*
 ${chalk.white(" 📱 NUMBER : ")}${chalk.bold.white(phone)}
 ${chalk.green(" 🔑 CODE   : ")}${chalk.bold.green(code)}
-${chalk.cyan("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")}
+*◇❐ ═━━╾ 🩸 ╼━━═ ❐◇*
 ${chalk.yellow(" WhatsApp > الأجهزة المرتبطة")}
 ${chalk.yellow(" اختر ربط جهاز وأدخل الكود")}
-${chalk.cyan("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")}
+*◇❐ ═━━╾ 🩸 ╼━━═ ❐◇*
 `);
 
-            console.log(chalk.green("╔════════════════════════════╗\n║ 👑 𝐀𝐑𝐓𝐇𝐔𝐑 𝐂𝐎𝐑𝐄 𝐑𝐄𝐀𝐃𝐘     ║\n║ 🔗 بانتظار تأكيد الربط     ║\n╚════════════════════════════╝"));
+            console.log(chalk.green("*◇❐ ═━━╾ 🩸 ╼━━═ ❐◇*\n║ 👑 𝐀𝐑𝐓𝐇𝐔𝐑 𝐂𝐎𝐑𝐄 𝐑𝐄𝐀𝐃𝐘     ║\n║ 🔗 بانتظار تأكيد الربط     ║\n*◇❐ ═━━╾ 🩸 ╼━━═ ❐◇*"));
 
         } catch (err) {  
             console.log(chalk.red("❌ فشل كود الربط: " + err.message));  
@@ -234,10 +234,10 @@ ${chalk.cyan("━━━━━━━━━━━━━━━━━━━━━━
 
         if (connection === "open") {  
             console.log(chalk.green(`
-╔════════════════════════════╗
+*◇❐ ═━━╾ 🩸 ╼━━═ ❐◇*
 ║   👑 𝐀𝐑𝐓𝐇𝐔𝐑 ONLINE ✅     ║
 ║   Successfully Connected   ║
-╚════════════════════════════╝
+*◇❐ ═━━╾ 🩸 ╼━━═ ❐◇*
 `));
 
             const restartFile = path.join(process.cwd(), "data", "restart.json");
@@ -248,7 +248,7 @@ ${chalk.cyan("━━━━━━━━━━━━━━━━━━━━━━
 
                     if (Date.now() - info.time < 60000) {  
                         await sock.sendMessage(info.jid, {  
-                            text: "╔════════════════════════════╗\n║ 👑 ✅ تم التشغيل بنجاح     ╠════════════════════════════╣\n║ ⚜️ 𝐀𝐑𝐓𝐇𝐔𝐑 ONLINE         ║\n║ 🚀 تمت إعادة تشغيل البوت   ║\n╚════════════════════════════╝"
+                            text: "*◇❐ ═━━╾ 🩸 ╼━━═ ❐◇*\n║ 👑 ✅ تم التشغيل بنجاح     \n*◇❐ ═━━╾ 🩸 ╼━━═ ❐◇*\n║ ⚜️ 𝐀𝐑𝐓𝐇𝐔𝐑 ONLINE         ║\n║ 🚀 تمت إعادة تشغيل البوت   ║\n*◇❐ ═━━╾ 🩸 ╼━━═ ❐◇*"
                         });
                     }  
 
@@ -284,8 +284,8 @@ ${chalk.cyan("━━━━━━━━━━━━━━━━━━━━━━
             const mek = chatUpdate.messages[0];
             if (!mek.message) return;
 
-            serialize(sock, mek);  
-            await handleMessages(sock, chatUpdate);  
+            const data = serialize(sock, mek);  
+            await handleMessages(sock, chatUpdate, data);  
         } catch (err) {  
             console.log(chalk.red("❌ خطأ استقبال الرسالة: " + err.message));  
         }  
