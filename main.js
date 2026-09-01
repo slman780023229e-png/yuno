@@ -53,7 +53,6 @@ async function protectAndBackupSession() {
     try {
         if (fs.existsSync(credsTypePath)) {
             const credsData = fs.readFileSync(credsTypePath, "utf8");
-            // تأكيد أن البيانات صالحة وليست فارغة قبل أخذ النسخة
             if (credsData && credsData.length > 10) {
                 const fileContent = `// 🛡️ هذه النسخة محمية ومحدثة تلقائياً لمنع ضياع الجلسة\nexport default ${credsData};\n`;
                 await fs.outputFile(backupSessionPath, fileContent);
@@ -132,7 +131,6 @@ async function startBot() {
         syncFullHistory: false  
     });  
 
-    // تحديث الجلسة وحمايتها فوراً في ملفات النسخ الاحتياطي
     sock.ev.on("creds.update", async () => {
         await saveCreds();
         await protectAndBackupSession();
@@ -307,7 +305,7 @@ ${chalk.yellow(" اختر ربط جهاز وأدخل الكود")}
     });  
 
     // ===============================  
-    // MESSAGE HANDLER  
+    // MESSAGE HANDLER (تم التصحيح ليتوافق مع الـ Handler)
     // ===============================  
 
     sock.ev.on("messages.upsert", async (chatUpdate) => {  
@@ -315,16 +313,16 @@ ${chalk.yellow(" اختر ربط جهاز وأدخل الكود")}
             const mek = chatUpdate.messages[0];
             if (!mek.message) return;
 
-            const data = serialize(sock, mek);  
-            await handleMessages(sock, chatUpdate, data);  
+            // تمرير chatUpdate مباشرة كما تتطلبه دالة handleMessages(sock, m)
+            await handleMessages(sock, chatUpdate);  
         } catch (err) {  
             console.log(chalk.red("❌ خطأ استقبال الرسالة: " + err.message));  
         }  
     });
 
-    // ===============================
-    // 👥 GROUP EVENTS FOR ALL PLUGINS
-    // ===============================
+    // ===============================  
+    // 👥 GROUP EVENTS FOR ALL PLUGINS  
+    // ===============================  
 
     sock.ev.on("group-participants.update", async (update) => {
         try {
@@ -340,9 +338,9 @@ ${chalk.yellow(" اختر ربط جهاز وأدخل الكود")}
         }
     });
 
-    // ===============================
-    // 🔗 GROUP JOIN REQUESTS EVENT
-    // ===============================
+    // ===============================  
+    // 🔗 GROUP JOIN REQUESTS EVENT  
+    // ===============================  
 
     sock.ev.on("group.join-request", async (update) => {
         try {
