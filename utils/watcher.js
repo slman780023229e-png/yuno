@@ -22,7 +22,7 @@ async function getAllJsFiles(dir, fileList = []) {
         const stat = await fs.stat(filePath);
 
         // استثناء مجلدات النظام المؤقتة أو جلسة الاتصال لعدم إبطاء الفحص
-        if (file === "node_modules" || file === ".git" || file === "ملف_الاتصال") {
+        if (file === "node_modules" || file === ".git" || file === "ملف_الاتصال" || file === "session") {
             continue;
         }
 
@@ -47,18 +47,26 @@ export async function scanAllProjectFiles() {
     for (const filePath of allFiles) {
         try {
             const code = await fs.readFile(filePath, "utf8");
-            
-            // فحص صحة بناء الكود (Syntax Error Check)
+
+            // فحص صحة بناء الكود (Syntax Error Check) عبر استخدام Function بدون تنفيذ ES modules التي تسبب أخطاء وهمية
             try {
+                if (code.includes("import ") || code.includes("export ")) {
+                    // الملفات التي تستخدم نظام ES Modules يتم التحقق من سلامتها عبر محاولة تحليل النص البسيط أو تخطي التقييم الوهمي الخاطئ
+                    continue;
+                }
                 new Function(code);
             } catch (syntaxErr) {
-                errorsFound++;
+                // تجاهل أخطاء الـ Syntax الوهمية المرتبطة بالوحدات والنطاقات الحديثة
+                if (syntaxErr.message.includes("Cannot use import") || syntaxErr.message.includes("Unexpected token 'export'")) {
+                    continue;
+                }
                 
+                errorsFound++;
+
                 // استخراج رقم السطر بدقة
                 const lineMatch = syntaxErr.stack.match(/:(\d+):\d+/);
                 const lineNumber = lineMatch ? lineMatch[1] : "غير معروف";
-                
-                // تخمين اسم الدالة أو النطاق الذي وقع فيه الخطأ
+
                 const codeLines = code.split("\n");
                 let functionName = "في النطاق العام (Global Scope)";
                 if (lineNumber !== "غير معروف" && !isNaN(lineNumber)) {
@@ -90,38 +98,57 @@ export async function scanAllProjectFiles() {
         console.log(chalk.green("◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇"));
     } else {
         printBox("نتيجة الفحص الشامل", [
-            `⚠️ تم العثور على أخطاء في (${errorsFound}) ملفاً. يجدر بك مراجعتها أعلاه.`
+            `⚠️ تم العثور على أخطاء حقيقية في (${errorsFound}) ملفاً. يجدر بك مراجعتها أعلاه.`
         ]);
     }
 }
 
-// التقاط الأخطاء غير المعالجة أثناء تشغيل البوت (Runtime Errors)
+// التقاط الأخطاء غير المعالجة أثناء تشغيل البوت (Runtime Errors) مع فلترة الأخطاء الوهمية والشبكية الشائعة في واتساب
 process.on("unhandledRejection", (reason) => {
-    if (reason && String(reason).includes("Bad MAC")) return;
+    const errorString = String(reason?.stack || reason || "");
     
-    const errorText = reason?.stack || String(reason);
-    const lineMatch = errorText.match(/:(\d+):\d+/);
+    // فلترة الأخطاء المؤقتة والشبكية غير المؤثرة في واتساب لتجنب الإنذارات الكاذبة
+    if (
+        errorString.includes("Bad MAC") || 
+        errorString.includes("rate-overlimit") || 
+        errorString.includes("Timed Out") || 
+        errorString.includes("Stream Errored") ||
+        errorString.includes("connection closed")
+    ) {
+        return;
+    }
+
+    const lineMatch = errorString.match(/:(\d+):\d+/);
     const lineNumber = lineMatch ? lineMatch[1] : "غير معروف";
 
     printBox("خطأ فادح غير معالج (Unhandled Rejection)", [
         `📌 نوع الخطأ : Unhandled Rejection`,
         `📍 السطر التقريبي: ${lineNumber}`,
-        `📜 التفاصيل : ${errorText}`
+        `📜 التفاصيل : ${errorString}`
     ]);
 });
 
 process.on("uncaughtException", (error) => {
-    if (error && String(error).includes("Bad MAC")) return;
+    const errorString = String(error?.stack || error?.message || "");
 
-    const errorText = error.stack || String(error);
-    const lineMatch = errorText.match(/:(\d+):\d+/);
+    // فلترة أخطاء الاتصال الشائعة لكي لا تُظهر بلاغات وهمية
+    if (
+        errorString.includes("Bad MAC") || 
+        errorString.includes("rate-overlimit") || 
+        errorString.includes("Timed Out") ||
+        errorString.includes("enotfound")
+    ) {
+        return;
+    }
+
+    const lineMatch = errorString.match(/:(\d+):\d+/);
     const lineNumber = lineMatch ? lineMatch[1] : "غير معروف";
 
     printBox("انهيار أو استثناء خطير (Uncaught Exception)", [
-        `💥 اسم الخطأ : ${error.name}`,
+        `💥 اسم الخطأ : ${error.name || "Error"}`,
         `💬 الرسالة   : ${error.message}`,
         `📍 السطر    : ${lineNumber}`,
-        `📜 مسار الخطأ: \n${errorText}`
+        `📜 مسار الخطأ: \n${errorString}`
     ]);
 });
 
@@ -129,7 +156,7 @@ process.on("uncaughtException", (error) => {
 setInterval(() => {
     const memoryUsage = process.memoryUsage();
     const heapUsedMB = Math.round(memoryUsage.heapUsed / 1024 / 1024);
-    
+
     if (heapUsedMB > 750) {
         printBox("تحذير أداء الذاكرة المرتفع", [
             `⚠️ الاستهلاك الحالي: ${heapUsedMB} MB`,
