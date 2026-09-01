@@ -1,11 +1,8 @@
 import fs from "fs";
 import path from "path";
-import { fileURLToPath } from "url";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-const dataDir = path.join(__dirname, "../data");
+// استخدام مسار جذري ثابت وآمن تماماً للاستضافات
+const dataDir = path.join(process.cwd(), "data");
 const identityFile = path.join(dataDir, "الهويات.json");
 
 let identityCache = new Map();
