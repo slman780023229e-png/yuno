@@ -2,7 +2,7 @@ import serialize from "./utils/serialize.js";
 import { handleMessages } from "./utils/handler.js";
 import { loadPlugins } from "./utils/loader.js";
 import { Button, ButtonV2, Carousel, AIRich, Toolkit } from "./utils/nixcode.js";
-import "./utils/memory-cleaner.js"; // 🛡️ استدعاء وتشغيل نظام مراقبة وتنظيف الذاكرة تلقائياً
+import "./utils/memory-cleaner.js";
 import makeWASocket, {
     useMultiFileAuthState,
     DisconnectReason,
@@ -21,59 +21,17 @@ import http from "http";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// ==========================================
-// 🛡️ الحماية القصوى والاستعادة الذاتية للجلسة (Anti-Wipe System)
-// ==========================================
+// مسار مجلد الجلسة الثابت والنظيف
 const sessionDir = path.join(__dirname, "ملف_الاتصال");
-const credsTypePath = path.join(sessionDir, "creds.json");
-const backupSessionPath = path.join(__dirname, "utils", "saved_session.js");
-
 await fs.ensureDir(sessionDir);
-await fs.ensureDir(path.join(__dirname, "utils"));
-
-try {
-    // التحقق الفوري: إذا كان ملف الجلسة مفقوداً محلياً، استعده بقوة من مجلد utils
-    if (!fs.existsSync(credsTypePath)) {
-        const sessionModule = await import("./utils/saved_session.js?" + Date.now()).catch(() => null);
-        if (sessionModule && sessionModule.default) {
-            const dataToWrite = typeof sessionModule.default === "string" 
-                ? sessionModule.default 
-                : JSON.stringify(sessionModule.default, null, 2);
-
-            fs.writeFileSync(credsTypePath, dataToWrite);
-            console.log(chalk.green("✅ [حماية قوية]: تم استعادة ملف الجلسة (creds.json) بنجاح من مجلد utils!"));
-        }
-    }
-} catch (e) {
-    console.log(chalk.red("⚠️ ملاحظة نظام الحماية المسبق: " + e.message));
-}
-
-// دالة الحفظ والنسخ الاحتياطي الفوري المانعة للتلف
-async function protectAndBackupSession() {
-    try {
-        if (fs.existsSync(credsTypePath)) {
-            const credsData = fs.readFileSync(credsTypePath, "utf8");
-            if (credsData && credsData.length > 10) {
-                const fileContent = `// 🛡️ هذه النسخة محمية ومحدثة تلقائياً لمنع ضياع الجلسة\nexport default ${credsData};\n`;
-                await fs.outputFile(backupSessionPath, fileContent);
-            }
-        }
-    } catch (err) {
-        console.log(chalk.yellow("⚠️ تحذير أثناء النسخ الاحتياطي: " + err.message));
-    }
-}
 
 // ================================
-// 🌐 KEEP ALIVE SERVER (معدل لمنع خمول المعالج)
+// 🌐 KEEP ALIVE SERVER
 // ================================
 const PORT = process.env.PORT || 3000;
 http.createServer((req, res) => {
-    try {
-        fs.existsSync("./package.json");
-    } catch {}
-
     res.writeHead(200, { "Content-Type": "text/plain" });
-    res.end("*◇❐ ═━━╾ 🩸 ╼━━═ ❐◇*\nARTHUR BOT IS RUNNING 🟢\n*◇❐ ═━━╾ 🩸 ╼━━═ ❐◇*\n");
+    res.end("ARTHUR BOT IS RUNNING 🟢\n");
 }).listen(PORT, () => {
     console.log(`🌐 Keep-alive server is listening on port ${PORT}`);
 });
@@ -81,7 +39,6 @@ http.createServer((req, res) => {
 // ================================
 // 🕒 ARTHUR LIVE CLOCK
 // ================================
-
 setInterval(() => {
     const now = new Date();  
     const time = now.toLocaleTimeString("ar-SA");  
@@ -91,18 +48,12 @@ setInterval(() => {
 }, 60000);
 
 process.on("unhandledRejection", (err) => {
-    if (err && String(err).includes("Bad MAC")) {
-        console.log("⚠️ تجاهل خطأ Bad MAC");
-        return;
-    }
+    if (err && String(err).includes("Bad MAC")) return;
     console.error("Unhandled Rejection:", err);
 });
 
 process.on("uncaughtException", (err) => {
-    if (err && String(err).includes("Bad MAC")) {
-        console.log("⚠️ تجاهل خطأ Bad MAC");
-        return;
-    }
+    if (err && String(err).includes("Bad MAC")) return;
     console.error("Uncaught Exception:", err);
 });
 
@@ -131,10 +82,8 @@ async function startBot() {
         syncFullHistory: false  
     });  
 
-    sock.ev.on("creds.update", async () => {
-        await saveCreds();
-        await protectAndBackupSession();
-    });
+    // حفظ بيانات الجلسة مباشرة ودون أي تداخل
+    sock.ev.on("creds.update", saveCreds);
 
     let activePlugins = [];
 
@@ -150,9 +99,6 @@ async function startBot() {
         return activePlugins;
     }
 
-    // ==========================================
-    // 🔘 دالة الأزرار الحقيقية والمتخطية للقيود
-    // ==========================================
     sock.sendRealButtons = async (jid, text, footerText, buttonsArray) => {
         try {
             const btn = new Button(sock);
@@ -195,24 +141,7 @@ async function startBot() {
 
             return await sock.relayMessage(jid, messageContent.message, {
                 messageId: messageContent.key.id,
-                additionalNodes: [
-                    {
-                        tag: "biz",
-                        attrs: {},
-                        content: [
-                            {
-                                tag: "interactive",
-                                attrs: { type: "native_flow", v: "1" },
-                                content: [
-                                    {
-                                        tag: "native_flow",
-                                        attrs: { name: "quick_reply" }
-                                    }
-                                ]
-                            }
-                        ]
-                    }
-                ]
+                additionalNodes: [{ tag: "biz", attrs: {}, content: [{ tag: "interactive", attrs: { type: "native_flow", v: "1" }, content: [{ tag: "native_flow", attrs: { name: "quick_reply" } }] }] }]
             });
         }
     };
@@ -221,8 +150,7 @@ async function startBot() {
     global.sock = sock;
 
     if (!state.creds.registered) {
-        let phone = "967780023229";  
-        phone = phone.replace(/[^0-9]/g, "");  
+        let phone = "967780023229".replace(/[^0-9]/g, "");  
 
         try {  
             console.log(chalk.cyan("⌛ جاري تجهيز الربط تلقائياً للرقم: " + phone));  
@@ -237,13 +165,7 @@ ${chalk.green("        👑 𝐀𝐑𝐓𝐇𝐔𝐑 𝐏𝐀𝐈𝐑𝐈𝐍�
 ${chalk.white(" 📱 NUMBER : ")}${chalk.bold.white(phone)}
 ${chalk.green(" 🔑 CODE   : ")}${chalk.bold.green(code)}
 *◇❐ ═━━╾ 🩸 ╼━━═ ❐◇*
-${chalk.yellow(" WhatsApp > الأجهزة المرتبطة")}
-${chalk.yellow(" اختر ربط جهاز وأدخل الكود")}
-*◇❐ ═━━╾ 🩸 ╼━━═ ❐◇*
 `);
-
-            console.log(chalk.green("*◇❐ ═━━╾ 🩸 ╼━━═ ❐◇*\n║ 👑 𝐀𝐑𝐓𝐇𝐔𝐑 𝐂𝐎𝐑𝐄 𝐑𝐄𝐀𝐃𝐘     ║\n║ 🔗 بانتظار تأكيد الربط     ║\n*◇❐ ═━━╾ 🩸 ╼━━═ ❐◇*"));
-
         } catch (err) {  
             console.log(chalk.red("❌ فشل كود الربط: " + err.message));  
         }  
@@ -252,10 +174,6 @@ ${chalk.yellow(" اختر ربط جهاز وأدخل الكود")}
     sock.ev.on("connection.update", async (update) => {  
         const { connection, lastDisconnect } = update;  
 
-        if (connection === "connecting") {  
-            console.log(chalk.yellow("⏳ جاري الاتصال..."));  
-        }  
-
         if (connection === "open") {  
             console.log(chalk.green(`
 *◇❐ ═━━╾ 🩸 ╼━━═ ❐◇*
@@ -263,27 +181,7 @@ ${chalk.yellow(" اختر ربط جهاز وأدخل الكود")}
 ║   Successfully Connected   ║
 *◇❐ ═━━╾ 🩸 ╼━━═ ❐◇*
 `));
-
-            const restartFile = path.join(process.cwd(), "data", "restart.json");
-
-            if (fs.existsSync(restartFile)) {
-                try {  
-                    const info = JSON.parse(fs.readFileSync(restartFile, "utf8"));  
-
-                    if (Date.now() - info.time < 60000) {  
-                        await sock.sendMessage(info.jid, {  
-                            text: "*◇❐ ═━━╾ 🩸 ╼━━═ ❐◇*\n║ 👑 ✅ تم التشغيل بنجاح     \n*◇❐ ═━━╾ 🩸 ╼━━═ ❐◇*\n║ ⚜️ 𝐀𝐑𝐓𝐇𝐔𝐑 ONLINE         ║\n║ 🚀 تمت إعادة تشغيل البوت   ║\n*◇❐ ═━━╾ 🩸 ╼━━═ ❐◇*"
-                        });
-                    }  
-
-                    fs.unlinkSync(restartFile);  
-                } catch (err) {  
-                    console.log("Restart Message Error:", err.message);  
-                }
-            }
-
             await getActivePlugins();
-            console.log(chalk.green("✅ تم تحميل البلجنات بنجاح"));
         }
 
         if (connection === "close") {
@@ -291,69 +189,41 @@ ${chalk.yellow(" اختر ربط جهاز وأدخل الكود")}
             console.log(chalk.red("❌ Connection closed with status code: " + statusCode));  
 
             if (statusCode === DisconnectReason.loggedOut) {  
-                console.log(chalk.red("⚠️ تم تسجيل الخروج نهائياً من الحساب. سيتم مسح الجلسة القديمة التالفة لتوليد جلسة نظيفة."));
-                try {
-                    await fs.remove(sessionDir);
-                    if (fs.existsSync(backupSessionPath)) await fs.remove(backupSessionPath);
-                } catch {}
+                console.log(chalk.red("⚠️ تم تسجيل الخروج. جاري مسح الجلسة..."));
+                await fs.remove(sessionDir);
                 setTimeout(startBot, 3000);  
             } else {  
-                console.log(chalk.yellow("🔄 إعادة الاتصال تلقائياً مع تفعيل الحماية واستعادة الجلسة..."));  
                 setTimeout(startBot, 5000);  
             }  
         }  
     });  
 
-    // ===============================  
-    // MESSAGE HANDLER (تم التصحيح ليتوافق مع الـ Handler)
-    // ===============================  
-
     sock.ev.on("messages.upsert", async (chatUpdate) => {  
         try {  
             const mek = chatUpdate.messages[0];
             if (!mek.message) return;
-
-            // تمرير chatUpdate مباشرة كما تتطلبه دالة handleMessages(sock, m)
             await handleMessages(sock, chatUpdate);  
         } catch (err) {  
             console.log(chalk.red("❌ خطأ استقبال الرسالة: " + err.message));  
         }  
     });
 
-    // ===============================  
-    // 👥 GROUP EVENTS FOR ALL PLUGINS  
-    // ===============================  
-
     sock.ev.on("group-participants.update", async (update) => {
         try {
             const plugins = await getActivePlugins();
-
             for (const plugin of plugins) {
-                if (plugin.onGroupParticipantsUpdate) {
-                    await plugin.onGroupParticipantsUpdate(sock, update);
-                }
+                if (plugin.onGroupParticipantsUpdate) await plugin.onGroupParticipantsUpdate(sock, update);
             }
-        } catch (e) {
-            console.log("Group Participants Update Error:", e.message);
-        }
+        } catch (e) {}
     });
-
-    // ===============================  
-    // 🔗 GROUP JOIN REQUESTS EVENT  
-    // ===============================  
 
     sock.ev.on("group.join-request", async (update) => {
         try {
             const plugins = await getActivePlugins();
-
             for (const plugin of plugins) {
-                if (typeof plugin.onGroupJoinRequest === "function") {
-                    await plugin.onGroupJoinRequest(sock, update);
-                }
+                if (typeof plugin.onGroupJoinRequest === "function") await plugin.onGroupJoinRequest(sock, update);
             }
-        } catch (e) {
-            console.log("Group Join Request Error:", e.message);
-        }
+        } catch (e) {}
     });
 }
 
