@@ -1,46 +1,103 @@
+
 import fs from "fs";
 import path from "path";
 import archiver from "archiver";
 
+// دالة للتحقق مما إذا كان المستخدم من النخبة
+const checkElitePermission = (msg, data) => {
+    try {
+        const senderJid = msg.key.participant || data.jid || "";
+        const senderNumber = senderJid.replace(/[^0-9]/g, "");
+        const dataDir = path.join(process.cwd(), "data");
+
+        if (!fs.existsSync(dataDir)) return false;
+
+        const files = fs.readdirSync(dataDir);
+        const eliteFile = files.find(f => /نخبة|elite/i.test(f));
+
+        if (!eliteFile) return false;
+
+        const filePath = path.join(dataDir, eliteFile);
+        const fileContent = fs.readFileSync(filePath, "utf8");
+
+        if (fileContent.includes("{") || fileContent.includes("[")) {
+            const parsed = JSON.parse(fileContent);
+            const stringified = JSON.stringify(parsed);
+            return stringified.includes(senderNumber);
+        } else {
+            return fileContent.includes(senderNumber);
+        }
+    } catch (e) {
+        return false;
+    }
+};
+
 export default {
   command: 'جلبمجلد',
-  description: 'جلب المجلدات عبر كتابة اسمها أو رقمها الترتيبي في المشروع',
+  description: 'جلب المجلدات عبر كتابة اسمها أو الرقم الترتيبي في المشروع (خاص بالنخبة فقط)',
   category: 'المطور',
 
   execute: async (sock, msg, data) => {
     try {
       const jid = data?.jid || msg.key.remoteJid;
       
-      const args = data?.text
-        ? data.text.trim().split(/\s+/).slice(1)
-        : [];
+      const input = data?.text ? data.text.trim() : "";
+      const args = input.replace(/^\.جلبمجلد/, "").trim().split(/\s+/);
+      const query = args[0] ? args[0].toLowerCase() : "";
+
+      if (!query) {
+        await sock.sendMessage(jid, {
+          react: {
+              text: "📁",
+              key: msg.key
+          }
+        }).catch(() => {});
+      }
+
+      // التحقق من صلاحيات النخبة
+      const isElite = checkElitePermission(msg, data);
+      if (!isElite) {
+        return await sock.sendMessage(jid, {
+            text: `*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*\n❌ *هذا الأمر مخصص لقسم (النخبة) فقط*\n*لست مسجلاً في قائمة النخبة لتنفيذ جلب المجلدات*\n*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*`,
+            quoted: msg
+        });
+      }
 
       // جلب جميع المجلدات الموجودة في المسار الحالي
       const items = fs.readdirSync(process.cwd(), { withFileTypes: true });
       const folders = items.filter(item => item.isDirectory() && !item.name.startsWith('.'));
 
-      if (!args[0]) {
-        let listText = '📂 قائمة المجلدات المتاحة:\n\n';
+      if (!query) {
+        let listText = `*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*\n`;
+        listText += `       *𝚫𝚪𝚻𝚮𝚼𝚪 • 𝚩𝚯𝚻 2026*\n`;
+        listText += `*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*\n`;
+        listText += `📂 *قائمة المجلدات المتاحة:*\n\n`;
+        
         folders.forEach((folder, index) => {
-          listText += `${index + 1}. ${folder.name}\n`;
+          listText += `*${index + 1}-* 📁 \`${folder.name}\`\n`;
         });
-        listText += '\nطريقة الاستخدام:\n.جلبمجلد [الاسم أو الرقم]\nمثال: .جلبمجلد 1 أو .جلبمجلد data';
+
+        listText += `\n*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*\n`;
+        listText += `💡 *طريقة الاستخدام:*\n`;
+        listText += `\`.جلبمجلد [الاسم أو الرقم]\`\n`;
+        listText += `*مثال:* \`.جلبمجلد 1\` أو \`.جلبمجلد data\`\n`;
+        listText += `*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*`;
 
         return sock.sendMessage(jid, { text: listText }, { quoted: msg });
       }
 
-      const input = args.join(' ').trim();
+      const inputArg = args.join(' ').trim();
       let targetFolderName = '';
 
       // التحقق مما إذا كان المدخل رقماً أم نصاً
-      if (!isNaN(input)) {
-        const index = parseInt(input) - 1;
+      if (!isNaN(inputArg)) {
+        const index = parseInt(inputArg) - 1;
         if (index >= 0 && index < folders.length) {
           targetFolderName = folders[index].name;
         }
       } else {
         // البحث بالاسم المباشر
-        const found = folders.find(f => f.name.toLowerCase() === input.toLowerCase());
+        const found = folders.find(f => f.name.toLowerCase() === inputArg.toLowerCase());
         if (found) {
           targetFolderName = found.name;
         }
@@ -49,14 +106,14 @@ export default {
       if (!targetFolderName) {
         return sock.sendMessage(
           jid,
-          { text: `❌ عذراً، المجلد "${input}" غير موجود أو رقم القائمة غير صحيح.` },
+          { text: `*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*\n❌ *عذراً، المجلد "${inputArg}" غير موجود أو رقم القائمة غير صحيح.*\n*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*` },
           { quoted: msg }
         );
       }
 
       const targetPath = path.join(process.cwd(), targetFolderName);
 
-      await sock.sendMessage(jid, { text: `📦 جاري ضغط المجلد "${targetFolderName}"، يرجى الانتظار...` }, { quoted: msg });
+      await sock.sendMessage(jid, { text: `*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*\n📦 *جاري ضغط المجلد "${targetFolderName}"، يرجى الانتظار...*\n*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*` }, { quoted: msg });
 
       const zipName = `${targetFolderName}_backup.zip`;
       const outputPath = path.join(process.cwd(), zipName);
@@ -73,7 +130,7 @@ export default {
                 document: fs.readFileSync(outputPath),
                 mimetype: 'application/zip',
                 fileName: zipName,
-                caption: `✅ تم جلب المجلد بنجاح: ${targetFolderName}`
+                caption: `*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*\n✅ *تم جلب المجلد بنجاح:* \`${targetFolderName}\`\n*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*`
               },
               { quoted: msg }
             );
@@ -102,7 +159,7 @@ export default {
       console.error("أمر جلبمجلد خطأ:", e);
       return sock.sendMessage(
         data?.jid || msg.key.remoteJid,
-        { text: '❌ حدث خطأ أثناء تنفيذ عملية الضغط والإرسال.' },
+        { text: '*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*\n❌ *حدث خطأ أثناء تنفيذ عملية الضغط والإرسال.*\n*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*' },
         { quoted: msg }
       );
     }
