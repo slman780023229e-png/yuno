@@ -7,54 +7,32 @@ import fs from "fs";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// =============================
-// 🛡️ درع حماية وتطهير ملفات الجلسة والاتصال (معدل لحماية ملف_الاتصال وعدم مسح الجلسة النشطة)
-// =============================
+// ==========================================================
+// 🛡️ درع الحماية الفولاذي المطلق (محصن ضد أي مسح أو تلف للجلسة)
+// ==========================================================
 function protectAndCleanSession() {
     try {
-        const sessionPaths = [
+        // حماية تامة ومطلقة لمجلدات الاتصال والجلسات من أي عبث أو فحص عشوائي
+        const protectedDirs = [
             path.join(__dirname, "ملف_الاتصال"),
             path.join(__dirname, "session"),
-            path.join(__dirname, "sessions"),
-            path.join(__dirname, "../session"),
-            path.join(__dirname, "../sessions")
+            path.join(__dirname, "sessions")
         ];
 
-        for (const sessionDir of sessionPaths) {
+        for (const sessionDir of protectedDirs) {
             if (fs.existsSync(sessionDir)) {
-                const files = fs.readdirSync(sessionDir);
-                const seenFiles = new Set();
-
-                for (const file of files) {
-                    const filePath = path.join(sessionDir, file);
-                    try {
-                        const stats = fs.statSync(filePath);
-                        if (stats.isFile()) {
-                            // حماية ملف الاعتماد الأساسي للربط لكي لا يطلب كود جديد كل مرة
-                            if (file === "creds.json") {
-                                continue;
-                            }
-
-                            if (stats.size === 0) {
-                                fs.unlinkSync(filePath);
-                                continue;
-                            }
-
-                            if (seenFiles.has(file) || file.includes("copy") || file.includes("bak") || file.endsWith("~")) {
-                                fs.unlinkSync(filePath);
-                            } else {
-                                seenFiles.add(file);
-                            }
-                        }
-                    } catch {}
-                }
+                // إعلان حصانة كاملة: ممنوع منعا باتا فحص أو لمس محتويات مجلد الاتصال
+                console.log(chalk.green(`🛡️ [حماية فولاذية]: مجلد الجلسة محمي بالكامل ولن يتم لمسه: ${path.basename(sessionDir)}`));
+                continue; 
             }
         }
-    } catch {}
+    } catch (err) {
+        console.log(chalk.yellow("⚠️ تنبيه الحماية: " + err.message));
+    }
 }
 
 // =============================
-// 🧹 دالة تنظيف الكاش والملفات المؤقتة لتخفيف الذاكرة
+// 🧹 تنظيف الملفات المؤقتة البعيدة عن الجلسة فقط
 // =============================
 function clearTempCache() {
     try {
@@ -72,7 +50,6 @@ function clearTempCache() {
                     try {
                         const stats = fs.statSync(filePath);
                         if (stats.isFile()) {
-                            // حذف الملفات المؤقتة القديمة التي تملأ الذاكرة
                             fs.unlinkSync(filePath);
                         }
                     } catch {}
@@ -110,7 +87,7 @@ async function loading(text) {
 }
 
 async function start() {
-    // تشغيل درع الحماية وتنظيف الكاش المؤقت بذكاء دون المساس بملف الاتصال الرئيسي
+    // تفعيل درع الحماية الصارم للجلسات وتنظيف الكاش الآمن
     protectAndCleanSession();
     clearTempCache();
 
