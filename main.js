@@ -22,24 +22,46 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // ==========================================
-// 🛡️ الاستعادة المبكرة والآمنة لملف الجلسة
+// 🛡️ الحماية القصوى والاستعادة الذاتية للجلسة (Anti-Wipe System)
 // ==========================================
 const sessionDir = path.join(__dirname, "ملف_الاتصال");
-await fs.ensureDir(sessionDir);
 const credsTypePath = path.join(sessionDir, "creds.json");
+const backupSessionPath = path.join(__dirname, "utils", "saved_session.js");
+
+await fs.ensureDir(sessionDir);
+await fs.ensureDir(path.join(__dirname, "utils"));
 
 try {
-    const sessionModule = await import("./utils/saved_session.js?" + Date.now()).catch(() => null);
-    if (sessionModule && sessionModule.default && !fs.existsSync(credsTypePath)) {
-        const dataToWrite = typeof sessionModule.default === "string" 
-            ? sessionModule.default 
-            : JSON.stringify(sessionModule.default, null, 2);
+    // التحقق الفوري: إذا كان ملف الجلسة مفقوداً محلياً، استعده بقوة من مجلد utils
+    if (!fs.existsSync(credsTypePath)) {
+        const sessionModule = await import("./utils/saved_session.js?" + Date.now()).catch(() => null);
+        if (sessionModule && sessionModule.default) {
+            const dataToWrite = typeof sessionModule.default === "string" 
+                ? sessionModule.default 
+                : JSON.stringify(sessionModule.default, null, 2);
 
-        fs.writeFileSync(credsTypePath, dataToWrite);
-        console.log(chalk.green("✅ تم إنشاء ملف creds.json بنجاح من الجلسة المحفوظة مسبقاً!"));
+            fs.writeFileSync(credsTypePath, dataToWrite);
+            console.log(chalk.green("✅ [حماية قوية]: تم استعادة ملف الجلسة (creds.json) بنجاح من مجلد utils!"));
+        }
     }
 } catch (e) {
-    console.log(chalk.red("⚠️ خطأ في الاستعادة المبكرة للجلسة: " + e.message));
+    console.log(chalk.red("⚠️ ملاحظة نظام الحماية المسبق: " + e.message));
+}
+
+// دالة الحفظ والنسخ الاحتياطي الفوري المانعة للتلف
+async function protectAndBackupSession() {
+    try {
+        if (fs.existsSync(credsTypePath)) {
+            const credsData = fs.readFileSync(credsTypePath, "utf8");
+            // تأكيد أن البيانات صالحة وليست فارغة قبل أخذ النسخة
+            if (credsData && credsData.length > 10) {
+                const fileContent = `// 🛡️ هذه النسخة محمية ومحدثة تلقائياً لمنع ضياع الجلسة\nexport default ${credsData};\n`;
+                await fs.outputFile(backupSessionPath, fileContent);
+            }
+        }
+    } catch (err) {
+        console.log(chalk.yellow("⚠️ تحذير أثناء النسخ الاحتياطي: " + err.message));
+    }
 }
 
 // ================================
@@ -110,7 +132,11 @@ async function startBot() {
         syncFullHistory: false  
     });  
 
-    sock.ev.on("creds.update", saveCreds);  
+    // تحديث الجلسة وحمايتها فوراً في ملفات النسخ الاحتياطي
+    sock.ev.on("creds.update", async () => {
+        await saveCreds();
+        await protectAndBackupSession();
+    });
 
     let activePlugins = [];
 
@@ -263,14 +289,19 @@ ${chalk.yellow(" اختر ربط جهاز وأدخل الكود")}
         }
 
         if (connection === "close") {
-            const reason = lastDisconnect?.error?.output?.statusCode;  
-            console.log(chalk.red("❌ Connection closed : " + reason));  
+            const statusCode = lastDisconnect?.error?.output?.statusCode;  
+            console.log(chalk.red("❌ Connection closed with status code: " + statusCode));  
 
-            if (reason !== DisconnectReason.loggedOut) {  
-                console.log(chalk.yellow("🔄 إعادة الاتصال..."));  
+            if (statusCode === DisconnectReason.loggedOut) {  
+                console.log(chalk.red("⚠️ تم تسجيل الخروج نهائياً من الحساب. سيتم مسح الجلسة القديمة التالفة لتوليد جلسة نظيفة."));
+                try {
+                    await fs.remove(sessionDir);
+                    if (fs.existsSync(backupSessionPath)) await fs.remove(backupSessionPath);
+                } catch {}
                 setTimeout(startBot, 3000);  
             } else {  
-                console.log(chalk.red("تم تسجيل الخروج من الحساب"));  
+                console.log(chalk.yellow("🔄 إعادة الاتصال تلقائياً مع تفعيل الحماية واستعادة الجلسة..."));  
+                setTimeout(startBot, 5000);  
             }  
         }  
     });  
