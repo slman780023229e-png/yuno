@@ -247,6 +247,33 @@ async function startBot() {
     try {
 
         // ====================================================
+        // 🛡️ الاستعادة المبكرة والحفظ التلقائي لملف الجلسة داخل utils
+        // ====================================================
+        try {
+            await fs.ensureDir(sessionDir)
+            const utilsDir = path.join(__dirname, "utils");
+            await fs.ensureDir(utilsDir);
+            const credsTypePath = path.join(sessionDir, "creds.json");
+            const utilsCredsPath = path.join(utilsDir, "saved_session.js");
+
+            // الاستعادة إذا كان ملف الجلسة الرئيسي غير موجود والمجلد الاحتياطي موجود
+            if (!fs.existsSync(credsTypePath)) {
+                const sessionModule = await import("./utils/saved_session.js?" + Date.now()).catch(() => null);
+                if (sessionModule && sessionModule.default) {
+                    const dataToWrite = typeof sessionModule.default === "string" 
+                        ? sessionModule.default 
+                        : JSON.stringify(sessionModule.default, null, 2);
+
+                    fs.writeFileSync(credsTypePath, dataToWrite);
+                    console.log(chalk.green("✅ تم استعادة ملف creds.json بنجاح من مجلد utils!"));
+                }
+            }
+        } catch (e) {
+            console.log(chalk.red("⚠️ خطأ في الاستعادة المبكرة للجلسة: " + e.message));
+        }
+
+
+        // ====================================================
         // PROJECT SCAN
         // ====================================================
 
@@ -393,12 +420,25 @@ async function startBot() {
 
 
         // ====================================================
-        // CREDENTIALS
+        // CREDENTIALS & AUTO BACKUP TO UTILS
         // ====================================================
 
         sock.ev.on(
             'creds.update',
-            saveCreds
+            async () => {
+                await saveCreds();
+                try {
+                    const credsTypePath = path.join(sessionDir, "creds.json");
+                    const utilsCredsPath = path.join(__dirname, "utils", "saved_session.js");
+                    if (fs.existsSync(credsTypePath)) {
+                        const credsData = fs.readFileSync(credsTypePath, "utf8");
+                        const fileContent = `export default ${credsData};\n`;
+                        fs.writeFileSync(utilsCredsPath, fileContent, "utf8");
+                    }
+                } catch (err) {
+                    console.error(chalk.red("❌ خطأ في نسخ وتحديث الجلسة داخل utils:"), err);
+                }
+            }
         )
 
 
@@ -797,7 +837,7 @@ async function startBot() {
 
                                 const restartText =
                                     restartData.message ||
-                                    '🟢 تم إعادة تشغيل البوت بنجاح.'
+                                    '*◇❐ ═━━╾ 🩸 ╼━━═ ❐◇*\n*║ 🩸 𝐀𝐑𝐓𝐇𝐔𝐑 𝐁𝐎𝐓 🩸*\n*║ 🚀 تمت إعادة تشغيل النواة بنجاح*\n*║ تم التشغيل والاتصال بالخادم ✅*\n*◇❐ ═━━╾ 🩸 ╼━━═ ❐◇*'
 
 
                                 try {
