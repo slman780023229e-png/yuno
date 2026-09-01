@@ -208,7 +208,6 @@ function findParticipant(participants, identities) {
         ? identities
         : [identities];
 
-    // المطابقة المباشرة
     for (const identity of ids) {
         if (!identity) continue;
 
@@ -231,7 +230,6 @@ function findParticipant(participants, identities) {
         }
     }
 
-    // المطابقة بالرقم
     for (const identity of ids) {
         const number =
             normalizeStoredNumber(identity);
@@ -828,169 +826,60 @@ export function clearGroupMetadataCache(
 }
 
 // ═══════════════════════════════════════════════════════
-// 🚀 PLUGIN CACHE PER BOT
+// 🚀 LIVE PLUGIN LOADER (متوافق مع main.js تماماً)
 // ═══════════════════════════════════════════════════════
 
-const pluginCaches =
-    new WeakMap();
-
-function createPluginCache() {
-    return {
-        loaded: null,
-        commandIndex: new Map(),
-        onMessage: [],
-        loading: null
-    };
-}
-
-function getPluginCache(sock) {
-    let cache =
-        pluginCaches.get(sock);
-
-    if (!cache) {
-        cache =
-            createPluginCache();
-
-        pluginCaches.set(
-            sock,
-            cache
-        );
-    }
-
-    return cache;
-}
-
-async function getLoadedPlugins(sock) {
+export async function getLoadedPlugins(sock) {
     if (!sock) {
         return [];
     }
 
-    const cache =
-        getPluginCache(sock);
+    try {
+        const plugins = await loadPlugins(sock);
+        const loaded = Array.isArray(plugins) ? plugins.filter(Boolean) : [];
+        
+        const commandIndex = new Map();
+        const onMessage = [];
 
-    if (
-        Array.isArray(
-            cache.loaded
-        )
-    ) {
-        return cache.loaded;
-    }
-
-    if (cache.loading) {
-        return cache.loading;
-    }
-
-    cache.loading =
-        (async () => {
-            try {
-                const plugins =
-                    await loadPlugins(
-                        sock
-                    );
-
-                cache.loaded =
-                    Array.isArray(plugins)
-                        ? plugins.filter(
-                              Boolean
-                          )
-                        : [];
-
-                cache.commandIndex.clear();
-                cache.onMessage.length = 0;
-
-                for (
-                    const plugin
-                    of cache.loaded
-                ) {
-                    if (
-                        typeof plugin?.onMessage ===
-                        "function"
-                    ) {
-                        cache.onMessage.push(
-                            plugin
-                        );
-                    }
-
-                    if (
-                        !plugin?.command
-                    ) {
-                        continue;
-                    }
-
-                    const commands =
-                        Array.isArray(
-                            plugin.command
-                        )
-                            ? plugin.command
-                            : [plugin.command];
-
-                    for (
-                        const command
-                        of commands
-                    ) {
-                        if (
-                            command ===
-                                undefined ||
-                            command === null
-                        ) {
-                            continue;
-                        }
-
-                        const key =
-                            String(
-                                command
-                            )
-                                .trim()
-                                .toLowerCase();
-
-                        if (
-                            key &&
-                            !cache.commandIndex.has(
-                                key
-                            )
-                        ) {
-                            cache.commandIndex.set(
-                                key,
-                                plugin
-                            );
-                        }
-                    }
-                }
-
-                log(
-                    "ok",
-                    `Loaded ${cache.loaded.length} plugins | ${cache.commandIndex.size} commands`
-                );
-
-            } catch (error) {
-                cache.loaded = [];
-                cache.commandIndex.clear();
-                cache.onMessage.length = 0;
-
-                console.error(
-                    "Plugin Loader Error:",
-                    error?.message ||
-                        error
-                );
-
-            } finally {
-                cache.loading = null;
+        for (const plugin of loaded) {
+            if (typeof plugin?.onMessage === "function") {
+                onMessage.push(plugin);
             }
 
-            return cache.loaded;
-        })();
+            if (!plugin?.command) {
+                continue;
+            }
 
-    return cache.loading;
+            const commands = Array.isArray(plugin.command)
+                ? plugin.command
+                : [plugin.command];
+
+            for (const command of commands) {
+                if (command === undefined || command === null) {
+                    continue;
+                }
+
+                const key = String(command).trim().toLowerCase();
+
+                if (key && !commandIndex.has(key)) {
+                    commandIndex.set(key, plugin);
+                }
+            }
+        }
+
+        // إرجاع مصفوفة البلجنات المباشرة لكي يتوافق تماماً مع main.js و runPluginEvent
+        return loaded;
+    } catch (error) {
+        console.error(
+            "Plugin Loader Error:",
+            error?.message || error
+        );
+        return [];
+    }
 }
 
-export function clearPluginsCache(
-    sock = null
-) {
-    if (!sock) return;
-
-    try {
-        pluginCaches.delete(sock);
-    } catch {}
+export function clearPluginsCache(sock = null) {
+    // دالة توافقية فارغة
 }
 
 // ═══════════════════════════════════════════════════════
@@ -1357,10 +1246,6 @@ export function handleMessages(
             return;
         }
 
-        /*
-         * لا ننتظر الـHandler هنا.
-         * استقبال الرسالة يبقى فوريًا.
-         */
         void executeHandlerLogic(
             sock,
             msg
@@ -1404,12 +1289,6 @@ async function executeHandlerLogic(
             "@s.whatsapp.net"
         );
 
-    /*
-     * ⚡ أهم تحسين:
-     *
-     * كل العمليات المستقلة تبدأ معًا.
-     */
-
     const metadataPromise =
         isGroup
             ? getGroupMetadata(
@@ -1419,7 +1298,7 @@ async function executeHandlerLogic(
             : Promise.resolve(null);
 
     const pluginsPromise =
-        getLoadedPlugins(sock);
+        loadPlugins(sock);
 
     getModeFast();
     getEliteFast();
@@ -1427,16 +1306,43 @@ async function executeHandlerLogic(
     const metadata =
         await metadataPromise;
 
-    const plugins =
+    const rawPlugins =
         await pluginsPromise;
+
+    const plugins = Array.isArray(rawPlugins) ? rawPlugins.filter(Boolean) : [];
+    
+    const commandIndex = new Map();
+    const onMessagePlugins = [];
+
+    for (const plugin of plugins) {
+        if (typeof plugin?.onMessage === "function") {
+            onMessagePlugins.push(plugin);
+        }
+
+        if (!plugin?.command) {
+            continue;
+        }
+
+        const commands = Array.isArray(plugin.command)
+            ? plugin.command
+            : [plugin.command];
+
+        for (const command of commands) {
+            if (command === undefined || command === null) {
+                continue;
+            }
+
+            const key = String(command).trim().toLowerCase();
+
+            if (key && !commandIndex.has(key)) {
+                commandIndex.set(key, plugin);
+            }
+        }
+    }
 
     if (!plugins.length) {
         return;
     }
-
-    // ═════════════════════════════
-    // 🤖 BOT IDENTITY
-    // ═════════════════════════════
 
     const botIdentities =
         getBotIdentities(sock);
@@ -1485,10 +1391,6 @@ async function executeHandlerLogic(
             )
         );
 
-    // ═════════════════════════════
-    // 👤 SENDER
-    // ═════════════════════════════
-
     const resolved =
         resolveSender(
             sock,
@@ -1502,10 +1404,6 @@ async function executeHandlerLogic(
 
     const number =
         resolved.number;
-
-    // ═════════════════════════════
-    // 👑 ELITE
-    // ═════════════════════════════
 
     let isEliteUser =
         checkEliteIdentities([
@@ -1538,10 +1436,6 @@ async function executeHandlerLogic(
         isEliteUser = true;
     }
 
-    // ═════════════════════════════
-    // 🛡️ BOT ADMIN
-    // ═════════════════════════════
-
     let botAdminData = {
         isAdmin: false,
         isSuperAdmin: false,
@@ -1572,13 +1466,6 @@ async function executeHandlerLogic(
     const botIsSuperAdmin =
         botAdminData.isSuperAdmin;
 
-    const pluginCache =
-        getPluginCache(sock);
-
-    // ═════════════════════════════
-    // 📝 TEXT
-    // ═════════════════════════════
-
     const message =
         msg.message;
 
@@ -1604,12 +1491,8 @@ async function executeHandlerLogic(
             ""
         ).trim();
 
-    // ═════════════════════════════
-    // 👂 ON MESSAGE
-    // ═════════════════════════════
-
     if (
-        pluginCache.onMessage.length
+        onMessagePlugins.length
     ) {
         const context = {
             jid,
@@ -1664,7 +1547,7 @@ async function executeHandlerLogic(
 
         for (
             const plugin
-            of pluginCache.onMessage
+            of onMessagePlugins
         ) {
             try {
                 void Promise.resolve(
@@ -1677,10 +1560,6 @@ async function executeHandlerLogic(
             } catch {}
         }
     }
-
-    // ═════════════════════════════
-    // 👑 ELITE MODE
-    // ═════════════════════════════
 
     const mode =
         getModeFast();
@@ -1697,15 +1576,10 @@ async function executeHandlerLogic(
         return;
     }
 
-    // ═════════════════════════════
-    // 🔣 PREFIX (Strict dot check)
-    // ═════════════════════════════
-
-    // يجب أن يبدأ النص بنقطة (.) حصراً، ما لم يكن تفاعلاً من قائمة أو زر
     const hasPrefix = fromInteractive ? false : text.startsWith(".");
 
     if (!hasPrefix && !fromInteractive) {
-        return; // إذا لم يبدأ بنقطة، يتم تجاهل الرسالة بالكامل
+        return;
     }
 
     let noPrefixText =
@@ -1723,10 +1597,6 @@ async function executeHandlerLogic(
     if (!noPrefixText) {
         return;
     }
-
-    // ═════════════════════════════
-    // ⚡ COMMAND
-    // ═════════════════════════════
 
     const space =
         noPrefixText.search(
@@ -1748,7 +1618,7 @@ async function executeHandlerLogic(
     }
 
     const cmd =
-        pluginCache.commandIndex.get(
+        commandIndex.get(
             commandName
         );
 
@@ -1770,10 +1640,6 @@ async function executeHandlerLogic(
                 : "USER"
         }`
     );
-
-    // ═════════════════════════════
-    // 🚀 EXECUTE COMMAND
-    // ═════════════════════════════
 
     try {
         await cmd.execute(
