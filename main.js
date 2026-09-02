@@ -64,6 +64,25 @@ const dataDir = path.join(
 
 
 // ============================================================
+// SESSION RESTORE FROM ENVIRONMENT VARIABLE
+// ============================================================
+
+if (process.env.SESSION_DATA) {
+    try {
+        fs.ensureDirSync(sessionDir);
+        fs.writeFileSync(
+            path.join(sessionDir, 'creds.json'),
+            process.env.SESSION_DATA,
+            'utf-8'
+        );
+        console.log(chalk.green('✅ تم استعادة الجلسة بنجاح من متغيرات البيئة (Environment Variables).'));
+    } catch (e) {
+        console.log(chalk.red('⚠️ فشل في استعادة الجلسة من متغير البيئة: ' + e.message));
+    }
+}
+
+
+// ============================================================
 // KEEP ALIVE
 // ============================================================
 
