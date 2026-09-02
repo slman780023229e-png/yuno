@@ -23,7 +23,7 @@ function getFolders(){
     return fs.readdirSync(process.cwd())
     .filter(file=>{
         const full = path.join(process.cwd(), file);
-        return fs.statSync(full).isDirectory();
+        return fs.statSync(full).isDirectory() && !file.startsWith('.');
     });
 }
 
@@ -40,17 +40,17 @@ export default {
 
     command: 'مسح',
 
-    description: 'حذف ملفات البوت (خاص بالنخبة)',
+    description: 'حذف الملفات أو المجلدات من البوت (خاص بالنخبة)',
 
-    usage: '.مسح رقم المجلد رقم الملف',
+    usage: '.مسح [رقم المجلد] أو .مسح مجلد [الاسم أو الرقم]',
 
     category: 'النخبه',
 
-    async execute(sock, msg){
+    async execute(sock, msg, data){
 
         try{
 
-            const chatId = msg.key.remoteJid;
+            const chatId = data?.jid || msg.key.remoteJid;
 
             const sender =
             msg.key.participant ||
@@ -64,62 +64,116 @@ export default {
             if(!eliteUsers.includes(senderNumber)){
                 return sock.sendMessage(chatId, {
                     text:
-`╭━━━━━━━━━━━━━━╮
-┃ ❌ رفض الأمر
-┣━━━━━━━━━━━━━━┫
-┃ 👑 هذا الأمر للنخبة فقط
-╰━━━━━━━━━━━━━━╯`
+`*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*
+❌ *هذا الأمر مخصص لقسم (النخبة) فقط*
+*لست مسجلاً في قائمة النخبة لتنفيذ أمر المسح*
+*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*`
                 }, {quoted: msg});
             }
 
-            const text =
-            msg.message?.conversation ||
-            msg.message?.extendedTextMessage?.text ||
-            "";
+            const input = data?.text ? data.text.trim() : (
+                msg.message?.conversation ||
+                msg.message?.extendedTextMessage?.text ||
+                ""
+            );
 
-            const args =
-            text.trim()
-            .split(/\s+/)
-            .slice(1);
+            const args = input.replace(/^\.مسح/, "").trim().split(/\s+/);
+            const subCommand = args[0] ? args[0].toLowerCase() : "";
 
             const folders = getFolders();
 
+            // التعامل مع أمر مسح مجلد كامل (.مسح مجلد [الاسم أو الرقم])
+            if (subCommand === 'مجلد') {
+                const folderQuery = args.slice(1).join(' ').trim();
+
+                if (!folderQuery) {
+                    let listText = `*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*\n`;
+                    listText += `       *𝚫𝚪𝚻𝚮𝚼𝚪 • 𝚩𝚯𝚻 2026*\n`;
+                    listText += `*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*\n`;
+                    listText += `🗑️ *قائمة المجلدات المتاحة للحذف:*\n\n`;
+
+                    folders.forEach((folder, index) => {
+                      listText += `*${index + 1}-* 📁 \`${folder}\`\n`;
+                    });
+
+                    listText += `\n*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*\n`;
+                    listText += `💡 *طريقة الاستخدام:*\n`;
+                    listText += `\`.مسح مجلد [الاسم أو الرقم]\`\n`;
+                    listText += `*مثال:* \`.مسح مجلد 1\` أو \`.مسح مجلد temp\`\n`;
+                    listText += `*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*`;
+
+                    return sock.sendMessage(chatId, { text: listText }, { quoted: msg });
+                }
+
+                let targetFolderName = '';
+
+                if (!isNaN(folderQuery)) {
+                    const index = parseInt(folderQuery) - 1;
+                    if (index >= 0 && index < folders.length) {
+                        targetFolderName = folders[index];
+                    }
+                } else {
+                    const found = folders.find(f => f.toLowerCase() === folderQuery.toLowerCase());
+                    if (found) {
+                        targetFolderName = found;
+                    }
+                }
+
+                if (!targetFolderName) {
+                    return sock.sendMessage(chatId, {
+                        text: `*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*\n❌ *عذراً، المجلد "${folderQuery}" غير موجود أو رقم القائمة غير صحيح.*\n*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*`
+                    }, { quoted: msg });
+                }
+
+                // حماية المجلدات الأساسية
+                const protectedFolders = ['data', 'node_modules', '.git'];
+                if (protectedFolders.includes(targetFolderName.toLowerCase())) {
+                    return sock.sendMessage(chatId, {
+                        text: `*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*\n❌ *لا يمكن حذف هذا المجلد الأساسي لحماية النظام.*\n*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*`
+                    }, { quoted: msg });
+                }
+
+                const targetPath = path.join(process.cwd(), targetFolderName);
+                fs.rmSync(targetPath, { recursive: true, force: true });
+
+                return sock.sendMessage(chatId, {
+                    text:
+`*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*
+✅ *تم مسح المجلد بنجاح*
+
+📁 *المجلد المحذوف:*
+\`${targetFolderName}\`
+
+*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*
+┇ 𝐀𝛾𝚻𝛨𝛸 𝚩𝚯𝚻 🩸`
+                }, { quoted: msg });
+            }
+
+            // عرض المجلدات الأساسية
             if(!args[0]){
 
                 let list =
-`
-> ━ ╼╃ ⌬〔 🗑️ مسح الملفات 🗑️ 〕⌬ ╄╾ ━
-
-> *┤ 📂 المجلدات:*
+`*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*
+       *𝚫𝚪𝚻𝚮𝚼𝚪 • 𝚩𝚯𝚻 2026*
+*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*
+🗑️ *قائمة المجلدات المتاحة:*
 
 `;
 
                 folders.forEach((f, i)=>{
-                    list +=
-`
-> *┤ ${i+1}- 📁 ${f}*
-`;
+                    list += `*${i+1}-* 📁 \`${f}\`\n`;
                 });
 
                 list +=
 `
-> *┤────────────···*
+*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*
+💡 *طريقة الاستخدام للملفات:*
+\`.مسح رقم المجلد\` *(لعرض الملفات)*
 
-> *┤ طريقة الاستخدام:*
-
-> *┤ .مسح رقم المجلد*
-
-> *┤ لعرض الملفات*
-
-> *┤────────────···*
-
-> *┤ .مسح رقم المجلد رقم الملف*
-
-> *┤ لحذف الملف*
-
-> *⋅ ───━ •﹝❄﹞• ━─── ⋅*
-> ┇ 𝐘𝐔𝐍𝐎 𝐁𝐎𝐓 ❄
-`;
+💡 *طريقة الاستخدام للمجلدات:*
+\`.مسح مجلد [الاسم أو الرقم]\`
+*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*
+┇ 𝐀𝛾𝚻𝛨𝛸 𝚩𝚯𝚻 🩸`;
 
                 return sock.sendMessage(chatId, {
                     text: list
@@ -131,7 +185,7 @@ export default {
 
             if(!folders[folderIndex]){
                 return sock.sendMessage(chatId, {
-                    text: "❌ رقم المجلد غير موجود"
+                    text: `*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*\n❌ *رقم المجلد غير موجود*\n*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*`
                 }, {quoted: msg});
             }
 
@@ -140,40 +194,26 @@ export default {
             if(!args[1]){
 
                 let list =
-`
-> ━ ╼╃ ⌬〔 📂 الملفات 📂 〕⌬ ╄╾ ━
-
-> *┤ المجلد:*
-> *┤ ${folders[folderIndex]}*
-
-> *┤────────────···*
+`*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*
+📂 *المجلد:* \`${folders[folderIndex]}\`
+*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*
 `;
 
                 if(files.length === 0){
-                    list +=
-`
-> *┤ ❌ لا توجد ملفات*
-`;
+                    list += `❌ *لا توجد ملفات داخل هذا المجلد*\n`;
                 } else {
                     files.forEach((f, i)=>{
-                        list +=
-`
-> *┤ ${i+1}- 📄 ${f}*
-`;
+                        list += `*${i+1}-* 📄 \`${f}\`\n`;
                     });
                 }
 
                 list +=
 `
-> *┤────────────···*
-
-> *┤ للحذف:*
-
-> *┤ .مسح ${folderIndex+1} رقم الملف*
-
-> *⋅ ───━ •﹝❄﹞• ━─── ⋅*
-> ┇ 𝐘𝐔𝐍𝐎 𝐁𝐎𝐓 ❄
-`;
+*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*
+💡 *للحذف:*
+\`.مسح ${folderIndex+1} [رقم الملف]\`
+*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*
+┇ 𝐀𝛾𝚻𝛨𝛸 𝚩𝚯𝚻 🩸`;
 
                 return sock.sendMessage(chatId, {
                     text: list
@@ -185,7 +225,7 @@ export default {
 
             if(!files[fileIndex]){
                 return sock.sendMessage(chatId, {
-                    text: "❌ الملف غير موجود"
+                    text: `*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*\n❌ *رقم الملف غير موجود*\n*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*`
                 }, {quoted: msg});
             }
 
@@ -199,20 +239,14 @@ export default {
 
             await sock.sendMessage(chatId, {
                 text:
-`
-> ━ ╼╃ ⌬〔 ✅ تم المسح ✅ 〕⌬ ╄╾ ━
+`*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*
+✅ *تم حذف الملف بنجاح*
 
-> *┤ 📂 المجلد:*
-> *┤ ${folders[folderIndex]}*
+📂 *المجلد:* \`${folders[folderIndex]}\`
+📄 *الملف:* \`${files[fileIndex]}\`
 
-> *┤ 📄 الملف:*
-> *┤ ${files[fileIndex]}*
-
-> *┤ تم حذف الملف بنجاح*
-
-> *⋅ ───━ •﹝❄﹞• ━─── ⋅*
-> ┇ 𝐘𝐔𝐍𝐎 𝐁𝐎𝐓 ❄
-`,
+*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*
+┇ 𝐀𝛾𝚻𝛨𝛸 𝚩𝚯𝚻 🩸`,
             }, {quoted: msg});
 
         }catch(e){
@@ -222,7 +256,7 @@ export default {
             await sock.sendMessage(
                 msg.key.remoteJid,
                 {
-                    text: `❌ خطأ:\n${e.message}`
+                    text: `*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*\n❌ *خطأ:*\n${e.message}\n*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*`
                 },
                 {quoted: msg}
             );
