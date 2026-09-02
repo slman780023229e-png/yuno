@@ -102,7 +102,7 @@ function getPluginFiles() {
 }
 
 // ═══════════════════════════════════════════════════════
-// 🧩 IMPORT ONE PLUGIN
+// 🧩 IMPORT ONE PLUGIN (محمي تماماً ضد انهيار السوكت)
 // ═══════════════════════════════════════════════════════
 
 async function importPlugin(file) {
@@ -112,22 +112,11 @@ async function importPlugin(file) {
     );
 
     try {
-        /*
-         * مهم:
-         * لا نستخدم ?update=Date.now()
-         * في التحميل العادي.
-         *
-         * هذا يسمح لـ Node.js باستخدام
-         * module cache بأفضل شكل.
-         */
-        const fileUrl =
-            pathToFileURL(filePath).href;
+        // إضافة Query عشوائي خفيف أو وقت التحديث لضمان جلب النسخة الجديدة وتجاوز كاش Node.js الثابت بأمان
+        const fileUrl = `${pathToFileURL(filePath).href}?update=${Date.now()}`;
 
-        const module =
-            await import(fileUrl);
-
-        const plugin =
-            module?.default;
+        const module = await import(fileUrl);
+        const plugin = module?.default;
 
         if (
             !plugin ||
@@ -144,7 +133,7 @@ async function importPlugin(file) {
 
     } catch (error) {
         console.log(
-            `${COLORS.red}❌ ERROR IN PLUGIN:${COLORS.reset} ${file}`
+            `${COLORS.red}❌ ERROR IN PLUGIN [${file}]:${COLORS.reset}`
         );
 
         console.log(
@@ -162,11 +151,6 @@ async function importPlugin(file) {
 // ═══════════════════════════════════════════════════════
 
 export async function loadPlugins(sock) {
-    /*
-     * sock محفوظ في التوقيع
-     * حتى لا تتغير طريقة استخدام الـHandler.
-     */
-
     if (pluginsCache) {
         return pluginsCache;
     }
@@ -179,8 +163,7 @@ export async function loadPlugins(sock) {
         try {
             ensurePluginsDirectory();
 
-            const files =
-                getPluginFiles();
+            const files = getPluginFiles();
 
             if (!files.length) {
                 pluginsCache = [];
@@ -197,22 +180,13 @@ export async function loadPlugins(sock) {
                 `╔═══════════════════════════════════════════════╗\n` +
                 `${COLORS.gold}║        👑 ARTHUR PLUGIN ENGINE 👑            ║\n` +
                 `${COLORS.purple}╠═══════════════════════════════════════════════╣\n` +
-                `${COLORS.cyan}║ ⚡ ENGINE  : FAST CACHE                       ║\n` +
+                `${COLORS.cyan}║ ⚡ ENGINE  : SECURE CACHE                     ║\n` +
                 `${COLORS.green}║ 📦 FILES   : ${String(files.length).padEnd(35)}║\n` +
                 `${COLORS.blue}║ 🚀 MODE    : PARALLEL                         ║\n` +
                 `${COLORS.purple}╚═══════════════════════════════════════════════╝` +
                 `${COLORS.reset}\n`
             );
 
-            /*
-             * تحميل جميع الملفات بالتوازي.
-             *
-             * هذا أسرع بكثير من:
-             *
-             * for (...) {
-             *     await import(...)
-             * }
-             */
             const results =
                 await Promise.all(
                     files.map(
@@ -222,6 +196,7 @@ export async function loadPlugins(sock) {
                                     file,
                                     plugin
                                 }))
+                                .catch(() => ({ file, plugin: null }))
                     )
                 );
 
@@ -232,9 +207,7 @@ export async function loadPlugins(sock) {
                     continue;
                 }
 
-                plugins.push(
-                    result.plugin
-                );
+                plugins.push(result.plugin);
 
                 const fileName =
                     result.file.length >
@@ -261,7 +234,7 @@ export async function loadPlugins(sock) {
                     plugins.length
                 ).padEnd(35)}║\n` +
                 `${COLORS.cyan}║ ⚡ CACHE   : ACTIVE                            ║\n` +
-                `${COLORS.blue}║ 🚀 ENGINE  : FAST                              ║\n` +
+                `${COLORS.blue}║ 🚀 ENGINE  : SECURE                            ║\n` +
                 `${COLORS.green}║ 🛡️ STATUS  : READY                             ║\n` +
                 `${COLORS.green}╚═══════════════════════════════════════════════╝` +
                 `${COLORS.reset}\n`
@@ -275,11 +248,7 @@ export async function loadPlugins(sock) {
                 error?.message || error
             );
 
-            /*
-             * لا نترك Promise عالقًا.
-             */
             pluginsCache = [];
-
             return pluginsCache;
 
         } finally {
@@ -295,12 +264,6 @@ export async function loadPlugins(sock) {
 // ═══════════════════════════════════════════════════════
 
 export function clearPluginsCache() {
-    /*
-     * مسح cache فقط.
-     *
-     * عند استدعاء loadPlugins مرة أخرى
-     * سيتم تحميل القائمة من جديد.
-     */
     pluginsCache = null;
 }
 
@@ -311,15 +274,12 @@ export function clearPluginsCache() {
 export async function reloadPlugins(sock) {
     try {
         clearPluginsCache();
-
         return await loadPlugins(sock);
-
     } catch (error) {
         console.error(
             `${COLORS.red}❌ Plugin Reload Error:${COLORS.reset}`,
             error?.message || error
         );
-
         return [];
     }
 }
@@ -329,10 +289,6 @@ export async function reloadPlugins(sock) {
 // ═══════════════════════════════════════════════════════
 
 export function watchPlugins(onChangeCallback) {
-    /*
-     * إذا تم تشغيل watcher سابقًا
-     * لا ننشئ واحدًا ثانيًا.
-     */
     if (watcherStarted && watcher) {
         watchCallback =
             typeof onChangeCallback === "function"
@@ -359,7 +315,6 @@ export function watchPlugins(onChangeCallback) {
                     persistent: false
                 },
                 (eventType, filename) => {
-
                     if (
                         !filename ||
                         !String(
@@ -369,13 +324,8 @@ export function watchPlugins(onChangeCallback) {
                         return;
                     }
 
-                    const now =
-                        Date.now();
+                    const now = Date.now();
 
-                    /*
-                     * حماية من الأحداث المكررة
-                     * التي قد يرسلها fs.watch.
-                     */
                     if (
                         now - lastWatchEvent <
                         100
@@ -385,11 +335,6 @@ export function watchPlugins(onChangeCallback) {
 
                     lastWatchEvent = now;
 
-                    /*
-                     * Debounce:
-                     * لو وصل أكثر من event
-                     * ننتظر حتى يستقر التعديل.
-                     */
                     if (watchTimer) {
                         clearTimeout(
                             watchTimer
@@ -399,8 +344,7 @@ export function watchPlugins(onChangeCallback) {
                     watchTimer =
                         setTimeout(
                             async () => {
-                                watchTimer =
-                                    null;
+                                watchTimer = null;
 
                                 try {
                                     const shortName =
@@ -437,10 +381,6 @@ export function watchPlugins(onChangeCallback) {
                             WATCH_DEBOUNCE
                         );
 
-                    /*
-                     * لا نخلي timer يمنع
-                     * Node.js من الإغلاق.
-                     */
                     if (
                         watchTimer?.unref
                     ) {
@@ -451,10 +391,6 @@ export function watchPlugins(onChangeCallback) {
 
         watcherStarted = true;
 
-        /*
-         * منع watcher من إبقاء السيرفر
-         * حيًا وحده.
-         */
         if (
             watcher?.unref
         ) {
@@ -490,14 +426,12 @@ export function stopPluginWatcher() {
             clearTimeout(
                 watchTimer
             );
-
             watchTimer = null;
         }
 
         if (watcher) {
             watcher.close();
         }
-
     } catch {}
 
     watcher = null;
