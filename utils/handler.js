@@ -837,37 +837,6 @@ export async function getLoadedPlugins(sock) {
     try {
         const plugins = await loadPlugins(sock);
         const loaded = Array.isArray(plugins) ? plugins.filter(Boolean) : [];
-        
-        const commandIndex = new Map();
-        const onMessage = [];
-
-        for (const plugin of loaded) {
-            if (typeof plugin?.onMessage === "function") {
-                onMessage.push(plugin);
-            }
-
-            if (!plugin?.command) {
-                continue;
-            }
-
-            const commands = Array.isArray(plugin.command)
-                ? plugin.command
-                : [plugin.command];
-
-            for (const command of commands) {
-                if (command === undefined || command === null) {
-                    continue;
-                }
-
-                const key = String(command).trim().toLowerCase();
-
-                if (key && !commandIndex.has(key)) {
-                    commandIndex.set(key, plugin);
-                }
-            }
-        }
-
-        // إرجاع مصفوفة البلجنات المباشرة لكي يتوافق تماماً مع main.js و runPluginEvent
         return loaded;
     } catch (error) {
         console.error(
@@ -1267,396 +1236,243 @@ export function handleMessages(
 }
 
 // ═══════════════════════════════════════════════════════
-// ⚡ MAIN EXECUTION
+// ⚡ MAIN EXECUTION (محمي بالكامل لمنع فصل البوت)
 // ═══════════════════════════════════════════════════════
 
 async function executeHandlerLogic(
     sock,
     msg
 ) {
-    const jid =
-        msg.key?.remoteJid;
+    try {
+        const jid =
+            msg.key?.remoteJid;
 
-    if (!jid) {
-        return;
-    }
-
-    const isGroup =
-        jid.endsWith("@g.us");
-
-    const isPrivate =
-        jid.endsWith(
-            "@s.whatsapp.net"
-        );
-
-    const metadataPromise =
-        isGroup
-            ? getGroupMetadata(
-                  sock,
-                  jid
-              )
-            : Promise.resolve(null);
-
-    const pluginsPromise =
-        loadPlugins(sock);
-
-    getModeFast();
-    getEliteFast();
-
-    const metadata =
-        await metadataPromise;
-
-    const rawPlugins =
-        await pluginsPromise;
-
-    const plugins = Array.isArray(rawPlugins) ? rawPlugins.filter(Boolean) : [];
-    
-    const commandIndex = new Map();
-    const onMessagePlugins = [];
-
-    for (const plugin of plugins) {
-        if (typeof plugin?.onMessage === "function") {
-            onMessagePlugins.push(plugin);
+        if (!jid) {
+            return;
         }
 
-        if (!plugin?.command) {
-            continue;
+        const isGroup =
+            jid.endsWith("@g.us");
+
+        const isPrivate =
+            jid.endsWith(
+                "@s.whatsapp.net"
+            );
+
+        const metadataPromise =
+            isGroup
+                ? getGroupMetadata(
+                      sock,
+                      jid
+                  )
+                : Promise.resolve(null);
+
+        let rawPlugins = [];
+        try {
+            rawPlugins = await loadPlugins(sock);
+        } catch (err) {
+            console.error("Plugin Load Error:", err);
         }
 
-        const commands = Array.isArray(plugin.command)
-            ? plugin.command
-            : [plugin.command];
+        const plugins = Array.isArray(rawPlugins) ? rawPlugins.filter(Boolean) : [];
+        if (!plugins.length) {
+            return;
+        }
 
-        for (const command of commands) {
-            if (command === undefined || command === null) {
+        getModeFast();
+        getEliteFast();
+
+        const metadata =
+            await metadataPromise;
+
+        const commandIndex = new Map();
+        const onMessagePlugins = [];
+
+        for (const plugin of plugins) {
+            if (typeof plugin?.onMessage === "function") {
+                onMessagePlugins.push(plugin);
+            }
+
+            if (!plugin?.command) {
                 continue;
             }
 
-            const key = String(command).trim().toLowerCase();
+            const commands = Array.isArray(plugin.command)
+                ? plugin.command
+                : [plugin.command];
 
-            if (key && !commandIndex.has(key)) {
-                commandIndex.set(key, plugin);
+            for (const command of commands) {
+                if (command === undefined || command === null) {
+                    continue;
+                }
+
+                const key = String(command).trim().toLowerCase();
+
+                if (key && !commandIndex.has(key)) {
+                    commandIndex.set(key, plugin);
+                }
             }
         }
-    }
 
-    if (!plugins.length) {
-        return;
-    }
+        const botIdentities =
+            getBotIdentities(sock);
 
-    const botIdentities =
-        getBotIdentities(sock);
+        const botNumber =
+            getBotNumber(
+                sock,
+                metadata
+            );
 
-    const botNumber =
-        getBotNumber(
-            sock,
-            metadata
-        );
+        const botParticipant =
+            isGroup
+                ? resolveBotParticipant(
+                      sock,
+                      metadata
+                  )
+                : null;
 
-    const botParticipant =
-        isGroup
-            ? resolveBotParticipant(
-                  sock,
-                  metadata
-              )
-            : null;
+        const participantPhone =
+            getParticipantPhone(
+                botParticipant
+            );
 
-    const participantPhone =
-        getParticipantPhone(
-            botParticipant
-        );
+        const mainNumber =
+            getMainBotNumber(sock);
 
-    const mainNumber =
-        getMainBotNumber(sock);
-
-    const isMainBot =
-        !!(
-            mainNumber &&
-            (
-                isSameNumber(
-                    botNumber,
-                    mainNumber
-                ) ||
-                isSameNumber(
-                    participantPhone,
-                    mainNumber
-                ) ||
-                botIdentities.some(
-                    identity =>
-                        isSameNumber(
-                            identity,
-                            mainNumber
-                        )
+        const isMainBot =
+            !!(
+                mainNumber &&
+                (
+                    isSameNumber(
+                        botNumber,
+                        mainNumber
+                    ) ||
+                    isSameNumber(
+                        participantPhone,
+                        mainNumber
+                    ) ||
+                    botIdentities.some(
+                        identity =>
+                            isSameNumber(
+                                identity,
+                                mainNumber
+                            )
+                    )
                 )
-            )
-        );
+            );
 
-    const resolved =
-        resolveSender(
-            sock,
-            msg,
-            isGroup,
-            metadata
-        );
+        const resolved =
+            resolveSender(
+                sock,
+                msg,
+                isGroup,
+                metadata
+            );
 
-    const sender =
-        resolved.sender;
+        const sender =
+            resolved.sender;
 
-    const number =
-        resolved.number;
+        const number =
+            resolved.number;
 
-    let isEliteUser =
-        checkEliteIdentities([
-            number,
-            sender
-        ]);
+        let isEliteUser =
+            checkEliteIdentities([
+                number,
+                sender
+            ]);
 
-    if (!isEliteUser) {
-        for (
-            const candidate
-            of [
-                botNumber,
-                participantPhone,
-                ...botIdentities
-            ]
-        ) {
-            if (
-                checkElite(candidate)
+        if (!isEliteUser) {
+            for (
+                const candidate
+                of [
+                    botNumber,
+                    participantPhone,
+                    ...botIdentities
+                ]
             ) {
-                isEliteUser = true;
-                break;
+                if (
+                    checkElite(candidate)
+                ) {
+                    isEliteUser = true;
+                    break;
+                }
             }
         }
-    }
 
-    if (
-        !isEliteUser &&
-        isMainBot
-    ) {
-        isEliteUser = true;
-    }
+        if (
+            !isEliteUser &&
+            isMainBot
+        ) {
+            isEliteUser = true;
+        }
 
-    let botAdminData = {
-        isAdmin: false,
-        isSuperAdmin: false,
-        participant:
-            botParticipant,
-        metadata
-    };
-
-    if (
-        isGroup &&
-        botParticipant
-    ) {
-        const admin =
-            botParticipant.admin;
-
-        botAdminData.isSuperAdmin =
-            admin ===
-            "superadmin";
-
-        botAdminData.isAdmin =
-            admin === "admin" ||
-            botAdminData.isSuperAdmin;
-    }
-
-    const botIsAdmin =
-        botAdminData.isAdmin;
-
-    const botIsSuperAdmin =
-        botAdminData.isSuperAdmin;
-
-    const message =
-        msg.message;
-
-    const normalText =
-        message.conversation ||
-        message.extendedTextMessage?.text ||
-        message.imageMessage?.caption ||
-        message.videoMessage?.caption ||
-        "";
-
-    const interactiveId =
-        extractInteractiveResponseId(
-            msg
-        );
-
-    const fromInteractive =
-        !!interactiveId;
-
-    const text =
-        String(
-            interactiveId ||
-            normalText ||
-            ""
-        ).trim();
-
-    if (
-        onMessagePlugins.length
-    ) {
-        const context = {
-            jid,
-            sender,
-            number,
-
-            isGroup,
-            isPrivate,
-
-            message: msg,
-
-            isElite:
-                isEliteUser,
-
-            botNumber,
-
-            mainBotNumber:
-                mainNumber,
-
-            isMainBot,
-
-            isInteractive:
-                fromInteractive,
-
-            interactiveId:
-                interactiveId ||
-                null,
-
-            isListResponse:
-                fromInteractive,
-
-            isAdmin:
-                botIsAdmin,
-
-            isSuperAdmin:
-                botIsSuperAdmin,
-
-            adminMode:
-                botIsAdmin,
-
-            botIsAdmin,
-            botIsSuperAdmin,
-
-            botParticipant:
-                botParticipant ||
-                null,
-
-            groupMetadata:
-                metadata ||
-                null
+        let botAdminData = {
+            isAdmin: false,
+            isSuperAdmin: false,
+            participant:
+                botParticipant,
+            metadata
         };
 
-        for (
-            const plugin
-            of onMessagePlugins
+        if (
+            isGroup &&
+            botParticipant
         ) {
-            try {
-                void Promise.resolve(
-                    plugin.onMessage(
-                        sock,
-                        msg,
-                        context
-                    )
-                ).catch(() => {});
-            } catch {}
+            const admin =
+                botParticipant.admin;
+
+            botAdminData.isSuperAdmin =
+                admin ===
+                "superadmin";
+
+            botAdminData.isAdmin =
+                admin === "admin" ||
+                botAdminData.isSuperAdmin;
         }
-    }
 
-    const mode =
-        getModeFast();
+        const botIsAdmin =
+            botAdminData.isAdmin;
 
-    if (
-        mode?.elite === true &&
-        !isMainBot &&
-        !isEliteUser
-    ) {
-        return;
-    }
+        const botIsSuperAdmin =
+            botAdminData.isSuperAdmin;
 
-    if (!text) {
-        return;
-    }
+        const message =
+            msg.message;
 
-    const hasPrefix = fromInteractive ? false : text.startsWith(".");
+        const normalText =
+            message.conversation ||
+            message.extendedTextMessage?.text ||
+            message.imageMessage?.caption ||
+            message.videoMessage?.caption ||
+            "";
 
-    if (!hasPrefix && !fromInteractive) {
-        return;
-    }
-
-    let noPrefixText =
-        hasPrefix
-            ? text.slice(1).trim()
-            : text;
-
-    if (fromInteractive) {
-        noPrefixText =
-            normalizeMenuCommand(
-                noPrefixText
+        const interactiveId =
+            extractInteractiveResponseId(
+                msg
             );
-    }
 
-    if (!noPrefixText) {
-        return;
-    }
+        const fromInteractive =
+            !!interactiveId;
 
-    const space =
-        noPrefixText.search(
-            /\s/
-        );
+        const text =
+            String(
+                interactiveId ||
+                normalText ||
+                ""
+            ).trim();
 
-    const commandName =
-        (
-            space === -1
-                ? noPrefixText
-                : noPrefixText.slice(
-                      0,
-                      space
-                  )
-        ).toLowerCase();
-
-    if (!commandName) {
-        return;
-    }
-
-    const cmd =
-        commandIndex.get(
-            commandName
-        );
-
-    if (!cmd) {
-        return;
-    }
-
-    log(
-        "cmd",
-        `${commandName} ← ${
-            number ||
-            sender ||
-            "UNKNOWN"
-        } ← ${
-            isEliteUser
-                ? "ELITE"
-                : botIsAdmin
-                ? "BOT ADMIN"
-                : "USER"
-        }`
-    );
-
-    try {
-        await cmd.execute(
-            sock,
-            msg,
-            {
-                text,
-                noPrefixText,
-                commandName,
-
+        if (
+            onMessagePlugins.length
+        ) {
+            const context = {
                 jid,
                 sender,
                 number,
 
                 isGroup,
                 isPrivate,
-                hasPrefix,
+
+                message: msg,
 
                 isElite:
                     isEliteUser,
@@ -1697,12 +1513,175 @@ async function executeHandlerLogic(
                 groupMetadata:
                     metadata ||
                     null
+            };
+
+            for (
+                const plugin
+                of onMessagePlugins
+            ) {
+                try {
+                    void Promise.resolve(
+                        plugin.onMessage(
+                            sock,
+                            msg,
+                            context
+                        )
+                    ).catch(() => {});
+                } catch {}
             }
+        }
+
+        const mode =
+            getModeFast();
+
+        if (
+            mode?.elite === true &&
+            !isMainBot &&
+            !isEliteUser
+        ) {
+            return;
+        }
+
+        if (!text) {
+            return;
+        }
+
+        const hasPrefix = fromInteractive ? false : text.startsWith(".");
+
+        if (!hasPrefix && !fromInteractive) {
+            return;
+        }
+
+        let noPrefixText =
+            hasPrefix
+                ? text.slice(1).trim()
+                : text;
+
+        if (fromInteractive) {
+            noPrefixText =
+                normalizeMenuCommand(
+                    noPrefixText
+                );
+        }
+
+        if (!noPrefixText) {
+            return;
+        }
+
+        const space =
+            noPrefixText.search(
+                /\s/
+            );
+
+        const commandName =
+            (
+                space === -1
+                    ? noPrefixText
+                    : noPrefixText.slice(
+                          0,
+                          space
+                      )
+            ).toLowerCase();
+
+        if (!commandName) {
+            return;
+        }
+
+        const cmd =
+            commandIndex.get(
+                commandName
+            );
+
+        if (!cmd) {
+            return;
+        }
+
+        log(
+            "cmd",
+            `${commandName} ← ${
+                number ||
+                sender ||
+                "UNKNOWN"
+            } ← ${
+                isEliteUser
+                    ? "ELITE"
+                    : botIsAdmin
+                    ? "BOT ADMIN"
+                    : "USER"
+            }`
         );
+
+        // 🛡️ حماية صارمة لتنفيذ الأمر بحيث لا يؤدي أي خطأ فيه إلى فصل جلسة البوت نهائياً
+        try {
+            await cmd.execute(
+                sock,
+                msg,
+                {
+                    text,
+                    noPrefixText,
+                    commandName,
+
+                    jid,
+                    sender,
+                    number,
+
+                    isGroup,
+                    isPrivate,
+                    hasPrefix,
+
+                    isElite:
+                        isEliteUser,
+
+                    botNumber,
+
+                    mainBotNumber:
+                        mainNumber,
+
+                    isMainBot,
+
+                    isInteractive:
+                        fromInteractive,
+
+                    interactiveId:
+                        interactiveId ||
+                        null,
+
+                    isListResponse:
+                        fromInteractive,
+
+                    isAdmin:
+                        botIsAdmin,
+
+                    isSuperAdmin:
+                        botIsSuperAdmin,
+
+                    adminMode:
+                        botIsAdmin,
+
+                    botIsAdmin,
+                    botIsSuperAdmin,
+
+                    botParticipant:
+                        botParticipant ||
+                        null,
+
+                    groupMetadata:
+                        metadata ||
+                        null
+                }
+            );
+
+        } catch (error) {
+            console.error(
+                `❌ Command Execution Failed [${commandName}]:`,
+                error?.message ||
+                    error
+            );
+        }
 
     } catch (error) {
         console.error(
-            `Command Error [${commandName}]:`,
+            "Critical Execute Handler Error:",
             error?.message ||
                 error
         );
