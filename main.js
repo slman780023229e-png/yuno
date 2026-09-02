@@ -247,29 +247,13 @@ async function startBot() {
     try {
 
         // ====================================================
-        // 🛡️ الاستعادة المبكرة والحفظ التلقائي لملف الجلسة داخل utils
+        // 🛡️ التأكد من جاهزية مجلد الجلسة وثباته
         // ====================================================
         try {
             await fs.ensureDir(sessionDir)
-            const utilsDir = path.join(__dirname, "utils");
-            await fs.ensureDir(utilsDir);
-            const credsTypePath = path.join(sessionDir, "creds.json");
-            const utilsCredsPath = path.join(utilsDir, "saved_session.js");
-
-            // الاستعادة إذا كان ملف الجلسة الرئيسي غير موجود والمجلد الاحتياطي موجود
-            if (!fs.existsSync(credsTypePath)) {
-                const sessionModule = await import("./utils/saved_session.js?" + Date.now()).catch(() => null);
-                if (sessionModule && sessionModule.default) {
-                    const dataToWrite = typeof sessionModule.default === "string" 
-                        ? sessionModule.default 
-                        : JSON.stringify(sessionModule.default, null, 2);
-
-                    fs.writeFileSync(credsTypePath, dataToWrite);
-                    console.log(chalk.green("✅ تم استعادة ملف creds.json بنجاح من مجلد utils!"));
-                }
-            }
+            await fs.ensureDir(dataDir)
         } catch (e) {
-            console.log(chalk.red("⚠️ خطأ في الاستعادة المبكرة للجلسة: " + e.message));
+            console.log(chalk.red("⚠️ خطأ في إنشاء المجلدات الأساسية: " + e.message));
         }
 
 
@@ -337,9 +321,6 @@ async function startBot() {
         // ====================================================
         // AUTH STATE
         // ====================================================
-
-        await fs.ensureDir(sessionDir)
-        await fs.ensureDir(dataDir)
 
         const {
             state,
@@ -420,25 +401,12 @@ async function startBot() {
 
 
         // ====================================================
-        // CREDENTIALS & AUTO BACKUP TO UTILS
+        // CREDENTIALS & AUTO SAVE (Stable)
         // ====================================================
 
         sock.ev.on(
             'creds.update',
-            async () => {
-                await saveCreds();
-                try {
-                    const credsTypePath = path.join(sessionDir, "creds.json");
-                    const utilsCredsPath = path.join(__dirname, "utils", "saved_session.js");
-                    if (fs.existsSync(credsTypePath)) {
-                        const credsData = fs.readFileSync(credsTypePath, "utf8");
-                        const fileContent = `export default ${credsData};\n`;
-                        fs.writeFileSync(utilsCredsPath, fileContent, "utf8");
-                    }
-                } catch (err) {
-                    console.error(chalk.red("❌ خطأ في نسخ وتحديث الجلسة داخل utils:"), err);
-                }
-            }
+            saveCreds
         )
 
 
@@ -459,150 +427,67 @@ async function startBot() {
         // REAL BUTTONS
         // ====================================================
 
-        sock.sendRealButtons = async function (
-            jid,
-            text,
-            buttons = [],
-            options = {}
-        ) {
-
+        sock.sendRealButtons = async (jid, text, footerText, buttonsArray) => {
             try {
+                const btn = new Button(sock);
+                btn.setBody(text);
+                if (footerText) btn.setFooter(footerText);
 
-                const buttonBuilder =
-                    new Button(sock)
+                for (const b of buttonsArray) {
+                    const displayText = b.displayText || b.text || "زر";
+                    const id = b.id || b.command || "click";
+                    const type = b.name || "quick_reply";
 
-                if (
-                    buttonBuilder &&
-                    typeof buttonBuilder.send === 'function'
-                ) {
-
-                    return await buttonBuilder.send(
-                        jid,
-                        text,
-                        buttons,
-                        options
-                    )
-                }
-
-            } catch (error) {
-
-                console.log(
-                    chalk.yellow(
-                        '⚠️ NixCode Button fallback activated.'
-                    )
-                )
-            }
-
-
-            // ------------------------------------------------
-            // FALLBACK
-            // ------------------------------------------------
-
-            try {
-
-                const message = {
-
-                    body: {
-                        text
-                    },
-
-                    footer: {
-                        text:
-                            options.footer ||
-                            ''
-                    },
-
-                    header: {
-                        title:
-                            options.title ||
-                            '',
-                        subtitle:
-                            options.subtitle ||
-                            '',
-                        hasMediaAttachment: false
-                    },
-
-                    nativeFlowMessage: {
-
-                        buttons: buttons.map(
-                            button => {
-
-                                const buttonId =
-                                    button.id ||
-                                    button.buttonId ||
-                                    button.command ||
-                                    ''
-
-                                const buttonText =
-                                    button.text ||
-                                    button.displayText ||
-                                    button.title ||
-                                    ''
-
-                                return {
-                                    name:
-                                        'quick_reply',
-
-                                    buttonParamsJson:
-                                        JSON.stringify({
-                                            display_text:
-                                                buttonText,
-                                            id:
-                                                buttonId
-                                        })
-                                }
-                            }
-                        )
+                    if (type === "quick_reply") {
+                        btn.addReply(displayText, id);
+                    } else if (type === "cta_url") {
+                        btn.addUrl(displayText, b.url || "");
+                    } else if (type === "cta_call") {
+                        btn.addCall(displayText, id);
+                    } else {
+                        btn.addButton(type, { display_text: displayText, id });
                     }
                 }
 
+                return await btn.send(jid);
+            } catch (e) {
+                const messageContent = generateWAMessageFromContent(jid, {
+                    interactiveMessage: proto.Message.InteractiveMessage.create({
+                        body: proto.Message.InteractiveMessage.Body.create({ text: text }),
+                        footer: proto.Message.InteractiveMessage.Footer.create({ text: footerText || "Arthur Bot Framework" }),
+                        nativeFlowMessage: proto.Message.InteractiveMessage.NativeFlowMessage.create({
+                            buttons: buttonsArray.map(btn => ({
+                                name: btn.name || "quick_reply",
+                                buttonParamsJson: JSON.stringify({
+                                    display_text: btn.displayText || btn.text,
+                                    id: btn.id || btn.command
+                                })
+                            }))
+                        })
+                    })
+                }, { userJid: sock.user.id });
 
-                const content =
-                    proto.Message.InteractiveMessage.create(
-                        message
-                    )
-
-
-                const msg =
-                    generateWAMessageFromContent(
-                        jid,
+                return await sock.relayMessage(jid, messageContent.message, {
+                    messageId: messageContent.key.id,
+                    additionalNodes: [
                         {
-                            viewOnceMessage: {
-                                message: {
-                                    interactiveMessage:
-                                        content
+                            tag: "biz",
+                            attrs: {},
+                            content: [
+                                {
+                                    tag: "interactive",
+                                    attrs: { type: "native_flow", v: "1" },
+                                    content: [
+                                        {
+                                            tag: "native_flow",
+                                            attrs: { name: "quick_reply" }
+                                        }
+                                    ]
                                 }
-                            }
-                        },
-                        {
-                            userJid:
-                                sock.user?.id ||
-                                jid
+                            ]
                         }
-                    )
-
-
-                await sock.relayMessage(
-                    jid,
-                    msg.message,
-                    {
-                        messageId:
-                            msg.key.id
-                    }
-                )
-
-                return msg
-
-            } catch (error) {
-
-                console.error(
-                    chalk.red(
-                        '❌ sendRealButtons Error:'
-                    ),
-                    error
-                )
-
-                throw error
+                    ]
+                });
             }
         }
 
