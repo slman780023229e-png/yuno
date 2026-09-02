@@ -2,42 +2,54 @@ import { proto, generateWAMessageFromContent, prepareWAMessageMedia, WA_DEFAULT_
 
 export default function serialize(conn, m) {
     if (!m) return m;
-    
-    if (m.key) {
-        m.id = m.key.id;
-        m.isBaileys = m.id.startsWith('BAE5') && m.id.length === 16;
-        m.chat = m.key.remoteJid;
-        m.fromMe = m.key.fromMe;
-        m.isGroup = m.chat.endsWith('@g.us');
-        m.sender = m.fromMe ? conn.user.id.split(':')[0] + '@s.whatsapp.net' : (m.key.participant || m.chat);
-    }
 
-    if (m.message) {
-        m.mtype = Object.keys(m.message)[0];
-        m.msg = m.message[m.mtype];
-        
-        if (m.mtype === 'ephemeralMessage') {
-            m.message = m.msg.message;
-            m.mtype = Object.keys(m.message)[0];
-            m.msg = m.message[m.mtype];
+    try {
+        if (m.key) {
+            m.id = m.key.id || '';
+            m.isBaileys = m.id.startsWith('BAE5') && m.id.length === 16;
+            m.chat = m.key.remoteJid || '';
+            m.fromMe = !!m.key.fromMe;
+            m.isGroup = m.chat.endsWith('@g.us');
+            
+            const botId = conn?.user?.id ? conn.user.id.split(':')[0] + '@s.whatsapp.net' : '';
+            m.sender = m.fromMe ? botId : (m.key.participant || m.chat);
         }
 
-        let quoted = m.msg?.contextInfo?.quotedMessage;
-        if (quoted) {
-            let type = Object.keys(quoted)[0];
-            m.quoted = {
-                message: quoted[type],
-                type: type,
-                id: m.msg.contextInfo.stanzaId,
-                sender: m.msg.contextInfo.participant,
-                fromMe: m.msg.contextInfo.participant === conn.user.id.split(':')[0] + '@s.whatsapp.net',
-                text: quoted[type]?.text || quoted[type]?.caption || ''
+        if (m.message) {
+            m.mtype = Object.keys(m.message)[0] || '';
+            m.msg = m.message[m.mtype] || {};
+
+            if (m.mtype === 'ephemeralMessage') {
+                m.message = m.msg.message || {};
+                m.mtype = Object.keys(m.message)[0] || '';
+                m.msg = m.message[m.mtype] || {};
             }
-        } else {
-            m.quoted = null;
-        }
 
-        m.body = m.msg?.text || m.msg?.conversation || m.msg?.caption || '';
+            const contextInfo = m.msg?.contextInfo;
+            let quoted = contextInfo?.quotedMessage;
+            
+            if (quoted) {
+                let type = Object.keys(quoted)[0] || '';
+                let quotedMsg = quoted[type] || {};
+                
+                const botId = conn?.user?.id ? conn.user.id.split(':')[0] + '@s.whatsapp.net' : '';
+                
+                m.quoted = {
+                    message: quotedMsg,
+                    type: type,
+                    id: contextInfo?.stanzaId || '',
+                    sender: contextInfo?.participant || '',
+                    fromMe: contextInfo?.participant === botId,
+                    text: quotedMsg?.text || quotedMsg?.caption || ''
+                }
+            } else {
+                m.quoted = null;
+            }
+
+            m.body = m.msg?.text || m.msg?.conversation || m.msg?.caption || '';
+        }
+    } catch (e) {
+        // تجاهل أي خطأ بسيط في معالجة الرسائل لضمان عدم توقف البوت
     }
 
     // تعريف الأزرار التفاعلية الشاملة (الروابط، النسخ، الرد السريع، الأقسام)
@@ -60,15 +72,15 @@ export default function serialize(conn, m) {
                     return this
                 }
                 contextInfo(info) {
-                    this._contextInfo = info
+                    this._contextInfo = info || {}
                     return this
                 }
                 setBody(body) {
-                    this._body = body
+                    this._body = body || ''
                     return this
                 }
                 setFooter(footer) {
-                    this._footer = footer
+                    this._footer = footer || ''
                     return this
                 }
                 makeRow(header = '', title = '', description = '', id = '') {
@@ -115,7 +127,7 @@ export default function serialize(conn, m) {
                     this._buttons.push({
                         name: 'single_select',
                         buttonParamsJson: JSON.stringify({
-                            title: title,
+                            title: title || 'قائمة',
                             sections: []
                         })
                     })
@@ -188,14 +200,15 @@ export default function serialize(conn, m) {
                     return this
                 }
                 setTitle(title) {
-                    this._title = title
+                    this._title = title || ''
                     return this
                 }
                 setSubtitle(subtitle) {
-                    this._subtitle = subtitle
+                    this._subtitle = subtitle || ''
                     return this
                 }
-                async run(jid, conn, quoted = {}) {
+                async run(jid, connInstance, quoted = {}) {
+                    const targetConn = connInstance || conn;
                     const message = {
                         body: proto.Message.InteractiveMessage.Body.create({
                             text: this._body
@@ -207,13 +220,14 @@ export default function serialize(conn, m) {
                             title: this._title,
                             subtitle: this._subtitle,
                             hasMediaAttachment: !!this._data,
-                            ...(this._data
+                            ...(this._data && targetConn?.waUploadToServer
                                 ? await prepareWAMessageMedia(this._data, {
-                                    upload: conn.waUploadToServer
+                                    upload: targetConn.waUploadToServer
                                 })
                                 : {})
                         })
                     }
+                    const userJid = targetConn?.user?.jid || targetConn?.user?.id || '';
                     const msg = await generateWAMessageFromContent(
                         jid,
                         {
@@ -231,13 +245,13 @@ export default function serialize(conn, m) {
                             }
                         },
                         {
-                            userJid: conn.user.jid,
+                            userJid: userJid,
                             quoted: quoted,
-                            upload: conn.waUploadToServer,
+                            upload: targetConn?.waUploadToServer,
                             ephemeralExpiration: WA_DEFAULT_EPHEMERAL
                         }
                     )
-                    await conn.relayMessage(msg.key.remoteJid, msg.message, {
+                    await targetConn.relayMessage(msg.key.remoteJid, msg.message, {
                         messageId: msg.key.id
                     })
                     return msg
