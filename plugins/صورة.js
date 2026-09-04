@@ -77,20 +77,36 @@ async function searchPinterest(query) {
 }
 
 export default {
-    command: "صورة",
+    command: "صور",
     category: "تحميل",
     description: "جلب صور فخمة ومتجددة لنفس الشخصية دون تكرار مع شريط تفاعلي مستقل",
 
     execute: async (sock, msg, data) => {
         const input = data.text ? data.text.trim() : "";
-        const args = input.replace(/^\.صورة/, "").trim().split(/\s+/);
-        const query = args[0] ? args[0] : "";
-        const subAction = args[1] ? args[1].toLowerCase() : "";
-        const indexArg = args[2] ? parseInt(args[2]) : null;
+        
+        // دعم البحث بالنصوص الطويلة والكلمات المتعددة بعد الأمر .صور
+        const cleanedInput = input.replace(/^\.صور/, "").trim();
+        const parts = cleanedInput.split(/\s+/);
+        
+        let query = "";
+        let subAction = "";
+        let indexArg = null;
+
+        // التحقق مما إذا كانت الأجزاء الأخيرة تمثل عملية فرعية مثل get أو all
+        if (parts.length >= 3 && parts[parts.length - 2].toLowerCase() === "get") {
+            subAction = "get";
+            indexArg = parseInt(parts[parts.length - 1]);
+            query = parts.slice(0, parts.length - 2).join(" ");
+        } else if (parts.length >= 2 && (parts[parts.length - 1].toLowerCase() === "all" || parts[parts.length - 1] === "الكل")) {
+            subAction = "all";
+            query = parts.slice(0, parts.length - 1).join(" ");
+        } else {
+            query = cleanedInput;
+        }
 
         if (!query) {
             return await sock.sendMessage(data.jid, {
-                text: `*╭━━〔 ⚡ 𝐀𝐑𝐓𝐇𝐔𝐑 ⚡ 〕━━╮*\n*┃ ❌ يرجى كتابة اسم الشخصية*\n*┃ 📌 مثال: .صورة لوفي*\n*╰━━━━━━━━━━━━━╯*`
+                text: `*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*\n❌ *يرجى كتابة اسم الشخصية أو البحث المطلوبة*\n*📌 مثال: .صور لوفي*\n*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*`
             }, { quoted: msg });
         }
 
@@ -101,12 +117,12 @@ export default {
         // البحث الذكي المتجدد
         let result = await searchPinterest(query);
         if (!result.status) {
-            return await sock.sendMessage(data.jid, { text: `[❌] ${result.message}` }, { quoted: msg });
+            return await sock.sendMessage(data.jid, { text: `*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*\n❌ ${result.message}\n*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*` }, { quoted: msg });
         }
 
         let pins = result.pins;
         if (pins.length === 0) {
-            return await sock.sendMessage(data.jid, { text: '❌ لم يتم العثور على صور صالحة.' }, { quoted: msg });
+            return await sock.sendMessage(data.jid, { text: '*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*\n❌ لم يتم العثور على صور صالحة.\n*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*' }, { quoted: msg });
         }
 
         let top5Pins = pins.slice(0, 5);
@@ -120,7 +136,7 @@ export default {
                         data.jid,
                         {
                             image: { url: top5Pins[targetIndex] },
-                            caption: `*╭━━〔 🖼️ ARTHUR BOT HD ⚡ 〕━━╮*\n*┤ الشخصية : ${query}*\n*┤ الصورة رقم : ${indexArg} / 5 (جديدة كلياً)*\n*╰━━━━━━━━━━━━━╯*`
+                            caption: `*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*\n*👤 الشخصية : ${query}*\n*🖼️ الصورة رقم : ${indexArg} / 5 (جديدة كلياً)*\n*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*`
                         },
                         { quoted: msg }
                     );
@@ -138,7 +154,7 @@ export default {
                         data.jid,
                         {
                             image: { url: top5Pins[i] },
-                            caption: `*✨ [ ${query.toUpperCase()} : ${i + 1} / 5 ] ⚡*`
+                            caption: `*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*\n*✨ [ ${query.toUpperCase()} : ${i + 1} / 5 ] ⚡*\n*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*`
                         },
                         { quoted: msg }
                     );
@@ -146,7 +162,7 @@ export default {
                 await sock.sendMessage(data.jid, { react: { text: '✅', key: msg.key } });
                 return;
             } catch (e) {
-                return await sock.sendMessage(data.jid, { text: `❌ فشل إرسال الصور: ${e.message}` }, { quoted: msg });
+                return await sock.sendMessage(data.jid, { text: `*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*\n❌ فشل إرسال الصور: ${e.message}\n*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*` }, { quoted: msg });
             }
         }
 
@@ -156,7 +172,7 @@ export default {
                 data.jid,
                 {
                     image: { url: top5Pins[0] },
-                    caption: `*╭━━〔 👑 ARTHUR BOT HD ⚡ 〕━━╮*\n*┤ الشخصية : ${query}*\n*┤ الجودة : عالية الدقة (مجموعة جديدة)*\n*╰━━━━━━━━━━━━━╯*`
+                    caption: `*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*\n*👤 الشخصية : ${query}*\n*⚡ الجودة : عالية الدقة (مجموعة جديدة)*\n*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*`
                 },
                 { quoted: msg }
             );
@@ -166,23 +182,23 @@ export default {
 
         // رسالة الشريط المستقلة وحدها
         let menuText = 
-`*╔═══════════╗*
-*👑 شريط التحكم والخيارات*
-*╚═══════════╝*
+`*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*
+       *𝚫𝚪𝚻𝚮𝚼𝚪 • 𝚩𝚯𝚻 2026*
+*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*
+👑 *شريط التحكم والخيارات*
 
-*╭━━━━━━━━━━━╮*
-*┃ 🔍 الشخصية : ${query}*
-*┃ 📦 تم جلب 5 صور جديدة مختلفة*
-*┃ ⚡ استخدم الأزرار أدناه للاختيار:*
-*╰━━━━━━━━━━━╯*`;
+*👤 البحث : ${query}*
+*📦 تم جلب 5 صور جديدة مختلفة*
+*⚡ استخدم الأزرار أدناه للاختيار:*
+*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*`;
 
         const buttonsArray = [
-            { displayText: "🖼️ عرض الصورة (1)", id: `.صورة ${query} get 1` },
-            { displayText: "🖼️ عرض الصورة (2)", id: `.صورة ${query} get 2` },
-            { displayText: "🖼️ عرض الصورة (3)", id: `.صورة ${query} get 3` },
-            { displayText: "🖼️ عرض الصورة (4)", id: `.صورة ${query} get 4` },
-            { displayText: "🖼️ عرض الصورة (5)", id: `.صورة ${query} get 5` },
-            { displayText: "📥 تحميل الشريط كاملًا", id: `.صورة ${query} all` }
+            { displayText: "🖼️ عرض الصورة (1)", id: `.صور ${query} get 1` },
+            { displayText: "🖼️ عرض الصورة (2)", id: `.صور ${query} get 2` },
+            { displayText: "🖼️ عرض الصورة (3)", id: `.صور ${query} get 3` },
+            { displayText: "🖼️ عرض الصورة (4)", id: `.صور ${query} get 4` },
+            { displayText: "🖼️ عرض الصورة (5)", id: `.صور ${query} get 5` },
+            { displayText: "📥 تحميل الشريط كاملًا", id: `.صور ${query} all` }
         ];
 
         if (typeof sock.sendRealButtons === "function") {
@@ -196,7 +212,7 @@ export default {
             } catch (e) {}
         }
 
-        let fallbackMenu = `${menuText}\n\n*📌 أو اكتب الرقم مباشرة:\n• .صورة ${query} get [1-5]\n• .صورة ${query} all*`;
+        let fallbackMenu = `${menuText}\n\n*📌 أو اكتب الرقم مباشرة:\n• .صور ${query} get [1-5]\n• .صور ${query} all*`;
         return await sock.sendMessage(data.jid, { text: fallbackMenu }, { quoted: msg });
     }
 };
