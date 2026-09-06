@@ -1,3 +1,4 @@
+// plugins/add.js
 import fs from "fs";
 import path from "path";
 import { downloadMediaMessage } from '@whiskeysockets/baileys';
@@ -102,11 +103,11 @@ export default {
 ⚡ *طريقة الاستخدام:*
 > \`.اضف رقم_المجلد اسم_الملف\`
 
-📌 *مثال:*
-> \`.اضف 1 test\`
+📌 *مثال لحفظ ملف JSON داخل مجلد data:*
+> \`.اضف <رقم_مجلد_data> settings.json\`
 
 📂 *لإنشاء مجلد جديد:*
-> \`.اضف مجلد اسم_المجلد\`
+> \`.اضف مجلد اسم_الملف\`
 *◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*`;
 
                 return sock.sendMessage(chatId, {
@@ -166,6 +167,7 @@ export default {
             }
 
             const folderPath = path.join(process.cwd(), folders[index]);
+            const isDataFolder = folders[index].toLowerCase() === "data";
 
             // حفظ صورة
             if(quoted.imageMessage){
@@ -221,7 +223,7 @@ export default {
 
             }
 
-            // حفظ كود
+            // حفظ كود أو بيانات
             const code =
             quoted.conversation ||
             quoted.extendedTextMessage?.text ||
@@ -234,19 +236,44 @@ export default {
                 });
             }
 
-            let saveName =
-            fileName.endsWith('.js')
-            ? fileName
-            : fileName + '.js';
+            let saveName;
+            let finalContent = code;
+
+            // إذا كان المجلد المستهدف هو data، نتحقق ونضمن حفظه بصيغة وصلاحية JSON سليمة
+            if (isDataFolder) {
+                if (fileName.endsWith('.json')) {
+                    saveName = fileName;
+                } else if (fileName.endsWith('.js')) {
+                    saveName = fileName.replace(/\.js$/, '.json');
+                } else {
+                    saveName = fileName + '.json';
+                }
+
+                // محاولة تنسيق النص وضبطه ككائن JSON سليم وصحيح تلقائياً إن أمكن
+                try {
+                    const parsed = JSON.parse(code);
+                    finalContent = JSON.stringify(parsed, null, 2);
+                } catch {
+                    // إذا كان النص المنسوخ عبارة عن متغير JS أو يحتوي على أسطر غير كائن JSON بحت، نتحقق أو نحفظه كما هو كملف نصي بيانات
+                    finalContent = code;
+                }
+            } else {
+                // للمجلدات العادية (باقي المجلدات مثل plugins وغيرها)
+                if (fileName.endsWith('.json') || fileName.endsWith('.js')) {
+                    saveName = fileName;
+                } else {
+                    saveName = fileName + '.js';
+                }
+            }
 
             fs.writeFileSync(
                 path.join(folderPath, saveName),
-                code,
+                finalContent,
                 'utf8'
             );
 
             await sock.sendMessage(chatId, {
-                text: `*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*\n📄 *تم حفظ ملف الكود بنجاح!*\n📂 *المجلد:* \`${folders[index]}\`\n📑 *الملف:* \`${saveName}\`\n*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*`,
+                text: `*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*\n📄 *تم حفظ الملف بنجاح!*\n📂 *المجلد:* \`${folders[index]}\`\n📑 *الملف:* \`${saveName}\`\n*◇❐ ═━━━╾ 🩸 ╼━━━═ ❐◇*`,
                 quoted: msg
             });
 
