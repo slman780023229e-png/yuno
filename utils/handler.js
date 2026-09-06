@@ -19,7 +19,7 @@ const eliteFile = path.join(dataDir, "النخبة.json");
 // ═══════════════════════════════════════════════════════
 
 const GROUP_CACHE_TIME = 30_000;
-const FILE_CHECK_TIME = 30_000;
+const FILE_CHECK_TIME = 1_000; // تم تقليل وقت الفحص ليكون استجابة فورية
 
 const MESSAGE_CACHE_TIME = 30_000;
 const MAX_PROCESSED_MESSAGES = 5000;
@@ -654,7 +654,7 @@ async function refreshElite(force = false) {
 }
 
 // ═══════════════════════════════════════════════════════
-// ⚡ BACKGROUND REFRESH
+// ⚡ BACKGROUND REFRESH (مُحدث لاستجابة فورية)
 // ═══════════════════════════════════════════════════════
 
 function scheduleFileRefresh() {
@@ -674,12 +674,13 @@ function scheduleFileRefresh() {
 }
 
 function getModeFast() {
-    scheduleFileRefresh();
+    // تحديث فوري بدون تأخير ۳۰ ثانية لضمان قراءة التغيير فور حدوثه
+    void refreshMode().catch(() => {});
     return modeCache;
 }
 
 function getEliteFast() {
-    scheduleFileRefresh();
+    void refreshElite().catch(() => {});
     return eliteCache;
 }
 
@@ -826,7 +827,7 @@ export function clearGroupMetadataCache(
 }
 
 // ═══════════════════════════════════════════════════════
-// 🚀 LIVE PLUGIN LOADER (متوافق مع main.js تماماً)
+// 🚀 LIVE PLUGIN LOADER
 // ═══════════════════════════════════════════════════════
 
 export async function getLoadedPlugins(sock) {
@@ -847,9 +848,7 @@ export async function getLoadedPlugins(sock) {
     }
 }
 
-export function clearPluginsCache(sock = null) {
-    // دالة توافقية فارغة
-}
+export function clearPluginsCache(sock = null) {}
 
 // ═══════════════════════════════════════════════════════
 // 🛡️ MESSAGE DEDUPLICATION
@@ -1236,7 +1235,7 @@ export function handleMessages(
 }
 
 // ═══════════════════════════════════════════════════════
-// ⚡ MAIN EXECUTION (محمي بالكامل لمنع فصل البوت)
+// ⚡ MAIN EXECUTION
 // ═══════════════════════════════════════════════════════
 
 async function executeHandlerLogic(
@@ -1611,7 +1610,6 @@ async function executeHandlerLogic(
             }`
         );
 
-        // 🛡️ حماية صارمة لتنفيذ الأمر بحيث لا يؤدي أي خطأ فيه إلى فصل جلسة البوت نهائياً
         try {
             await cmd.execute(
                 sock,
