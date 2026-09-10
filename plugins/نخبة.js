@@ -1,324 +1,273 @@
 import fs from "fs";
 import path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const eliteFile = path.join(
-    process.cwd(),
-    "data/النخبة.json"
+    __dirname,
+    "../data/النخبة.json"
 );
 
-function getElite(){
+function getElite() {
+    try {
+        const dataDir = path.dirname(eliteFile);
+        if (!fs.existsSync(dataDir)) {
+            fs.mkdirSync(dataDir, { recursive: true });
+        }
 
-    if(!fs.existsSync(eliteFile)){
+        if (!fs.existsSync(eliteFile)) {
+            fs.writeFileSync(
+                eliteFile,
+                JSON.stringify([], null, 2),
+                "utf-8"
+            );
+        }
+
+        const content = fs.readFileSync(eliteFile, "utf-8");
+        const parsed = JSON.parse(content || "[]");
+        return Array.isArray(parsed) ? parsed : [];
+    } catch {
+        return [];
+    }
+}
+
+function saveElite(data) {
+    try {
+        const dataDir = path.dirname(eliteFile);
+        if (!fs.existsSync(dataDir)) {
+            fs.mkdirSync(dataDir, { recursive: true });
+        }
 
         fs.writeFileSync(
             eliteFile,
-            JSON.stringify([], null, 2)
-        );
-
-    }
-
-    return JSON.parse(
-        fs.readFileSync(
-            eliteFile,
+            JSON.stringify(
+                data,
+                null,
+                2
+            ),
             "utf-8"
-        )
-    );
-
+        );
+    } catch {}
 }
 
-function saveElite(data){
-
-    fs.writeFileSync(
-        eliteFile,
-        JSON.stringify(
-            data,
-            null,
-            2
-        )
-    );
-
-}
+const checkElitePermission = (msg, data) => {
+    try {
+        const senderJid = msg.key?.participant || data?.sender || msg.key?.remoteJid || "";
+        const senderNumber = senderJid.replace(/[^0-9]/g, "");
+        const eliteUsers = getElite();
+        
+        return eliteUsers.some(n => String(n).replace(/[^0-9]/g, "") === senderNumber);
+    } catch (e) {
+        return false;
+    }
+};
 
 export default {
 
-    command: "نخبه",
+    command: "نخبة",
 
-    category: "النخبه",
+    category: "النخبة",
 
-    description: "إضافة أو إزالة أعضاء النخبه 👑",
+    description: "إضافة أو إزالة أعضاء النخبة 👑",
 
-    execute: async(sock,msg,data)=>{
+    execute: async (sock, msg, data) => {
+        const jid = data?.jid || msg.key?.remoteJid;
 
-        const jid = data.jid;
+        const head = `*◇❐ ═━━━╾ 👑 ╼━━━═ ❐◇*\n*👑 نظام النخبة المطور*\n*◇❐ ═━━━╾ 👑 ╼━━━═ ❐◇*`;
 
+        const isElite = checkElitePermission(msg, data);
 
-        const head =
-`*╭━━━〔 👑 𝐄𝐋𝐈𝐓𝐄 〕━━━╮*
-*┃ 👑 نظام النخبه*
-*╰━━━━━━━━━━━━━━━━━━╯*`;
-
-
-// صلاحية النخبه فقط
-
-        const eliteUsers = getElite();
-
-        const senderNumber =
-        data.sender.split("@")[0];
-
-
-        if(!eliteUsers.includes(senderNumber)){
-
-            return sock.sendMessage(
+        if (!isElite) {
+            return await sock.sendMessage(
                 jid,
                 {
                     text:
 `${head}
 
-*┃ ❌ ليس لديك صلاحية*
-*┃ 👑 الأمر خاص بأعضاء النخبه فقط*
-*╰━━━━━━━━━━━━━━━━━━╯*`
+❌ *ليس لديك صلاحية*
+👑 *الأمر خاص بأعضاء النخبة فقط*
+*◇❐ ═━━━╾ 👑 ╼━━━═ ❐◇*`,
+                    quoted: msg
                 }
             );
-
         }
 
+        const input = data?.text ? data.text.trim() : "";
+        const args = input.replace(/^\.نخبة/, "").trim().split(/\s+/);
+        const action = args[0] ? args[0].toLowerCase() : "";
 
-
-        const args =
-        data.text.trim().split(/\s+/);
-
-
-        const action =
-        args[1];
-
-
-        // عرض النخبه
-
-        if(action === "عرض"){
-
+        if (action === "عرض") {
             const elite = getElite();
 
-
-            if(elite.length === 0){
-
-                return sock.sendMessage(
+            if (elite.length === 0) {
+                return await sock.sendMessage(
                     jid,
                     {
                         text:
 `${head}
 
-*┃ 📭 لا يوجد أعضاء نخبه*
-*┃ 👥 العدد : 0*`
+📭 *لا يوجد أعضاء نخبة حالياً*
+👥 *العدد : 0*
+*◇❐ ═━━━╾ 👑 ╼━━━═ ❐◇*`,
+                        quoted: msg
                     }
                 );
-
             }
 
-
-            let list =
-            elite.map(
-                (n,i)=>
-`*┃ ${i+1} 👑 @${n}┃*`
+            let list = elite.map(
+                (n, i) => `*${i + 1}-* 👑 @${n}`
             ).join("\n");
 
-
-            return sock.sendMessage(
+            return await sock.sendMessage(
                 jid,
                 {
                     text:
 `${head}
 
-*┃ 📜 قائمة النخبه*
-*┣━━━━━━━━━━━━━━━━━━┃*
-${list}                          ┃*
-*┣━━━━━━━━━━━━━━━━━━┃*
-*┃ 👥 العدد : ${elite.length}    ┃*
-*╰━━━━━━━━━━━━━━━━━━╯*`,
+📜 *قائمة أعضاء النخبة:*
 
-                    mentions:
-                    elite.map(
-                        n=>n+"@s.whatsapp.net"
-                    )
+${list}
+
+*◇❐ ═━━━╾ 👑 ╼━━━═ ❐◇*
+👥 *العدد الإجمالي : ${elite.length}*
+*◇❐ ═━━━╾ 👑 ╼━━━═ ❐◇*`,
+
+                    mentions: elite.map(
+                        n => n.includes("@") ? n : n + "@s.whatsapp.net"
+                    ),
+                    quoted: msg
                 }
             );
-
         }
 
-
-
-        if(
+        if (
             action !== "اضف" &&
             action !== "ازل"
-        ){
-
-            return sock.sendMessage(
+        ) {
+            return await sock.sendMessage(
                 jid,
                 {
                     text:
 `${head}
 
-*┃ ⚜️ الأوامر*
-*┃*
-*┃ 👑 .نخبه اضف @العضو*
-*┃ 👑 .نخبه ازل @العضو*
-*┃ 👑 .نخبه عرض*
-*┃*
-*┃ 📖 الوصف :*
-*┃ إضافة عضو إلى النخبه أو إزالته*`
+⚜️ *أوامر النخبة المتاحة:*
+
+👑 \`.نخبة اضف @العضو\`
+👑 \`.نخبة ازل @العضو\`
+👑 \`.نخبة عرض\`
+
+📖 *الوصف:* إدارة أعضاء النخبة بكل سهولة عبر المنشن أو الرد.
+*◇❐ ═━━━╾ 👑 ╼━━━═ ❐◇*`,
+                    quoted: msg
                 }
             );
-
         }
-        // تحديد العضو من المنشن أو الرد
 
         const context =
-        msg.message
-        ?.extendedTextMessage
-        ?.contextInfo;
-
+            msg.message
+            ?.extendedTextMessage
+            ?.contextInfo;
 
         let target;
 
-
-        if(context?.mentionedJid?.length){
-
-            target =
-            context.mentionedJid[0];
-
-        }
-        else if(context?.participant){
-
-            target =
-            context.participant;
-
+        if (context?.mentionedJid?.length) {
+            target = context.mentionedJid[0];
+        } else if (context?.participant) {
+            target = context.participant;
         }
 
-
-        if(!target){
-
-            return sock.sendMessage(
+        if (!target) {
+            return await sock.sendMessage(
                 jid,
                 {
                     text:
 `${head}
 
-*┃ ❌ يجب منشن العضو*
-*┃ أو الرد على رسالته*
-*╰━━━━━━━━━━━━━━━━━━╯*`
+❌ *يجب منشن العضو أو الرد على رسالته لتنفيذ الإجراء!*
+*◇❐ ═━━━╾ 👑 ╼━━━═ ❐◇*`,
+                    quoted: msg
                 }
             );
-
         }
 
+        const number = target.replace(/[^0-9]/g, "");
+        let elite = getElite();
 
-        const number =
-        target.split("@")[0];
-
-
-        let elite =
-        getElite();
-
-
-
-        // إضافة عضو
-
-        if(action === "اضف"){
-
-
-            if(elite.includes(number)){
-
-                return sock.sendMessage(
+        if (action === "اضف") {
+            if (elite.includes(number)) {
+                return await sock.sendMessage(
                     jid,
                     {
                         text:
 `${head}
 
-*┃ ⚠️ العضو موجود بالفعل*
-*┃ 👤 @${number}*`,
-                        mentions:[target]
+⚠️ *العضو موجود بالفعل في قائمة النخبة*
+👤 @${number}
+*◇❐ ═━━━╾ 👑 ╼━━━═ ❐◇*`,
+                        mentions: [target],
+                        quoted: msg
                     }
                 );
-
             }
-
 
             elite.push(number);
-
             saveElite(elite);
 
-
-            return sock.sendMessage(
+            return await sock.sendMessage(
                 jid,
                 {
                     text:
 `${head}
 
-*┃ ✅ تمت الإضافة بنجاح*
-*┃*
-*┃ 👤 العضو : @${number}*
-*┃ 👑 الحالة : عضو نخبه*
-*┃ 👥 العدد : ${elite.length}*
-*╰━━━━━━━━━━━━━━━━━━╯*`,
-                    
-                    mentions:[target]
+✅ *تمت الإضافة بنجاح*
+
+👤 *العضو :* @${number}
+👑 *الحالة :* عضو نخبة معتمد
+👥 *العدد الحالي :* ${elite.length}
+*◇❐ ═━━━╾ 👑 ╼━━━═ ❐◇*`,
+                    mentions: [target],
+                    quoted: msg
                 }
             );
-
         }
 
-
-
-
-        // إزالة عضو
-
-        if(action === "ازل"){
-
-
-            if(!elite.includes(number)){
-
-                return sock.sendMessage(
+        if (action === "ازل") {
+            if (!elite.includes(number)) {
+                return await sock.sendMessage(
                     jid,
                     {
                         text:
 `${head}
 
-*┃ ⚠️ العضو غير موجود*
-*┃ 👤 @${number}*`,
-                        mentions:[target]
+⚠️ *العضو غير مسجل في قائمة النخبة أصلاً*
+👤 @${number}
+*◇❐ ═━━━╾ 👑 ╼━━━═ ❐◇*`,
+                        mentions: [target],
+                        quoted: msg
                     }
                 );
-
             }
 
-
-            elite =
-            elite.filter(
-                n=>n!==number
-            );
-
-
+            elite = elite.filter(n => String(n).replace(/[^0-9]/g, "") !== number);
             saveElite(elite);
 
-
-            return sock.sendMessage(
+            return await sock.sendMessage(
                 jid,
                 {
                     text:
 `${head}
 
-*┃ ❌ تمت الإزالة بنجاح*
-*┃*
-*┃ 👤 العضو : @${number}*
-*┃ 👥 العدد الحالي : ${elite.length}*
-*╰━━━━━━━━━━━━━━━━━━╯*`,
-                    
-                    mentions:[target]
+❌ *تمت الإزالة بنجاح*
+
+👤 *العضو :* @${number}
+👥 *العدد الحالي :* ${elite.length}
+*◇❐ ═━━━╾ 👑 ╼━━━═ ❐◇*`,
+                    mentions: [target],
+                    quoted: msg
                 }
             );
-
         }
-
-
     }
-
 };
