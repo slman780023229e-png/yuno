@@ -54,7 +54,7 @@ const __dirname = path.dirname(__filename)
 
 const sessionDir = path.join(
     __dirname,
-    'ملف_الاتصال'
+    'utils'
 )
 
 const dataDir = path.join(
