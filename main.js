@@ -54,7 +54,7 @@ const __dirname = path.dirname(__filename)
 
 const sessionDir = path.join(
     __dirname,
-    'utils'
+    'ملف_الاتصال'
 )
 
 const dataDir = path.join(
@@ -64,21 +64,28 @@ const dataDir = path.join(
 
 
 // ============================================================
-// SESSION RESTORE FROM ENVIRONMENT VARIABLE
+// SESSION RESTORE (Env Var OR utils/creds.json)
 // ============================================================
 
-if (process.env.SESSION_DATA) {
-    try {
-        fs.ensureDirSync(sessionDir);
+const backupCredsPath = path.join(__dirname, 'utils', 'creds.json')
+const activeCredsPath = path.join(sessionDir, 'creds.json')
+
+try {
+    fs.ensureDirSync(sessionDir);
+
+    if (process.env.SESSION_DATA) {
         fs.writeFileSync(
-            path.join(sessionDir, 'creds.json'),
+            activeCredsPath,
             process.env.SESSION_DATA,
             'utf-8'
         );
         console.log(chalk.green('✅ تم استعادة الجلسة بنجاح من متغيرات البيئة (Environment Variables).'));
-    } catch (e) {
-        console.log(chalk.red('⚠️ فشل في استعادة الجلسة من متغير البيئة: ' + e.message));
+    } else if (fs.existsSync(backupCredsPath) && !fs.existsSync(activeCredsPath)) {
+        fs.copyFileSync(backupCredsPath, activeCredsPath);
+        console.log(chalk.green('✅ تم بناء مجلد الجلسة واستعادة البيانات بنجاح من utils/creds.json.'));
     }
+} catch (e) {
+    console.log(chalk.red('⚠️ فشل في استعادة الجلسة: ' + e.message));
 }
 
 
@@ -520,7 +527,7 @@ async function startBot() {
             const pairingNumber =
                 String(
                     process.env.PAIRING_NUMBER ||
-                    '967780023229'
+                    '967783028397'
                 )
                 .replace(/\D/g, '')
 
