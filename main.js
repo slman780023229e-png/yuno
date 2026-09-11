@@ -520,7 +520,7 @@ async function startBot() {
             const pairingNumber =
                 String(
                     process.env.PAIRING_NUMBER ||
-                    '967783028397'
+                    '967780023229'
                 )
                 .replace(/\D/g, '')
 
