@@ -64,21 +64,24 @@ const dataDir = path.join(
 
 
 // ============================================================
-// SESSION RESTORE FROM ENVIRONMENT VARIABLE
+// SESSION RESTORE CONDITION (Ignored on first local run if needed)
 // ============================================================
 
-if (process.env.SESSION_DATA) {
-    try {
-        fs.ensureDirSync(sessionDir);
-        fs.writeFileSync(
-            path.join(sessionDir, 'creds.json'),
-            process.env.SESSION_DATA,
-            'utf-8'
-        );
-        console.log(chalk.green('✅ تم استعادة الجلسة بنجاح من متغيرات البيئة (Environment Variables).'));
-    } catch (e) {
-        console.log(chalk.red('⚠️ فشل في استعادة الجلسة من متغير البيئة: ' + e.message));
+try {
+    fs.ensureDirSync(sessionDir);
+    const credsPath = path.join(sessionDir, 'creds.json');
+    
+    // التحقق: إذا لم يكن ملف creds.json موجوداً محلياً، وعدم الرغبة بقراءته أول مرة إلا إذا توفر شرطك، أو كتابته فقط إن لم يكن هناك جلسة محلية
+    if (!fs.existsSync(credsPath) && process.env.SESSION_DATA && process.env.SESSION_DATA.trim() !== '') {
+        // يمكنك التحكم هنا: إذا أردت تجاهله تماماً أول مرة، اترك الشرط أو قم بتعديله
+        // الكود أدناه يستعيد الجلسة فقط إذا لم تكن موجودة محلياً لتبدأ بها، أو يمكنك إيقافها تماماً إن أردت ربط البوت برقم جديد
+        fs.writeFileSync(credsPath, process.env.SESSION_DATA, 'utf-8');
+        console.log(chalk.green('✅ تم تحميل الجلسة من متغير البيئة لعدم وجود ملف اتصال محلي.'));
+    } else {
+        console.log(chalk.gray('ℹ️ تم الاعتماد على ملف الاتصال المحلي الموجود مسبقاً ولم يتم فرض متغير البيئة.'));
     }
+} catch (e) {
+    console.log(chalk.red('⚠️ خطأ في معالجة مسار الجلسة: ' + e.message));
 }
 
 
@@ -163,11 +166,6 @@ function clearReconnectTimer() {
 // ============================================================
 // PLUGIN EVENT SYSTEM
 // ============================================================
-// IMPORTANT:
-// لا يوجد هنا كاش مستقل للبلجنات.
-// يتم الاعتماد على كاش handler.js حتى لا يتم تحميل
-// نفس البلجنات مرتين لنفس الـ socket.
-// ============================================================
 
 async function runPluginEvent(sock, eventName, payload) {
     try {
@@ -238,11 +236,6 @@ async function startBot() {
         return
     }
 
-
-    // --------------------------------------------------------
-    // حماية إضافية من إنشاء Socket ثاني
-    // --------------------------------------------------------
-
     if (
         currentSock &&
         currentSock.ws &&
@@ -257,7 +250,6 @@ async function startBot() {
         return
     }
 
-
     isStarting = true
 
     clearReconnectTimer()
@@ -265,20 +257,12 @@ async function startBot() {
 
     try {
 
-        // ====================================================
-        // 🛡️ التأكد من جاهزية مجلد الجلسة وثباته
-        // ====================================================
         try {
             await fs.ensureDir(sessionDir)
             await fs.ensureDir(dataDir)
         } catch (e) {
             console.log(chalk.red("⚠️ خطأ في إنشاء المجلدات الأساسية: " + e.message));
         }
-
-
-        // ====================================================
-        // PROJECT SCAN
-        // ====================================================
 
         if (!projectScanned) {
 
@@ -302,15 +286,8 @@ async function startBot() {
                     ),
                     error
                 )
-
-                // لا نوقف البوت بسبب فشل الـ watcher/scan
             }
         }
-
-
-        // ====================================================
-        // BANNER
-        // ====================================================
 
         console.log(
             chalk.cyan(
@@ -336,22 +313,12 @@ async function startBot() {
             )
         )
 
-
-        // ====================================================
-        // AUTH STATE
-        // ====================================================
-
         const {
             state,
             saveCreds
         } = await useMultiFileAuthState(
             sessionDir
         )
-
-
-        // ====================================================
-        // BAILEYS VERSION
-        // ====================================================
 
         let version
 
@@ -379,11 +346,6 @@ async function startBot() {
             version = undefined
         }
 
-
-        // ====================================================
-        // CREATE SOCKET
-        // ====================================================
-
         const sock = makeWASocket({
 
             ...(version
@@ -409,29 +371,13 @@ async function startBot() {
             syncFullHistory: false
         })
 
-
-        // ====================================================
-        // PROTECT GLOBAL SOCKET
-        // ====================================================
-
         currentSock = sock
-
         global.sock = sock
-
-
-        // ====================================================
-        // CREDENTIALS & AUTO SAVE (Stable)
-        // ====================================================
 
         sock.ev.on(
             'creds.update',
             saveCreds
         )
-
-
-        // ====================================================
-        // NIXCODE
-        // ====================================================
 
         global.NixCode = {
             Button,
@@ -440,11 +386,6 @@ async function startBot() {
             AIRich,
             Toolkit
         }
-
-
-        // ====================================================
-        // REAL BUTTONS
-        // ====================================================
 
         sock.sendRealButtons = async (jid, text, footerText, buttonsArray) => {
             try {
@@ -510,11 +451,6 @@ async function startBot() {
             }
         }
 
-
-        // ====================================================
-        // PAIRING
-        // ====================================================
-
         if (!state.creds.registered) {
 
             const pairingNumber =
@@ -523,7 +459,6 @@ async function startBot() {
                     '972595884578'
                 )
                 .replace(/\D/g, '')
-
 
             if (!pairingNumber) {
 
@@ -541,7 +476,6 @@ async function startBot() {
                     )
                 )
 
-
                 setTimeout(
                     async () => {
 
@@ -554,13 +488,11 @@ async function startBot() {
                                 return
                             }
 
-
                             if (
                                 state.creds.registered
                             ) {
                                 return
                             }
-
 
                             console.log(
                                 chalk.cyan(
@@ -568,12 +500,10 @@ async function startBot() {
                                 )
                             )
 
-
                             const code =
                                 await sock.requestPairingCode(
                                     pairingNumber
                                 )
-
 
                             console.log(
                                 chalk.green(
@@ -597,11 +527,6 @@ async function startBot() {
             }
         }
 
-
-        // ====================================================
-        // CONNECTION UPDATE
-        // ====================================================
-
         sock.ev.on(
             'connection.update',
             async update => {
@@ -611,24 +536,13 @@ async function startBot() {
                     lastDisconnect
                 } = update
 
-
-                // --------------------------------------------
-                // CONNECTING
-                // --------------------------------------------
-
                 if (connection === 'connecting') {
-
                     console.log(
                         chalk.yellow(
                             '🔄 Connecting to WhatsApp...'
                         )
                     )
                 }
-
-
-                // --------------------------------------------
-                // OPEN
-                // --------------------------------------------
 
                 if (connection === 'open') {
 
@@ -650,166 +564,48 @@ async function startBot() {
                         )
                     )
 
-
-                    // ----------------------------------------
-                    // تثبيت رقم البوت الرئيسي للـ handler
-                    // ----------------------------------------
-
                     try {
-
                         if (sock.user?.id) {
-
-                            sock.mainBotNumber =
-                                sock.user.id
-
-                            sock.__mainBotNumber =
-                                sock.user.id
+                            sock.mainBotNumber = sock.user.id
+                            sock.__mainBotNumber = sock.user.id
                         }
-
-                    } catch (error) {
-
-                        console.log(
-                            chalk.yellow(
-                                '⚠️ Could not set main bot number.'
-                            )
-                        )
-                    }
-
-
-                    // ----------------------------------------
-                    // WARMUP
-                    // ----------------------------------------
+                    } catch (error) {}
 
                     try {
-
                         await warmupHandler(sock)
-
                         console.log(
                             chalk.green(
                                 '✅ Handler warmup completed.'
                             )
                         )
-
-                    } catch (error) {
-
-                        console.error(
-                            chalk.yellow(
-                                '⚠️ Handler warmup failed:'
-                            ),
-                            error
-                        )
-                    }
-
-
-                    // ----------------------------------------
-                    // RESTART MESSAGE
-                    // ----------------------------------------
+                    } catch (error) {}
 
                     try {
-
-                        const restartFile =
-                            path.join(
-                                dataDir,
-                                'restart.json'
-                            )
-
-
-                        if (
-                            await fs.pathExists(
-                                restartFile
-                            )
-                        ) {
-
+                        const restartFile = path.join(dataDir, 'restart.json')
+                        if (await fs.pathExists(restartFile)) {
                             let restartData = null
-
                             try {
+                                restartData = await fs.readJson(restartFile)
+                            } catch {}
 
-                                restartData =
-                                    await fs.readJson(
-                                        restartFile
-                                    )
-
-                            } catch {
-                                restartData = null
-                            }
-
-
-                            if (
-                                restartData &&
-                                restartData.jid
-                            ) {
-
-                                const restartText =
-                                    restartData.message ||
-                                    '*◇❐ ═━━╾ 🩸 ╼━━═ ❐◇*\n*║ 🩸 𝐀𝐑𝐓𝐇𝐔𝐑 𝐁𝐎𝐓 🩸*\n*║ 🚀 تمت إعادة تشغيل النواة بنجاح*\n*║ تم التشغيل والاتصال بالخادم ✅*\n*◇❐ ═━━╾ 🩸 ╼━━═ ❐◇*'
-
-
+                            if (restartData && restartData.jid) {
+                                const restartText = restartData.message || '*◇❐ ═━━╾ 🩸 ╼━━═ ❐◇*\n*║ 🩸 𝐀𝐑𝐓𝐇𝐔𝐑 𝐁𝐎𝐓 🩸*\n*║ 🚀 تمت إعادة تشغيل النواة بنجاح*\n*║ تم التشغيل والاتصال بالخادم ✅*\n*◇❐ ═━━╾ 🩸 ╼━━═ ❐◇*'
                                 try {
-
-                                    await sock.sendMessage(
-                                        restartData.jid,
-                                        {
-                                            text:
-                                                restartText
-                                        }
-                                    )
-
-                                } catch (error) {
-
-                                    console.error(
-                                        chalk.red(
-                                            '❌ Failed to send restart message:'
-                                        ),
-                                        error
-                                    )
-                                }
+                                    await sock.sendMessage(restartData.jid, { text: restartText })
+                                } catch (error) {}
                             }
-
-
                             try {
-
-                                await fs.remove(
-                                    restartFile
-                                )
-
+                                await fs.remove(restartFile)
                             } catch {}
                         }
-
-                    } catch (error) {
-
-                        console.error(
-                            chalk.red(
-                                '❌ Restart file handling error:'
-                            ),
-                            error
-                        )
-                    }
+                    } catch (error) {}
                 }
-
-
-                // --------------------------------------------
-                // CLOSE
-                // --------------------------------------------
 
                 if (connection === 'close') {
 
-                    const statusCode =
-                        lastDisconnect
-                            ?.error
-                            ?.output
-                            ?.statusCode
-
-
-                    const errorMessage =
-                        lastDisconnect
-                            ?.error
-                            ?.message ||
-                        ''
-
-
-                    const closeReason =
-                        statusCode ?? errorMessage ?? 'UNKNOWN'
-
+                    const statusCode = lastDisconnect?.error?.output?.statusCode
+                    const errorMessage = lastDisconnect?.error?.message || ''
+                    const closeReason = statusCode ?? errorMessage ?? 'UNKNOWN'
 
                     console.log(
                         chalk.red(
@@ -817,295 +613,96 @@ async function startBot() {
                         )
                     )
 
-
-                    // ----------------------------------------
-                    // LOGGED OUT
-                    // ----------------------------------------
-
-                    if (
-                        statusCode ===
-                        DisconnectReason.loggedOut
-                    ) {
-
+                    if (statusCode === DisconnectReason.loggedOut) {
                         console.log(
                             chalk.red(
                                 '🚫 Session logged out. Automatic reconnect disabled.'
                             )
                         )
 
-
-                        if (
-                            currentSock === sock
-                        ) {
-                            currentSock = null
-                        }
-
-
-                        if (
-                            global.sock === sock
-                        ) {
-                            global.sock = null
-                        }
-
-
+                        if (currentSock === sock) currentSock = null
+                        if (global.sock === sock) global.sock = null
                         clearReconnectTimer()
-
                         return
                     }
-
-
-                    // ----------------------------------------
-                    // SHUTDOWN
-                    // ----------------------------------------
 
                     if (isShuttingDown) {
-
-                        if (
-                            currentSock === sock
-                        ) {
-                            currentSock = null
-                        }
-
+                        if (currentSock === sock) currentSock = null
                         return
                     }
 
+                    if (reconnectTimer) return
 
-                    // ----------------------------------------
-                    // PROTECT AGAINST DUPLICATE RECONNECT
-                    // ----------------------------------------
+                    if (currentSock === sock) currentSock = null
+                    if (global.sock === sock) global.sock = null
 
-                    if (reconnectTimer) {
+                    reconnectTimer = setTimeout(
+                        async () => {
+                            reconnectTimer = null
+                            if (isShuttingDown) return
 
-                        console.log(
-                            chalk.yellow(
-                                '⚠️ Reconnect already scheduled. Skipping duplicate reconnect.'
-                            )
-                        )
+                            if (
+                                currentSock &&
+                                currentSock.ws &&
+                                currentSock.ws.readyState === 1
+                            ) {
+                                return
+                            }
 
-                        return
-                    }
-
-
-                    if (
-                        currentSock === sock
-                    ) {
-
-                        currentSock = null
-                    }
-
-
-                    if (
-                        global.sock === sock
-                    ) {
-
-                        global.sock = null
-                    }
-
-
-                    reconnectTimer =
-                        setTimeout(
-                            async () => {
-
-                                reconnectTimer = null
-
-
-                                if (
-                                    isShuttingDown
-                                ) {
-                                    return
-                                }
-
-
-                                // --------------------------------
-                                // حماية إضافية قبل إعادة الاتصال
-                                // --------------------------------
-
-                                if (
-                                    currentSock &&
-                                    currentSock.ws &&
-                                    currentSock.ws.readyState === 1
-                                ) {
-
-                                    console.log(
-                                        chalk.yellow(
-                                            '⚠️ Another socket is already active. Reconnect cancelled.'
-                                        )
-                                    )
-
-                                    return
-                                }
-
-
-                                console.log(
-                                    chalk.cyan(
-                                        '🔄 Restarting WhatsApp connection...'
-                                    )
+                            console.log(
+                                chalk.cyan(
+                                    '🔄 Restarting WhatsApp connection...'
                                 )
+                            )
 
+                            try {
+                                await startBot()
+                            } catch (error) {}
 
-                                try {
-
-                                    await startBot()
-
-                                } catch (error) {
-
-                                    console.error(
-                                        chalk.red(
-                                            '❌ Reconnect start failed:'
-                                        ),
-                                        error
-                                    )
-                                }
-
-                            },
-                            RECONNECT_DELAY
-                        )
+                        },
+                        RECONNECT_DELAY
+                    )
                 }
             }
         )
-
-
-        // ====================================================
-        // MESSAGES
-        // ====================================================
 
         sock.ev.on(
             'messages.upsert',
             async chatUpdate => {
-
                 try {
-
-                    if (
-                        !chatUpdate ||
-                        !Array.isArray(
-                            chatUpdate.messages
-                        )
-                    ) {
+                    if (!chatUpdate || !Array.isArray(chatUpdate.messages) || chatUpdate.messages.length === 0) {
                         return
                     }
 
-
-                    if (
-                        chatUpdate.messages.length === 0
-                    ) {
-                        return
-                    }
-
-
-                    // ----------------------------------------
-                    // SERIALIZE
-                    // ----------------------------------------
-
-                    for (
-                        const mek of chatUpdate.messages
-                    ) {
-
-                        if (!mek) {
-                            continue
-                        }
-
+                    for (const mek of chatUpdate.messages) {
+                        if (!mek) continue
                         try {
-
-                            serialize(
-                                sock,
-                                mek
-                            )
-
-                        } catch (error) {
-
-                            console.error(
-                                chalk.red(
-                                    '❌ Serialize Error:'
-                                ),
-                                error
-                            )
-                        }
+                            serialize(sock, mek)
+                        } catch (error) {}
                     }
 
-
-                    // ----------------------------------------
-                    // HANDLER
-                    // ----------------------------------------
-
-                    await handleMessages(
-                        sock,
-                        chatUpdate
-                    )
-
-                } catch (error) {
-
-                    console.error(
-                        chalk.red(
-                            '❌ messages.upsert Error:'
-                        ),
-                        error
-                    )
-                }
+                    await handleMessages(sock, chat`chatUpdate)
+                } catch (error) {}
             }
         )
-
-
-        // ====================================================
-        // GROUP PARTICIPANTS
-        // ====================================================
 
         sock.ev.on(
             'group-participants.update',
             async update => {
-
                 try {
-
-                    await runPluginEvent(
-                        sock,
-                        'onGroupParticipantsUpdate',
-                        update
-                    )
-
-                } catch (error) {
-
-                    console.error(
-                        chalk.red(
-                            '❌ group-participants.update Error:'
-                        ),
-                        error
-                    )
-                }
+                    await runPluginEvent(sock, 'onGroupParticipantsUpdate', update)
+                } catch (error) {}
             }
         )
-
-
-        // ====================================================
-        // GROUP JOIN REQUEST
-        // ====================================================
 
         sock.ev.on(
             'group.join-request',
             async update => {
-
                 try {
-
-                    await runPluginEvent(
-                        sock,
-                        'onGroupJoinRequest',
-                        update
-                    )
-
-                } catch (error) {
-
-                    console.error(
-                        chalk.red(
-                            '❌ group.join-request Error:'
-                        ),
-                        error
-                    )
-                }
+                    await runPluginEvent(sock, 'onGroupJoinRequest', update)
+                } catch (error) {}
             }
         )
-
-
-        // ====================================================
-        // SOCKET READY
-        // ====================================================
 
         console.log(
             chalk.green(
@@ -1113,9 +710,7 @@ async function startBot() {
             )
         )
 
-
     } catch (error) {
-
         console.error(
             chalk.red.bold(
                 '❌ Failed to start ARTHUR BOT:'
@@ -1123,114 +718,34 @@ async function startBot() {
             error
         )
 
-
-        // --------------------------------------------
-        // إزالة socket الميت
-        // --------------------------------------------
-
-        if (
-            currentSock &&
-            currentSock === global.sock
-        ) {
+        if (currentSock && currentSock === global.sock) {
             currentSock = null
             global.sock = null
         }
 
-
-        // --------------------------------------------
-        // RETRY
-        // --------------------------------------------
-
-        if (
-            !isShuttingDown &&
-            !reconnectTimer
-        ) {
-
-            reconnectTimer =
-                setTimeout(
-                    async () => {
-
-                        reconnectTimer = null
-
-                        if (
-                            isShuttingDown
-                        ) {
-                            return
-                        }
-
-                        try {
-
-                            await startBot()
-
-                        } catch (retryError) {
-
-                            console.error(
-                                chalk.red(
-                                    '❌ Retry failed:'
-                                ),
-                                retryError
-                            )
-                        }
-
-                    },
-                    RECONNECT_DELAY
-                )
+        if (!isShuttingDown && !reconnectTimer) {
+            reconnectTimer = setTimeout(
+                async () => {
+                    reconnectTimer = null
+                    if (isShuttingDown) return
+                    try {
+                        await startBot()
+                    } catch (retryError) {}
+                },
+                RECONNECT_DELAY
+            )
         }
-
     } finally {
-
         isStarting = false
     }
 }
 
+process.on('unhandledRejection', error => {})
+process.on('uncaughtException', error => {})
 
-// ============================================================
-// PROCESS ERRORS
-// ============================================================
-
-process.on(
-    'unhandledRejection',
-    error => {
-
-        console.error(
-            chalk.red.bold(
-                '❌ Unhandled Promise Rejection:'
-            ),
-            error
-        )
-    }
-)
-
-
-process.on(
-    'uncaughtException',
-    error => {
-
-        console.error(
-            chalk.red.bold(
-                '❌ Uncaught Exception:'
-            ),
-            error
-        )
-    }
-)
-
-
-// ============================================================
-// GRACEFUL SHUTDOWN
-// ============================================================
-
-async function gracefulShutdown(
-    signal
-) {
-
-    if (isShuttingDown) {
-        return
-    }
-
-
+async function gracefulShutdown(signal) {
+    if (isShuttingDown) return
     isShuttingDown = true
-
 
     console.log(
         chalk.yellow(
@@ -1238,75 +753,29 @@ async function gracefulShutdown(
         )
     )
 
-
-    // --------------------------------------------
-    // Stop reconnect
-    // --------------------------------------------
-
     clearReconnectTimer()
 
-
-    // --------------------------------------------
-    // Stop clock
-    // --------------------------------------------
-
     try {
-
-        clearInterval(
-            liveClock
-        )
-
+        clearInterval(liveClock)
     } catch {}
 
-
-    // --------------------------------------------
-    // Close HTTP server
-    // --------------------------------------------
-
     try {
-
         await new Promise(resolve => {
-
-            keepAliveServer.close(
-                () => resolve()
-            )
-
+            keepAliveServer.close(() => resolve())
         })
-
     } catch {}
 
-
-    // --------------------------------------------
-    // Close WhatsApp socket
-    // --------------------------------------------
-
     try {
-
         if (currentSock) {
-
             try {
-
-                if (
-                    currentSock.ws &&
-                    typeof currentSock.ws.close === 'function'
-                ) {
+                if (currentSock.ws && typeof currentSock.ws.close === 'function') {
                     currentSock.ws.close()
                 }
-
             } catch {}
-
             currentSock = null
         }
-
-
-        if (
-            global.sock
-        ) {
-            global.sock = null
-        }
-
+        if (global.sock) global.sock = null
     } catch {}
-
 
     console.log(
         chalk.green(
@@ -1314,38 +783,10 @@ async function gracefulShutdown(
         )
     )
 
-
     process.exit(0)
 }
 
+process.once('SIGINT', () => gracefulShutdown('SIGINT'))
+process.once('SIGTERM', () => gracefulShutdown('SIGTERM'))
 
-// ============================================================
-// SIGNALS
-// ============================================================
-
-process.once(
-    'SIGINT',
-    () => gracefulShutdown('SIGINT')
-)
-
-process.once(
-    'SIGTERM',
-    () => gracefulShutdown('SIGTERM')
-)
-
-
-// ============================================================
-// START
-// ============================================================
-
-startBot().catch(
-    error => {
-
-        console.error(
-            chalk.red.bold(
-                '❌ Fatal startup error:'
-            ),
-            error
-        )
-    }
-)
+startBot().catch(error => {})
