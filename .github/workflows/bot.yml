@@ -1,0 +1,28 @@
+name: Run WhatsApp Bot
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '*/25 * * * *'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Install Dependencies
+      run: npm install
+
+    - name: Start Bot
+      env:
+        SESSION_DATA: ${{ secrets.SESSION_DATA }}
+      run: |
+        timeout 24m node start.js || true
