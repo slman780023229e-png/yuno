@@ -64,24 +64,48 @@ const dataDir = path.join(
 
 
 // ============================================================
-// SESSION RESTORE CONDITION (Ignored on first local run if needed)
+// SESSION RESTORE CONDITION
 // ============================================================
 
 try {
-    fs.ensureDirSync(sessionDir);
-    const credsPath = path.join(sessionDir, 'creds.json');
-    
-    // التحقق: إذا لم يكن ملف creds.json موجوداً محلياً، وعدم الرغبة بقراءته أول مرة إلا إذا توفر شرطك، أو كتابته فقط إن لم يكن هناك جلسة محلية
-    if (!fs.existsSync(credsPath) && process.env.SESSION_DATA && process.env.SESSION_DATA.trim() !== '') {
-        // يمكنك التحكم هنا: إذا أردت تجاهله تماماً أول مرة، اترك الشرط أو قم بتعديله
-        // الكود أدناه يستعيد الجلسة فقط إذا لم تكن موجودة محلياً لتبدأ بها، أو يمكنك إيقافها تماماً إن أردت ربط البوت برقم جديد
-        fs.writeFileSync(credsPath, process.env.SESSION_DATA, 'utf-8');
-        console.log(chalk.green('✅ تم تحميل الجلسة من متغير البيئة لعدم وجود ملف اتصال محلي.'));
+    fs.ensureDirSync(sessionDir)
+
+    const credsPath = path.join(
+        sessionDir,
+        'creds.json'
+    )
+
+    if (
+        !fs.existsSync(credsPath) &&
+        process.env.SESSION_DATA &&
+        process.env.SESSION_DATA.trim() !== ''
+    ) {
+        fs.writeFileSync(
+            credsPath,
+            process.env.SESSION_DATA,
+            'utf-8'
+        )
+
+        console.log(
+            chalk.green(
+                '✅ تم تحميل الجلسة من متغير البيئة لعدم وجود ملف اتصال محلي.'
+            )
+        )
     } else {
-        console.log(chalk.gray('ℹ️ تم الاعتماد على ملف الاتصال المحلي الموجود مسبقاً ولم يتم فرض متغير البيئة.'));
+        console.log(
+            chalk.gray(
+                'ℹ️ تم الاعتماد على ملف الاتصال المحلي الموجود مسبقاً ولم يتم فرض متغير البيئة.'
+            )
+        )
     }
+
 } catch (e) {
-    console.log(chalk.red('⚠️ خطأ في معالجة مسار الجلسة: ' + e.message));
+    console.log(
+        chalk.red(
+            '⚠️ خطأ في معالجة مسار الجلسة: ' +
+            e.message
+        )
+    )
 }
 
 
@@ -91,43 +115,63 @@ try {
 
 const PORT = process.env.PORT || 3000
 
-const keepAliveServer = http.createServer((req, res) => {
-    res.writeHead(200, {
-        'Content-Type': 'text/plain; charset=utf-8'
-    })
+const keepAliveServer = http.createServer(
+    (req, res) => {
 
-    res.end('ARTHUR BOT IS RUNNING 🟢\n')
-})
-
-keepAliveServer.listen(PORT, '0.0.0.0', () => {
-    console.log(
-        chalk.green(
-            `🌐 Keep-Alive Server Running On Port ${PORT}`
+        res.writeHead(
+            200,
+            {
+                'Content-Type':
+                    'text/plain; charset=utf-8'
+            }
         )
-    )
-})
+
+        res.end(
+            'ARTHUR BOT IS RUNNING 🟢\n'
+        )
+    }
+)
+
+keepAliveServer.listen(
+    PORT,
+    '0.0.0.0',
+    () => {
+
+        console.log(
+            chalk.green(
+                `🌐 Keep-Alive Server Running On Port ${PORT}`
+            )
+        )
+    }
+)
 
 
 // ============================================================
 // LIVE CLOCK
 // ============================================================
 
-const liveClock = setInterval(() => {
-    const now = new Date()
+const liveClock = setInterval(
+    () => {
 
-    const time = now.toLocaleTimeString(
-        'en-US',
-        {
-            hour12: false
-        }
-    )
+        const now = new Date()
 
-    console.log(
-        chalk.gray(
-            `🕒 ARTHUR BOT | ${time}`
+        const time =
+            now.toLocaleTimeString(
+                'en-US',
+                {
+                    hour12: false
+                }
+            )
+
+        console.log(
+            chalk.gray(
+                `🕒 ARTHUR BOT | ${time}`
+            )
         )
-    )
-}, 60000)
+
+    },
+    60000
+)
 
 
 // ============================================================
@@ -156,8 +200,13 @@ const RECONNECT_DELAY = 3000
 // ============================================================
 
 function clearReconnectTimer() {
+
     if (reconnectTimer) {
-        clearTimeout(reconnectTimer)
+
+        clearTimeout(
+            reconnectTimer
+        )
+
         reconnectTimer = null
     }
 }
@@ -167,29 +216,44 @@ function clearReconnectTimer() {
 // PLUGIN EVENT SYSTEM
 // ============================================================
 
-async function runPluginEvent(sock, eventName, payload) {
+async function runPluginEvent(
+    sock,
+    eventName,
+    payload
+) {
+
     try {
-        const plugins = await getLoadedPlugins(sock)
+
+        const plugins =
+            await getLoadedPlugins(sock)
 
         if (!Array.isArray(plugins)) {
             return
         }
 
         for (const plugin of plugins) {
+
             if (!plugin) continue
 
-            const eventHandler = plugin[eventName]
+            const eventHandler =
+                plugin[eventName]
 
-            if (typeof eventHandler !== 'function') {
+            if (
+                typeof eventHandler !==
+                'function'
+            ) {
                 continue
             }
 
             try {
+
                 await eventHandler(
                     sock,
                     payload
                 )
+
             } catch (error) {
+
                 console.error(
                     chalk.red(
                         `❌ Plugin Event Error [${eventName}]`
@@ -200,6 +264,7 @@ async function runPluginEvent(sock, eventName, payload) {
         }
 
     } catch (error) {
+
         console.error(
             chalk.red(
                 `❌ Failed To Run Plugin Event [${eventName}]`
@@ -217,6 +282,7 @@ async function runPluginEvent(sock, eventName, payload) {
 async function startBot() {
 
     if (isStarting) {
+
         console.log(
             chalk.yellow(
                 '⚠️ Bot is already starting. Skipping duplicate start.'
@@ -227,6 +293,7 @@ async function startBot() {
     }
 
     if (isShuttingDown) {
+
         console.log(
             chalk.yellow(
                 '⚠️ Shutdown is in progress. Start cancelled.'
@@ -241,6 +308,7 @@ async function startBot() {
         currentSock.ws &&
         currentSock.ws.readyState === 1
     ) {
+
         console.log(
             chalk.yellow(
                 '⚠️ Existing socket is already connected. Skipping duplicate socket.'
@@ -258,11 +326,25 @@ async function startBot() {
     try {
 
         try {
-            await fs.ensureDir(sessionDir)
-            await fs.ensureDir(dataDir)
+
+            await fs.ensureDir(
+                sessionDir
+            )
+
+            await fs.ensureDir(
+                dataDir
+            )
+
         } catch (e) {
-            console.log(chalk.red("⚠️ خطأ في إنشاء المجلدات الأساسية: " + e.message));
+
+            console.log(
+                chalk.red(
+                    '⚠️ خطأ في إنشاء المجلدات الأساسية: ' +
+                    e.message
+                )
+            )
         }
+
 
         if (!projectScanned) {
 
@@ -289,6 +371,7 @@ async function startBot() {
             }
         }
 
+
         console.log(
             chalk.cyan(
                 '\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'
@@ -313,12 +396,15 @@ async function startBot() {
             )
         )
 
+
         const {
             state,
             saveCreds
-        } = await useMultiFileAuthState(
-            sessionDir
-        )
+        } =
+            await useMultiFileAuthState(
+                sessionDir
+            )
+
 
         let version
 
@@ -327,7 +413,8 @@ async function startBot() {
             const latestVersion =
                 await fetchLatestBaileysVersion()
 
-            version = latestVersion.version
+            version =
+                latestVersion.version
 
             console.log(
                 chalk.gray(
@@ -346,40 +433,48 @@ async function startBot() {
             version = undefined
         }
 
-        const sock = makeWASocket({
 
-            ...(version
-                ? { version }
-                : {}),
+        const sock =
+            makeWASocket({
 
-            auth: state,
+                ...(version
+                    ? { version }
+                    : {}),
 
-            logger: pino({
-                level: 'silent'
-            }),
+                auth: state,
 
-            browser: [
-                'Mac OS',
-                'Chrome',
-                '1.0.0'
-            ],
+                logger: pino({
+                    level: 'silent'
+                }),
 
-            markOnlineOnConnect: true,
+                browser: [
+                    'Mac OS',
+                    'Chrome',
+                    '1.0.0'
+                ],
 
-            generateHighQualityLinkPreview: true,
+                markOnlineOnConnect: true,
 
-            syncFullHistory: false
-        })
+                generateHighQualityLinkPreview:
+                    true,
+
+                syncFullHistory: false
+            })
+
 
         currentSock = sock
+
         global.sock = sock
+
 
         sock.ev.on(
             'creds.update',
             saveCreds
         )
 
+
         global.NixCode = {
+
             Button,
             ButtonV2,
             Carousel,
@@ -387,71 +482,217 @@ async function startBot() {
             Toolkit
         }
 
-        sock.sendRealButtons = async (jid, text, footerText, buttonsArray) => {
-            try {
-                const btn = new Button(sock);
-                btn.setBody(text);
-                if (footerText) btn.setFooter(footerText);
 
-                for (const b of buttonsArray) {
-                    const displayText = b.displayText || b.text || "زر";
-                    const id = b.id || b.command || "click";
-                    const type = b.name || "quick_reply";
+        sock.sendRealButtons =
+            async (
+                jid,
+                text,
+                footerText,
+                buttonsArray
+            ) => {
 
-                    if (type === "quick_reply") {
-                        btn.addReply(displayText, id);
-                    } else if (type === "cta_url") {
-                        btn.addUrl(displayText, b.url || "");
-                    } else if (type === "cta_call") {
-                        btn.addCall(displayText, id);
-                    } else {
-                        btn.addButton(type, { display_text: displayText, id });
+                try {
+
+                    const btn =
+                        new Button(sock)
+
+                    btn.setBody(text)
+
+                    if (footerText) {
+                        btn.setFooter(
+                            footerText
+                        )
                     }
-                }
 
-                return await btn.send(jid);
-            } catch (e) {
-                const messageContent = generateWAMessageFromContent(jid, {
-                    interactiveMessage: proto.Message.InteractiveMessage.create({
-                        body: proto.Message.InteractiveMessage.Body.create({ text: text }),
-                        footer: proto.Message.InteractiveMessage.Footer.create({ text: footerText || "Arthur Bot Framework" }),
-                        nativeFlowMessage: proto.Message.InteractiveMessage.NativeFlowMessage.create({
-                            buttons: buttonsArray.map(btn => ({
-                                name: btn.name || "quick_reply",
-                                buttonParamsJson: JSON.stringify({
-                                    display_text: btn.displayText || btn.text,
-                                    id: btn.id || btn.command
-                                })
-                            }))
-                        })
-                    })
-                }, { userJid: sock.user.id });
+                    for (
+                        const b
+                        of buttonsArray
+                    ) {
 
-                return await sock.relayMessage(jid, messageContent.message, {
-                    messageId: messageContent.key.id,
-                    additionalNodes: [
-                        {
-                            tag: "biz",
-                            attrs: {},
-                            content: [
+                        const displayText =
+                            b.displayText ||
+                            b.text ||
+                            "زر"
+
+                        const id =
+                            b.id ||
+                            b.command ||
+                            "click"
+
+                        const type =
+                            b.name ||
+                            "quick_reply"
+
+
+                        if (
+                            type ===
+                            "quick_reply"
+                        ) {
+
+                            btn.addReply(
+                                displayText,
+                                id
+                            )
+
+                        } else if (
+                            type ===
+                            "cta_url"
+                        ) {
+
+                            btn.addUrl(
+                                displayText,
+                                b.url || ""
+                            )
+
+                        } else if (
+                            type ===
+                            "cta_call"
+                        ) {
+
+                            btn.addCall(
+                                displayText,
+                                id
+                            )
+
+                        } else {
+
+                            btn.addButton(
+                                type,
                                 {
-                                    tag: "interactive",
-                                    attrs: { type: "native_flow", v: "1" },
+                                    display_text:
+                                        displayText,
+                                    id
+                                }
+                            )
+                        }
+                    }
+
+                    return await btn.send(
+                        jid
+                    )
+
+                } catch (e) {
+
+                    const messageContent =
+                        generateWAMessageFromContent(
+                            jid,
+                            {
+                                interactiveMessage:
+                                    proto.Message
+                                        .InteractiveMessage
+                                        .create({
+
+                                            body:
+                                                proto.Message
+                                                    .InteractiveMessage
+                                                    .Body
+                                                    .create({
+                                                        text
+                                                    }),
+
+                                            footer:
+                                                proto.Message
+                                                    .InteractiveMessage
+                                                    .Footer
+                                                    .create({
+                                                        text:
+                                                            footerText ||
+                                                            "Arthur Bot Framework"
+                                                    }),
+
+                                            nativeFlowMessage:
+                                                proto.Message
+                                                    .InteractiveMessage
+                                                    .NativeFlowMessage
+                                                    .create({
+
+                                                        buttons:
+                                                            buttonsArray.map(
+                                                                btn => ({
+
+                                                                    name:
+                                                                        btn.name ||
+                                                                        "quick_reply",
+
+                                                                    buttonParamsJson:
+                                                                        JSON.stringify({
+
+                                                                            display_text:
+                                                                                btn.displayText ||
+                                                                                btn.text,
+
+                                                                            id:
+                                                                                btn.id ||
+                                                                                btn.command
+
+                                                                        })
+                                                                })
+                                                            )
+                                                    })
+                                        })
+                            },
+                            {
+                                userJid:
+                                    sock.user.id
+                            }
+                        )
+
+
+                    return await sock.relayMessage(
+                        jid,
+                        messageContent.message,
+                        {
+
+                            messageId:
+                                messageContent.key.id,
+
+                            additionalNodes: [
+
+                                {
+                                    tag:
+                                        "biz",
+
+                                    attrs: {},
+
                                     content: [
+
                                         {
-                                            tag: "native_flow",
-                                            attrs: { name: "quick_reply" }
+                                            tag:
+                                                "interactive",
+
+                                            attrs: {
+                                                type:
+                                                    "native_flow",
+
+                                                v:
+                                                    "1"
+                                            },
+
+                                            content: [
+
+                                                {
+                                                    tag:
+                                                        "native_flow",
+
+                                                    attrs: {
+                                                        name:
+                                                            "quick_reply"
+                                                    }
+                                                }
+                                            ]
                                         }
                                     ]
                                 }
                             ]
                         }
-                    ]
-                });
+                    )
+                }
             }
-        }
 
-        if (!state.creds.registered) {
+
+        if (
+            !state.creds.registered
+        ) {
 
             const pairingNumber =
                 String(
@@ -459,6 +700,7 @@ async function startBot() {
                     '972595884578'
                 )
                 .replace(/\D/g, '')
+
 
             if (!pairingNumber) {
 
@@ -475,6 +717,7 @@ async function startBot() {
                         `📱 Pairing Number: ${pairingNumber}`
                     )
                 )
+
 
                 setTimeout(
                     async () => {
@@ -500,10 +743,12 @@ async function startBot() {
                                 )
                             )
 
+
                             const code =
                                 await sock.requestPairingCode(
                                     pairingNumber
                                 )
+
 
                             console.log(
                                 chalk.green(
@@ -527,6 +772,7 @@ async function startBot() {
             }
         }
 
+
         sock.ev.on(
             'connection.update',
             async update => {
@@ -536,7 +782,12 @@ async function startBot() {
                     lastDisconnect
                 } = update
 
-                if (connection === 'connecting') {
+
+                if (
+                    connection ===
+                    'connecting'
+                ) {
+
                     console.log(
                         chalk.yellow(
                             '🔄 Connecting to WhatsApp...'
@@ -544,7 +795,11 @@ async function startBot() {
                     )
                 }
 
-                if (connection === 'open') {
+
+                if (
+                    connection ===
+                    'open'
+                ) {
 
                     console.log(
                         chalk.green.bold(
@@ -564,48 +819,127 @@ async function startBot() {
                         )
                     )
 
-                    try {
-                        if (sock.user?.id) {
-                            sock.mainBotNumber = sock.user.id
-                            sock.__mainBotNumber = sock.user.id
-                        }
-                    } catch (error) {}
 
                     try {
-                        await warmupHandler(sock)
+
+                        if (sock.user?.id) {
+
+                            sock.mainBotNumber =
+                                sock.user.id
+
+                            sock.__mainBotNumber =
+                                sock.user.id
+                        }
+
+                    } catch (error) {}
+
+
+                    try {
+
+                        await warmupHandler(
+                            sock
+                        )
+
                         console.log(
                             chalk.green(
                                 '✅ Handler warmup completed.'
                             )
                         )
+
                     } catch (error) {}
 
+
                     try {
-                        const restartFile = path.join(dataDir, 'restart.json')
-                        if (await fs.pathExists(restartFile)) {
-                            let restartData = null
+
+                        const restartFile =
+                            path.join(
+                                dataDir,
+                                'restart.json'
+                            )
+
+
+                        if (
+                            await fs.pathExists(
+                                restartFile
+                            )
+                        ) {
+
+                            let restartData =
+                                null
+
                             try {
-                                restartData = await fs.readJson(restartFile)
+
+                                restartData =
+                                    await fs.readJson(
+                                        restartFile
+                                    )
+
                             } catch {}
 
-                            if (restartData && restartData.jid) {
-                                const restartText = restartData.message || '*◇❐ ═━━╾ 🩸 ╼━━═ ❐◇*\n*║ 🩸 𝐀𝐑𝐓𝐇𝐔𝐑 𝐁𝐎𝐓 🩸*\n*║ 🚀 تمت إعادة تشغيل النواة بنجاح*\n*║ تم التشغيل والاتصال بالخادم ✅*\n*◇❐ ═━━╾ 🩸 ╼━━═ ❐◇*'
+
+                            if (
+                                restartData &&
+                                restartData.jid
+                            ) {
+
+                                const restartText =
+                                    restartData.message ||
+                                    '*◇❐ ═━━╾ 🩸 ╼━━═ ❐◇*\n' +
+                                    '*║ 🩸 𝐀𝐑𝐓𝐇𝐔𝐑 𝐁𝐎𝐓 🩸*\n' +
+                                    '*║ 🚀 تمت إعادة تشغيل النواة بنجاح*\n' +
+                                    '*║ تم التشغيل والاتصال بالخادم ✅*\n' +
+                                    '*◇❐ ═━━╾ 🩸 ╼━━═ ❐◇*'
+
+
                                 try {
-                                    await sock.sendMessage(restartData.jid, { text: restartText })
+
+                                    await sock.sendMessage(
+                                        restartData.jid,
+                                        {
+                                            text:
+                                                restartText
+                                        }
+                                    )
+
                                 } catch (error) {}
                             }
+
+
                             try {
-                                await fs.remove(restartFile)
+
+                                await fs.remove(
+                                    restartFile
+                                )
+
                             } catch {}
                         }
+
                     } catch (error) {}
                 }
 
-                if (connection === 'close') {
 
-                    const statusCode = lastDisconnect?.error?.output?.statusCode
-                    const errorMessage = lastDisconnect?.error?.message || ''
-                    const closeReason = statusCode ?? errorMessage ?? 'UNKNOWN'
+                if (
+                    connection ===
+                    'close'
+                ) {
+
+                    const statusCode =
+                        lastDisconnect
+                            ?.error
+                            ?.output
+                            ?.statusCode
+
+                    const errorMessage =
+                        lastDisconnect
+                            ?.error
+                            ?.message ||
+                        ''
+
+                    const closeReason =
+                        statusCode ??
+                        errorMessage ??
+                        'UNKNOWN'
+
 
                     console.log(
                         chalk.red(
@@ -613,96 +947,209 @@ async function startBot() {
                         )
                     )
 
-                    if (statusCode === DisconnectReason.loggedOut) {
+
+                    if (
+                        statusCode ===
+                        DisconnectReason.loggedOut
+                    ) {
+
                         console.log(
                             chalk.red(
                                 '🚫 Session logged out. Automatic reconnect disabled.'
                             )
                         )
 
-                        if (currentSock === sock) currentSock = null
-                        if (global.sock === sock) global.sock = null
+
+                        if (
+                            currentSock === sock
+                        ) {
+                            currentSock = null
+                        }
+
+
+                        if (
+                            global.sock === sock
+                        ) {
+                            global.sock = null
+                        }
+
+
                         clearReconnectTimer()
+
                         return
                     }
 
-                    if (isShuttingDown) {
-                        if (currentSock === sock) currentSock = null
+
+                    if (
+                        isShuttingDown
+                    ) {
+
+                        if (
+                            currentSock === sock
+                        ) {
+                            currentSock = null
+                        }
+
                         return
                     }
 
-                    if (reconnectTimer) return
 
-                    if (currentSock === sock) currentSock = null
-                    if (global.sock === sock) global.sock = null
+                    if (
+                        reconnectTimer
+                    ) {
+                        return
+                    }
 
-                    reconnectTimer = setTimeout(
-                        async () => {
-                            reconnectTimer = null
-                            if (isShuttingDown) return
 
-                            if (
-                                currentSock &&
-                                currentSock.ws &&
-                                currentSock.ws.readyState === 1
-                            ) {
-                                return
-                            }
+                    if (
+                        currentSock === sock
+                    ) {
+                        currentSock = null
+                    }
 
-                            console.log(
-                                chalk.cyan(
-                                    '🔄 Restarting WhatsApp connection...'
+
+                    if (
+                        global.sock === sock
+                    ) {
+                        global.sock = null
+                    }
+
+
+                    reconnectTimer =
+                        setTimeout(
+                            async () => {
+
+                                reconnectTimer =
+                                    null
+
+                                if (
+                                    isShuttingDown
+                                ) {
+                                    return
+                                }
+
+
+                                if (
+                                    currentSock &&
+                                    currentSock.ws &&
+                                    currentSock.ws.readyState === 1
+                                ) {
+                                    return
+                                }
+
+
+                                console.log(
+                                    chalk.cyan(
+                                        '🔄 Restarting WhatsApp connection...'
+                                    )
                                 )
-                            )
 
-                            try {
-                                await startBot()
-                            } catch (error) {}
 
-                        },
-                        RECONNECT_DELAY
-                    )
+                                try {
+
+                                    await startBot()
+
+                                } catch (error) {}
+
+                            },
+                            RECONNECT_DELAY
+                        )
                 }
             }
         )
 
+
+        // ========================================================
+        // MESSAGES
+        // ========================================================
+
         sock.ev.on(
             'messages.upsert',
             async chatUpdate => {
+
                 try {
-                    if (!chatUpdate || !Array.isArray(chatUpdate.messages) || chatUpdate.messages.length === 0) {
+
+                    if (
+                        !chatUpdate ||
+                        !Array.isArray(
+                            chatUpdate.messages
+                        ) ||
+                        chatUpdate.messages.length === 0
+                    ) {
                         return
                     }
 
-                    for (const mek of chatUpdate.messages) {
+
+                    for (
+                        const mek
+                        of chatUpdate.messages
+                    ) {
+
                         if (!mek) continue
+
                         try {
-                            serialize(sock, mek)
+
+                            serialize(
+                                sock,
+                                mek
+                            )
+
                         } catch (error) {}
                     }
 
-                    await handleMessages(sock, chat`chatUpdate)
+
+                    // تم إصلاح الخطأ هنا
+                    await handleMessages(
+                        sock,
+                        chatUpdate
+                    )
+
                 } catch (error) {}
             }
         )
+
+
+        // ========================================================
+        // GROUP PARTICIPANTS
+        // ========================================================
 
         sock.ev.on(
             'group-participants.update',
             async update => {
+
                 try {
-                    await runPluginEvent(sock, 'onGroupParticipantsUpdate', update)
+
+                    await runPluginEvent(
+                        sock,
+                        'onGroupParticipantsUpdate',
+                        update
+                    )
+
                 } catch (error) {}
             }
         )
 
+
+        // ========================================================
+        // GROUP JOIN REQUEST
+        // ========================================================
+
         sock.ev.on(
             'group.join-request',
             async update => {
+
                 try {
-                    await runPluginEvent(sock, 'onGroupJoinRequest', update)
+
+                    await runPluginEvent(
+                        sock,
+                        'onGroupJoinRequest',
+                        update
+                    )
+
                 } catch (error) {}
             }
         )
+
 
         console.log(
             chalk.green(
@@ -710,7 +1157,9 @@ async function startBot() {
             )
         )
 
+
     } catch (error) {
+
         console.error(
             chalk.red.bold(
                 '❌ Failed to start ARTHUR BOT:'
@@ -718,34 +1167,85 @@ async function startBot() {
             error
         )
 
-        if (currentSock && currentSock === global.sock) {
+
+        if (
+            currentSock &&
+            currentSock === global.sock
+        ) {
+
             currentSock = null
             global.sock = null
         }
 
-        if (!isShuttingDown && !reconnectTimer) {
-            reconnectTimer = setTimeout(
-                async () => {
-                    reconnectTimer = null
-                    if (isShuttingDown) return
-                    try {
-                        await startBot()
-                    } catch (retryError) {}
-                },
-                RECONNECT_DELAY
-            )
+
+        if (
+            !isShuttingDown &&
+            !reconnectTimer
+        ) {
+
+            reconnectTimer =
+                setTimeout(
+                    async () => {
+
+                        reconnectTimer =
+                            null
+
+                        if (
+                            isShuttingDown
+                        ) {
+                            return
+                        }
+
+
+                        try {
+
+                            await startBot()
+
+                        } catch (
+                            retryError
+                        ) {}
+
+                    },
+                    RECONNECT_DELAY
+                )
         }
+
     } finally {
+
         isStarting = false
     }
 }
 
-process.on('unhandledRejection', error => {})
-process.on('uncaughtException', error => {})
 
-async function gracefulShutdown(signal) {
-    if (isShuttingDown) return
+// ============================================================
+// ERROR HANDLERS
+// ============================================================
+
+process.on(
+    'unhandledRejection',
+    error => {}
+)
+
+process.on(
+    'uncaughtException',
+    error => {}
+)
+
+
+// ============================================================
+// GRACEFUL SHUTDOWN
+// ============================================================
+
+async function gracefulShutdown(
+    signal
+) {
+
+    if (isShuttingDown) {
+        return
+    }
+
     isShuttingDown = true
+
 
     console.log(
         chalk.yellow(
@@ -753,29 +1253,61 @@ async function gracefulShutdown(signal) {
         )
     )
 
+
     clearReconnectTimer()
 
-    try {
-        clearInterval(liveClock)
-    } catch {}
 
     try {
-        await new Promise(resolve => {
-            keepAliveServer.close(() => resolve())
-        })
+
+        clearInterval(
+            liveClock
+        )
+
     } catch {}
 
+
     try {
+
+        await new Promise(
+            resolve => {
+
+                keepAliveServer.close(
+                    () => resolve()
+                )
+            }
+        )
+
+    } catch {}
+
+
+    try {
+
         if (currentSock) {
+
             try {
-                if (currentSock.ws && typeof currentSock.ws.close === 'function') {
+
+                if (
+                    currentSock.ws &&
+                    typeof currentSock.ws.close ===
+                    'function'
+                ) {
+
                     currentSock.ws.close()
                 }
+
             } catch {}
+
+
             currentSock = null
         }
-        if (global.sock) global.sock = null
+
+
+        if (global.sock) {
+            global.sock = null
+        }
+
     } catch {}
+
 
     console.log(
         chalk.green(
@@ -783,10 +1315,32 @@ async function gracefulShutdown(signal) {
         )
     )
 
+
     process.exit(0)
 }
 
-process.once('SIGINT', () => gracefulShutdown('SIGINT'))
-process.once('SIGTERM', () => gracefulShutdown('SIGTERM'))
 
-startBot().catch(error => {})
+// ============================================================
+// PROCESS SIGNALS
+// ============================================================
+
+process.once(
+    'SIGINT',
+    () =>
+        gracefulShutdown('SIGINT')
+)
+
+process.once(
+    'SIGTERM',
+    () =>
+        gracefulShutdown('SIGTERM')
+)
+
+
+// ============================================================
+// START
+// ============================================================
+
+startBot().catch(
+    error => {}
+)
