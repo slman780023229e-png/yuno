@@ -2,16 +2,15 @@ name: ARTHUR BOT Runner
 
 on:
   workflow_dispatch:
-
   schedule:
-    - cron: '17 */6 * * *'
+    - cron: '17 */2 * * *'
 
 permissions:
   contents: write
   actions: write
 
 concurrency:
-  group: arthur-whatsapp-bot-${{ github.ref }}
+  group: arthur-whatsapp-bot
   cancel-in-progress: false
 
 jobs:
@@ -27,7 +26,13 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Restore WhatsApp Session
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Restore Latest WhatsApp Session
+        id: restore-session
         uses: actions/cache/restore@v4
         with:
           path: ملف_الاتصال/
@@ -35,14 +40,8 @@ jobs:
           restore-keys: |
             arthur-session-${{ github.ref_name }}-
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
       - name: Install Dependencies
         run: npm install
-        timeout-minutes: 10
 
       - name: Run Bot with Automatic Repository Saving
         env:
@@ -86,7 +85,7 @@ jobs:
 
             if [ "$(git rev-list --count "origin/${GITHUB_REF_NAME}..HEAD")" -gt 0 ]; then
               if ! git push origin "HEAD:${GITHUB_REF_NAME}"; then
-                echo "Push failed; trying to synchronize with GitHub..."
+                echo "Push failed; synchronizing with GitHub..."
 
                 git fetch origin \
                   "+refs/heads/${GITHUB_REF_NAME}:refs/remotes/origin/${GITHUB_REF_NAME}" || return 1
@@ -106,11 +105,6 @@ jobs:
               echo "No new commits to push."
             fi
           }
-
-          if [ ! -f start.js ]; then
-            echo "ERROR: start.js was not found in the repository root."
-            exit 1
-          fi
 
           node start.js &
           BOT_PID=$!
